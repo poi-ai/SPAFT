@@ -2,8 +2,9 @@ import requests
 
 class Wallet():
     '''余力・保証金情報に関するAPI'''
-    def __init__(self, api_headers):
+    def __init__(self, api_headers, api_url):
         self.api_headers = api_headers
+        self.api_url = api_url
 
     def cash(self):
         '''
@@ -16,7 +17,7 @@ class Wallet():
                 AuJbnStockAccountWallet(float): auじぶん銀行残高
 
         '''
-        url = f'http://localhost:18080/kabusapi/wallet/cash/'
+        url = f'{self.api_url}/kabusapi/wallet/cash/'
 
         try:
             response = requests.get(url, headers = self.api_headers)
@@ -46,7 +47,7 @@ class Wallet():
                 ConsignmentDepositRate(float): 委託保証金率 ※銘柄指定時のみ
                 CashOfConsignmentDepositRate(float): 現金委託保証金率 ※銘柄指定時のみ
         '''
-        url = f'http://localhost:18080/kabusapi/wallet/margin/'
+        url = f'{self.api_url}/wallet/margin/'
 
         if stock_code != None and market_code != None:
             url += f'{stock_code}@{market_code}'

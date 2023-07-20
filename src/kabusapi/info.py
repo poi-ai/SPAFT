@@ -2,8 +2,9 @@ import requests
 
 class Info():
     '''市場の情報を取得するAPI'''
-    def __init__(self, api_headers):
+    def __init__(self, api_headers, api_url):
         self.api_headers = api_headers
+        self.api_url = api_url
 
     def board(self, stock_code, market_code, add_info = True):
         '''
@@ -111,7 +112,7 @@ class Info():
                     171: TOPIX CORE30、901: 日経平均225ミニ先物、907: TOPIXミニ先物
             ※取得失敗時はFalseを返す
         '''
-        url = f'http://localhost:18080/board/{stock_code}@{market_code}'
+        url = f'{self.api_url}/board/{stock_code}@{market_code}'
 
         if not add_info: url += '?add_info=false'
 
@@ -179,7 +180,7 @@ class Info():
                 ClearingPrice(float): 清算値 ※先物のみ
             ※取得失敗時はFalseを返す
         '''
-        url = f'http://localhost:18080/symbol/{stock_code}@{market_code}'
+        url = f'{self.api_url}/symbol/{stock_code}@{market_code}'
 
         if not add_info: url += '?add_info=false'
 
@@ -217,9 +218,56 @@ class Info():
                 2: 新規、3: 返済
 
         Returns:
-            TODO
+            response.content (list[dict{},dict{},...])
+                ID(string): 注文番号
+                State(int): 状態 ※Order Stateと同値
+                OrderState(int): 注文状態 ※Stateと同値
+                🔸
+                OrdType(int): 執行条件
+                🔸
+                RecvTime(string): 受注日時
+                Symbol(string): 証券コード
+                SymbolName(string): 銘柄名
+                Exchange(int): 市場コード
+                🔸
+                ExchangeName(string): 市場名称
+                TimeInForce(int): 有効期間条件 ※オプションのみ
+                🔸
+                Price(float): 注文価格
+                OrderQty(float): 失効分を除く発注数量
+                CumQty(float): 約定数量
+                Side(string): 売買区分
+                🔸
+                CashMargin(int): 取引区分
+                🔸
+                AccountType(int): 口座種別
+                🔸
+                DelivType(int): 受渡区分
+                🔸
+                ExpireDay(int、yyyyMMdd): 注文有効期限
+                MarginTradeType(int): 信用取引区分 ※信用のみ
+                🔸
+                MarginPremium(float): 発注分含むプレミアム料 ※信用買はNone、信用売の手数料なしは0を返す
+                Details(list[dict{}, dict{},...] or dict{}): 注文詳細
+                SeqNum(int): 注文シーケンス番号
+                ID(string): 注文詳細番号
+                RecType(int): 明細種別
+                🔸
+                ExchangeID(int): 取引所番号
+                State(int): 状態
+                🔸
+                TransactTime(string): 処理時刻
+                OrdType(int): 執行条件
+                🔸
+                Price (float): 注文価格
+                Qty(number): 数量
+                ExecutionID(string): 約定番号
+                ExecutionDay(string): 約定日時
+                DelivDay(int): 受渡日
+                Commission(float): 手数料
+                CommissionTax(float): 手数料消費税
         '''
-        url = f'http://localhost:18080/orders/'
+        url = f'{self.api_url}/orders/'
 
         filter_list = []
         if product: filter_list.append('product={product}')

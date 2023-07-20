@@ -2,8 +2,9 @@ import requests
 
 class Regist():
     '''PUSH配信に関連するAPI'''
-    def __init__(self, api_headers):
+    def __init__(self, api_headers, api_url):
         self.api_headers = api_headers
+        self.api_url = api_url
 
     def regist(self):
         '''PUSH配信する銘柄を登録する'''
