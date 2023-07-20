@@ -327,5 +327,30 @@ class Info():
         pass
 
     def premium_price(self):
-        '''指定した銘柄のプレミアム(空売り追加)手数料を取得する'''
+        '''
+        指定した銘柄のプレミアム(空売り追加)手数料を取得する
+
+        Args:
+            symbol(string): 証券コード
+
+        Returns:
+            response.content(dict):
+                Symbol(string): 証券コード
+                GeneralMargin(dict): 一般信用(長期)のデータ
+                MarginPremiumType(int): プレミアム料区分
+                🔸
+                MarginPremium(float): プレミアム料
+                UpperMarginPremium(float): 上限プレミアム料
+                LowerMarginPremium(float): 下限プレミアム料
+                TickMarginPremium(float): プレミアム料刻値
+                DayTrade(dict): 一般信用(デイトレ)のデータ
+                MarginPremiumType(int): プレミアム料区分
+                🔸
+                MarginPremium(float): プレミアム料
+                UpperMarginPremium(float): 上限プレミアム料
+                LowerMarginPremium(float): 下限プレミアム料
+                TickMarginPremium(float): プレミアム料刻値
+        
+        '''
         pass
+        #http://localhost:18080/kabusapi/margin/marginpremium/{symbol}
