@@ -222,50 +222,53 @@ class Info():
                 ID(string): 注文番号
                 State(int): 状態 ※Order Stateと同値
                 OrderState(int): 注文状態 ※Stateと同値
-                🔸
+                    1: 待機（発注待機）、2: 処理中（発注送信中）、3: 処理済（発注済・訂正済）、
+                    4: 訂正取消送信中、5: 終了（発注エラー・取消済・全約定・失効・期限切れ）
                 OrdType(int): 執行条件
-                🔸
+                    1: ザラバ、2: 寄り、3: 引け、4: 不成、5: 対当指値、6: IOC
                 RecvTime(string): 受注日時
                 Symbol(string): 証券コード
                 SymbolName(string): 銘柄名
                 Exchange(int): 市場コード
-                🔸
+                    1: 東証、3: 名証、5: 福証、6: 札証、9: SOR、2: 日通し、23: 日中、24: 夜間
                 ExchangeName(string): 市場名称
                 TimeInForce(int): 有効期間条件 ※オプションのみ
-                🔸
+                    1: FAS、2: FAK、3: FOK、
                 Price(float): 注文価格
                 OrderQty(float): 失効分を除く発注数量
                 CumQty(float): 約定数量
                 Side(string): 売買区分
-                🔸
+                    1: 売、2: 買
                 CashMargin(int): 取引区分
-                🔸
+                    2: 新規、3: 返済
                 AccountType(int): 口座種別
-                🔸
+                    2: 一般、4: 特定、12: 法人
                 DelivType(int): 受渡区分
-                🔸
+                    1: 自動振替、2: お預り金、3: auマネーコネクト
                 ExpireDay(int、yyyyMMdd): 注文有効期限
                 MarginTradeType(int): 信用取引区分 ※信用のみ
-                🔸
+                    1: 制度信用、2: 一般信用（長期）、3: 一般信用（デイトレ）
                 MarginPremium(float): 発注分含むプレミアム料 ※信用買はNone、信用売の手数料なしは0を返す
                 Details(list[dict{}, dict{},...] or dict{}): 注文詳細
-                SeqNum(int): 注文シーケンス番号
-                ID(string): 注文詳細番号
-                RecType(int): 明細種別
-                🔸
-                ExchangeID(int): 取引所番号
-                State(int): 状態
-                🔸
-                TransactTime(string): 処理時刻
-                OrdType(int): 執行条件
-                🔸
-                Price (float): 注文価格
-                Qty(number): 数量
-                ExecutionID(string): 約定番号
-                ExecutionDay(string): 約定日時
-                DelivDay(int): 受渡日
-                Commission(float): 手数料
-                CommissionTax(float): 手数料消費税
+                    SeqNum(int): 注文シーケンス番号
+                    ID(string): 注文詳細番号
+                    RecType(int): 明細種別
+                        1: 受付、2: 繰越、3: 期限切れ、4: 発注、5: 訂正、6: 取消、7: 失効、8: 約定
+                    ExchangeID(int): 取引所番号
+                    State(int): 状態
+                        1: 待機（発注待機）、2: 処理中（発注送信中・訂正送信中・取消送信中）、
+                        3: 処理済（発注済・訂正済・取消済・全約定・期限切れ）、4: エラー、5: 削除済み
+                    TransactTime(string): 処理時刻
+                    OrdType(int): 執行条件
+                        Null: 注文取消の場合、0: 注文期限切れ、失効、約定 の場合、1: ザラバ、2: 寄り、
+                        3: 引け、4: 不成、5: 対当指値、6: IOC
+                    Price (float): 注文価格
+                    Qty(number): 数量
+                    ExecutionID(string): 約定番号
+                    ExecutionDay(string): 約定日時
+                    DelivDay(int): 受渡日
+                    Commission(float): 手数料
+                    CommissionTax(float): 手数料消費税
         '''
         url = f'{self.api_url}/orders/'
 
@@ -323,34 +326,69 @@ class Info():
         pass
 
     def soft_limit(self):
-        '''kabuステーション®APIの一注文上限額を取得する'''
-        pass
-
-    def premium_price(self):
         '''
-        指定した銘柄のプレミアム(空売り追加)手数料を取得する
-
-        Args:
-            symbol(string): 証券コード
+        kabuステーションで利用者が設定した一注文上限額を取得する
 
         Returns:
-            response.content(dict):
+            response.content(dict): 設定した一注文(ワンショット)上限額
+                Stock(float): 現物のワンショット上限金額
+                Margin(float): 信用のワンショット上限金額
+                Future(float): 先物のワンショット上限金額
+                FutureMini(float): 先物ミニのワンショット上限金額
+                Option(float): オプションのワンショット上限金額
+                KabuSVersion(string): kabuステーションのバージョン
+        '''
+        url = f'{self.api_url}/apisoftlimit'
+
+        try:
+            response = requests.get(url, headers = self.api_headers)
+        except Exception as e:
+            pass # TODO ここにエラー処理
+            return False
+
+        if response.status_code != 200:
+            pass # TODO ここにエラー処理
+            return False
+
+        return response.content
+
+    def premium_price(self, stock_code):
+        '''
+        指定した銘柄のプレミアム(空売り)手数料を取得する
+
+        Args:
+            stock_code(int or string): 証券コード
+
+        Returns:
+            response.content(dict): 指定した銘柄のプレミアム(空売り)手数料データ
                 Symbol(string): 証券コード
                 GeneralMargin(dict): 一般信用(長期)のデータ
-                MarginPremiumType(int): プレミアム料区分
-                🔸
-                MarginPremium(float): プレミアム料
-                UpperMarginPremium(float): 上限プレミアム料
-                LowerMarginPremium(float): 下限プレミアム料
-                TickMarginPremium(float): プレミアム料刻値
+                    MarginPremiumType(int): プレミアム料区分
+                        Null: 空売り非対応銘柄、0: プレミアム料がない銘柄、
+                        1: プレミアム料が固定の銘柄、2: プレミアム料が入札で決定する銘柄
+                    MarginPremium(float): プレミアム料
+                    UpperMarginPremium(float): 上限プレミアム料
+                    LowerMarginPremium(float): 下限プレミアム料
+                    TickMarginPremium(float): プレミアム料刻値
                 DayTrade(dict): 一般信用(デイトレ)のデータ
-                MarginPremiumType(int): プレミアム料区分
-                🔸
-                MarginPremium(float): プレミアム料
-                UpperMarginPremium(float): 上限プレミアム料
-                LowerMarginPremium(float): 下限プレミアム料
-                TickMarginPremium(float): プレミアム料刻値
-        
+                    MarginPremiumType(int): プレミアム料区分
+                        Null: 空売り非対応銘柄、0: プレミアム料がない銘柄、
+                        1: プレミアム料が固定の銘柄、2: プレミアム料が入札で決定する銘柄
+                    MarginPremium(float): プレミアム料
+                    UpperMarginPremium(float): 上限プレミアム料
+                    LowerMarginPremium(float): 下限プレミアム料
+                    TickMarginPremium(float): プレミアム料刻値
         '''
-        pass
-        #http://localhost:18080/kabusapi/margin/marginpremium/{symbol}
+        url = f'{self.api_url}/margin/marginpremium/{stock_code}'
+
+        try:
+            response = requests.get(url, headers = self.api_headers)
+        except Exception as e:
+            pass # TODO ここにエラー処理
+            return False
+
+        if response.status_code != 200:
+            pass # TODO ここにエラー処理
+            return False
+
+        return response.content
