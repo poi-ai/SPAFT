@@ -17,7 +17,7 @@ class Wallet():
                 AuJbnStockAccountWallet(float): auじぶん銀行残高
 
         '''
-        url = f'{self.api_url}/kabusapi/wallet/cash/'
+        url = f'{self.api_url}/wallet/cash/'
 
         try:
             response = requests.get(url, headers = self.api_headers)

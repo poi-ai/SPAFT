@@ -42,31 +42,31 @@ class Info():
                     22: ダイナミックサーキットブレーク解除、23: 板寄せ約定
                 CalcPrice(float): 計算用現在値(?TODO)
                 PreviousClose(float): 前日終値
-                PreviousCloseTime(string): 前日終値日付
+                PreviousCloseTime(str): 前日終値日付
                 ChangePreviousClose(float): 前日比株価
                 ChangePreviousClosePer(float): 騰落率
                 OpeningPrice(float): 始値
-                OpeningPriceTime(string): 始値時刻
+                OpeningPriceTime(str): 始値時刻
                 HighPrice(float): 高値
-                HighPriceTime(string): 高値時刻
+                HighPriceTime(str): 高値時刻
                 LowPrice(float): 安値
-                LowPriceTime(string): 安値時刻
+                LowPriceTime(str): 安値時刻
                 TradingVolume(float): 売買高 (1約定？1営業日？ TODO)
-                TradingVolumeTime(string): 売買高時刻 (直近約定時間? TODO)
+                TradingVolumeTime(str): 売買高時刻 (直近約定時間? TODO)
                 VWAP(double): 売買高加重平均価格(VWAP)
                 TradingValue(double): 売買代金
                 BidQty(float): 最良売気配数量
                 BidPrice(float): 最良売気配値段
-                BidTime(string): 最良売気配時刻 ※株式のみ
-                BidSign(string): 最良売気配フラグ
+                BidTime(str): 最良売気配時刻 ※株式のみ
+                BidSign(str): 最良売気配フラグ
                     0000: 事象なし、0101: 一般気配、0102: 特別気配、0103: 注意気配、0107: 寄前気配、
                     0108: 停止前特別気配、0109: 引け後気配、0116: 寄前気配約定成立ポイントなし、
                     0117: 寄前気配約定成立ポイントあり、0118: 連続約定気配、0119: 停止前の連続約定気配、
                     0120: 買い上がり売り下がり中
                 MarketOrderSellQty(float): 売成行数量 ※株式のみ
                 Sell1(object): 売気配データ
-                    Time(string): 時刻 TODO
-                    Sign(string): 気配フラグ
+                    Time(str): 時刻 TODO
+                    Sign(str): 気配フラグ
                         0000: 事象なし、0101: 一般気配、0102: 特別気配、0103: 注意気配、0107: 寄前気配、
                         0108: 停止前特別気配、0109: 引け後気配、0116: 寄前気配約定成立ポイントなし、
                         0117: 寄前気配約定成立ポイントあり、0118: 連続約定気配、0119: 停止前の連続約定気配、
@@ -78,16 +78,16 @@ class Info():
                     Qty(double): 数量
                 AskQty(float): 最良買気配数量
                 AskPrice(float): 最良買気配値段
-                AskTime(string): 最良買気配時刻 ※株式のみ
-                AskSign(string): 最良買気配フラグ
+                AskTime(str): 最良買気配時刻 ※株式のみ
+                AskSign(str): 最良買気配フラグ
                     0000: 事象なし、0101: 一般気配、0102: 特別気配、0103: 注意気配、0107: 寄前気配、
                     0108: 停止前特別気配、0109: 引け後気配、0116: 寄前気配約定成立ポイントなし、
                     0117: 寄前気配約定成立ポイントあり、0118: 連続約定気配、0119: 停止前の連続約定気配、
                     0120: 買い上がり売り下がり中
                 MarketOrderBuyQty(float): 買成行数量 ※株式のみ
                 Buy1(object): 買気配データ
-                    Time(string): 時刻 TODO
-                    Sign(string): 気配フラグ TODO
+                    Time(str): 時刻 TODO
+                    Sign(str): 気配フラグ TODO
                         0000: 事象なし、0101: 一般気配、0102: 特別気配、0103: 注意気配、0107: 寄前気配、
                         0108: 停止前特別気配、0109: 引け後気配、0116: 寄前気配約定成立ポイントなし、
                         0117: 寄前気配約定成立ポイントあり、0118: 連続約定気配、0119: 停止前の連続約定気配、
@@ -141,12 +141,12 @@ class Info():
 
         Returns:
             response_content: 指定した銘柄の情報
-                Symbol(string): 証券コード
-                SymbolName(string): 銘柄名
-                DisplayName(string): 銘柄略称
+                Symbol(str): 証券コード
+                SymbolName(str): 銘柄名
+                DisplayName(str): 銘柄略称
                 Exchange(int): 市場コード
                     1: 東証、3: 名証、5: 福証、6: 札証、2: 日通し、23: 日中、24: 夜間
-                BisCategory(string): 業種コード
+                BisCategory(str): 業種コード
                     0050: 水産・農林業、1050: 鉱業、2050: 建設業、3050: 食料品、3100: 繊維製品、3150: パルプ・紙、
                     3200: 化学、3250: 医薬品、3300: 石油・石炭製品、3350: ゴム製品、3400: ガラス・土石製品、
                     450: 鉄鋼、3500: 非鉄金属、3550: 金属製品、3600: 機械、3650: 電気機器、3700: 輸送用機器、
@@ -157,7 +157,7 @@ class Info():
                 TotalStocks(float): 発行済み株式数(千株) ※株式のみ
                 TradingUnit(float): 売買単位
                 FiscalYearEndBasic(int): 決算期日
-                PriceRangeGroup(string): 呼値(=1pips)グループ
+                PriceRangeGroup(str): 呼値(=1pips)グループ
                     10000: 株式(TOPIX100採用銘柄以外)、10003: 株式(TOPIX100採用銘柄)、10118: 日経平均先物、
                     10119: 日経225mini10318: 日経平均オプション、10706: ﾐﾆTOPIX先物、10718: TOPIX先物、
                     12122: JPX日経400指数先物、14473: NYダウ先物、14515: 日経平均VI先物、15411: 東証マザーズ指数先物、
@@ -168,10 +168,10 @@ class Info():
                 MarginSell(bool): 制度信用売建可能フラグ ※株式のみ
                 UpperLimit(float): 値幅上限
                 LowerLimit(float): 値幅下限
-                Underlyer(string): 原資産コード ※先物・オプションのみ
+                Underlyer(str): 原資産コード ※先物・オプションのみ
                     NK225: 日経225、NK300: 日経300、MOTHERS: 東証マザーズ、JPX400: JPX日経400、TOPIX: TOPIX、
                     NKVI: 日経平均VI、DJIA: NYダウ、TSEREITINDEX: 東証REIT指数、TOPIXCORE30: TOPIX Core30
-                DerivMonth(string): 限月-年月 ※先物・オプションのみ
+                DerivMonth(str): 限月-年月 ※先物・オプションのみ
                 TradeStart(int): 取引開始日 ※先物・オプションのみ
                 TradeEnd(int): 取引終了日 ※先物・オプションのみ
                 StrikePrice(double): 権利行使価格 ※オプションのみ
@@ -202,42 +202,42 @@ class Info():
         指定した注文番号の約定状況を取得する
         引数指定なしで全ての状況を取得、引数指定で絞り込み可
         Args:
-            product(string): 商品区分
+            product(str): 商品区分
                 0: すべて、1: 現物、2: 信用、3: 先物、4: オプション
-            id(string): 注文番号
+            id(str): 注文番号
             uptime(string、yyyyMMddHHss): 更新日時 この日時以降の注文を取得
-            details(string): 注文詳細取得
+            details(str): 注文詳細取得
                 True: 取得する、False: 取得しない
-            symbol(string): 銘柄コード
-            state(string): 取引状態
+            symbol(str): 銘柄コード
+            state(str): 取引状態
                 1: 待機（発注待機）、2: 処理中（発注送信中）、3: 処理済（発注済・訂正済）
                 4: 訂正・取消送信中、5: 終了（発注エラー・取消済・全約定・失効・期限切れ）
-            side(string): 売買区分
+            side(str): 売買区分
                 1: 売、2: 買
-            cashmargin(string): 取引区分
+            cashmargin(str): 取引区分
                 2: 新規、3: 返済
 
         Returns:
             response.content (list[dict{},dict{},...])
-                ID(string): 注文番号
+                ID(str): 注文番号
                 State(int): 状態 ※Order Stateと同値
                 OrderState(int): 注文状態 ※Stateと同値
                     1: 待機（発注待機）、2: 処理中（発注送信中）、3: 処理済（発注済・訂正済）、
                     4: 訂正取消送信中、5: 終了（発注エラー・取消済・全約定・失効・期限切れ）
                 OrdType(int): 執行条件
                     1: ザラバ、2: 寄り、3: 引け、4: 不成、5: 対当指値、6: IOC
-                RecvTime(string): 受注日時
-                Symbol(string): 証券コード
-                SymbolName(string): 銘柄名
+                RecvTime(str): 受注日時
+                Symbol(str): 証券コード
+                SymbolName(str): 銘柄名
                 Exchange(int): 市場コード
                     1: 東証、3: 名証、5: 福証、6: 札証、9: SOR、2: 日通し、23: 日中、24: 夜間
-                ExchangeName(string): 市場名称
+                ExchangeName(str): 市場名称
                 TimeInForce(int): 有効期間条件 ※オプションのみ
                     1: FAS、2: FAK、3: FOK、
                 Price(float): 注文価格
                 OrderQty(float): 失効分を除く発注数量
                 CumQty(float): 約定数量
-                Side(string): 売買区分
+                Side(str): 売買区分
                     1: 売、2: 買
                 CashMargin(int): 取引区分
                     2: 新規、3: 返済
@@ -251,21 +251,21 @@ class Info():
                 MarginPremium(float): 発注分含むプレミアム料 ※信用買はNone、信用売の手数料なしは0を返す
                 Details(list[dict{}, dict{},...] or dict{}): 注文詳細
                     SeqNum(int): 注文シーケンス番号
-                    ID(string): 注文詳細番号
+                    ID(str): 注文詳細番号
                     RecType(int): 明細種別
                         1: 受付、2: 繰越、3: 期限切れ、4: 発注、5: 訂正、6: 取消、7: 失効、8: 約定
                     ExchangeID(int): 取引所番号
                     State(int): 状態
                         1: 待機（発注待機）、2: 処理中（発注送信中・訂正送信中・取消送信中）、
                         3: 処理済（発注済・訂正済・取消済・全約定・期限切れ）、4: エラー、5: 削除済み
-                    TransactTime(string): 処理時刻
+                    TransactTime(str): 処理時刻
                     OrdType(int): 執行条件
                         Null: 注文取消の場合、0: 注文期限切れ、失効、約定 の場合、1: ザラバ、2: 寄り、
                         3: 引け、4: 不成、5: 対当指値、6: IOC
                     Price (float): 注文価格
                     Qty(number): 数量
-                    ExecutionID(string): 約定番号
-                    ExecutionDay(string): 約定日時
+                    ExecutionID(str): 約定番号
+                    ExecutionDay(str): 約定日時
                     DelivDay(int): 受渡日
                     Commission(float): 手数料
                     CommissionTax(float): 手数料消費税
@@ -336,7 +336,7 @@ class Info():
                 Future(float): 先物のワンショット上限金額
                 FutureMini(float): 先物ミニのワンショット上限金額
                 Option(float): オプションのワンショット上限金額
-                KabuSVersion(string): kabuステーションのバージョン
+                KabuSVersion(str): kabuステーションのバージョン
         '''
         url = f'{self.api_url}/apisoftlimit'
 
@@ -361,7 +361,7 @@ class Info():
 
         Returns:
             response.content(dict): 指定した銘柄のプレミアム(空売り)手数料データ
-                Symbol(string): 証券コード
+                Symbol(str): 証券コード
                 GeneralMargin(dict): 一般信用(長期)のデータ
                     MarginPremiumType(int): プレミアム料区分
                         Null: 空売り非対応銘柄、0: プレミアム料がない銘柄、
