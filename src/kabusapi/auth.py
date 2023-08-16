@@ -32,7 +32,5 @@ class Auth():
             pass # ここにエラー処理
             return False
 
-        print(response.content['Token'])
-
         self.token = response.json()['Token']
         return True

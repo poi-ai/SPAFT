@@ -1,3 +1,5 @@
+import json
+import traceback
 import requests
 
 class Wallet():
@@ -23,10 +25,17 @@ class Wallet():
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
             pass # TODO ここにエラー処理
+
+            print(e)
+            print(traceback.format_exc())
             return False
 
         if response.status_code != 200:
             pass # TODO ここにエラー処理
+            print(self.api_headers)
+            print(json.loads(response.content.decode('utf-8')))
+
+            print(response.status_code)
             return False
 
         return response.content
@@ -52,14 +61,27 @@ class Wallet():
         if stock_code != None and market_code != None:
             url += f'{stock_code}@{market_code}'
 
+        self.api_headers['Content-Type'] = 'application/json'
+        print(self.api_headers)
+
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
             pass # TODO ここにエラー処理
+        
+            print(e)
+            print(traceback.format_exc())
+            
             return False
 
         if response.status_code != 200:
             pass # TODO ここにエラー処理
+        
+            print(self.api_headers)
+            print(json.loads(response.content.decode('utf-8')))
+
+            print(response.status_code)
+            
             return False
 
         return response.content

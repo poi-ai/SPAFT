@@ -289,11 +289,19 @@ class Info():
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
             pass # TODO ここにエラー処理
+
+            print(e)
+            print(traceback.format_exc())
             return False
 
         if response.status_code != 200:
             pass # TODO ここにエラー処理
+            print(self.api_headers)
+            print(json.loads(response.content.decode('utf-8')))
+
+            print(response.status_code)
             return False
+        return response.content
 
         return response.content
 
@@ -344,10 +352,17 @@ class Info():
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
             pass # TODO ここにエラー処理
+
+            print(e)
+            print(traceback.format_exc())
             return False
 
         if response.status_code != 200:
             pass # TODO ここにエラー処理
+            print(self.api_headers)
+            print(json.loads(response.content.decode('utf-8')))
+
+            print(response.status_code)
             return False
 
         return response.content

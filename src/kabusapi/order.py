@@ -1,3 +1,5 @@
+import json
+import traceback
 import requests
 
 class Order():
@@ -15,7 +17,7 @@ class Order():
         日本株の注文を発注する
 
         Args:
-            password(str): 注文パスワード [必須]
+            password(str): 注文パスワード(≠APIパスワード)[必須]
             stock_code(str): 証券コード [必須]
             exchange(int): 市場コード [必須]
                 1: 東証、3: 名証、5: 福証、6: 札証
@@ -35,6 +37,7 @@ class Order():
             price(int): 注文価格 [必須]
                 ※指値でない場合は0を指定
             expire_day(int、yyyyMMdd): 注文有効期限 [必須]
+                ※当日中は0
             margin_trade_type(int): 信用取引区分 [任意]
                 1: 制度信用、2: 一般信用(長期)、3: 一般信用(デイトレ)
             margin_premium_unit(float): プレミアム料 [任意]
@@ -66,34 +69,46 @@ class Order():
         '''
         url = f'{self.api_url}/sendorder'
 
-        data = {'Password': password, 'Symbol': stock_code,
-                'Exchange': exchange,
-                'SecurityType': 1,
-                'Side': side,
-                'CashMargin': cash_margin,
-                'DelivType': deliv_type,
-                'AccountType': account_type,
-                'Qty': qty,
-                'FrontOrderType': front_order_type,
-                'Price': price,
-                'ExpireDay': expire_day}
+        data = {
+            'Password': password,
+            'Symbol': str(stock_code),
+            'Exchange': exchange,
+            'SecurityType': 1,
+            'Side': str(side),
+            'CashMargin': cash_margin,
+            'DelivType': deliv_type,
+            'AccountType': account_type,
+            'Qty': qty,
+            'FrontOrderType': front_order_type,
+            'Price': float(price),
+            'ExpireDay': expire_day
+        }
 
         if margin_trade_type: data['MarginTradeType'] = margin_trade_type
         if margin_premium_unit: data['MarginPremiumUnit'] = margin_premium_unit
         if fund_type: data['FundType'] = fund_type
         if close_position_order: data['ClosePositionOrder'] = close_position_order
-        if close_positions: data['ClosePositions'] = close_positions
+        #if close_positions: data['ClosePositions'] = close_positions
         if reverse_limit_order: data['ReverseLimitOrder'] = reverse_limit_order
 
+        print(json.dumps(data, indent = 4, ensure_ascii = False))
+
         try:
-            response = requests.put(url, json = data)
+            response = requests.post(url, headers = self.api_headers, json = data)
         except Exception as e:
-            pass # ここにエラー処理
+            pass # TODO ここにエラー処理
+
+            print(e)
+            print(traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # ここにエラー処理
+            pass # TODO ここにエラー処理
+            print(self.api_headers)
+            print(json.loads(response.content.decode('utf-8')))
 
+            print(response.status_code)
+            return False
         return response.content
 
     def future(self):
