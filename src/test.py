@@ -1,14 +1,34 @@
 import json
 import math
 from kabusapi import KabusApi
+from db_operate import Db_Operate
 
 class Main():
     def __init__(self):
         self.api = KabusApi('production', production = True)
+        self.db = Db_Operate()
+
+    def init_main(self):
+        '''主処理の前に動かしておくべき処理'''
+
+        # APIから余力取得(動かん)
+        response = self.api.wallet.cash()
+        if not response:
+            return False
+
+        # 余力データを成形
+        bp_data = {
+            'total_assets': int(response['StockAccountWallet']),
+            'total_marin': 0,
+            'api_flag': '1'
+        }
+
+        # 余力情報をテーブルに追加
+        result = self.db.insert_buying_power(bp_data)
+        if not result:
+            return False
 
     def main(self):
-        # 余力取得(動かん)
-        #print(self.api.wallet.margin())
 
         # プレ料取得
         premium_price_info = self.api.info.premium_price(1570)
@@ -82,20 +102,13 @@ class Main():
             interest(int): 金利
 
         '''
-        # 型チェック(int, str, floatを許容)
-        int_price = int(price)
-        # 自然数チェック
-        if int_price < 0: raise
-        # 小数点チェック
-        if int_price == float(price): raise
-
         # ワンショット100万以上は金利0%
-        if int_price >= 100000: return 0
+        if price >= 1000000: return 0
 
         # 代金(円) x (年率)1.8% ÷ 365(日)、1円以下は切り捨て
-        return math.floor(price )
+        return math.floor(price * 0.018 / 365)
 
 
 if __name__ == '__main__':
     m = Main()
-    m.main()
+    print(m.get_interest(999999))

@@ -8,6 +8,95 @@ class Db_Operate(Db_Base):
     def __init__(self):
         super().__init__()
 
+    def select_buying_power_now(self):
+        '''
+        余力テーブル(buying_power)から最新の余力情報を取得する
+
+        Returns:
+            dict: 余力情報
+        
+        '''
+        try:
+            with self.conn.cursor(pymysql.cursors.DictCursor) as cursor:
+                sql = ''''
+                    SELECT
+                        id,
+                        total_assets,
+                        total_margin,
+                        api_flag,
+                        created_at
+                    FROM
+                        buying_power
+                    ORDEY BY
+                        id desc
+                    limit 1;
+                '''
+
+                cursor.execute(sql)
+                row = cursor.fetchone()
+
+                # データが存在しない場合
+                if row is None:
+                    # TODO APIから余力情報を取得する
+                    data = {}
+
+                    # データをテーブルに追加
+                    self.insert_buying_power(data)
+
+                    # もう一回取得
+                    cursor.execute(sql)
+                    row = cursor.fetchone()
+
+                    # それでもダメなら何かがおかしい
+                    if row is None:
+                        self.logger.error(sql)
+                        raise
+
+        except Exception as e:
+            self.error_output('最新の余力情報取得処理でエラー', e, traceback.format_exc())
+            return False
+
+    def insert_buying_power(self, data):
+        '''
+        余力テーブル(buying_power)へレコードを追加する
+
+        Args:
+            data(dict): 追加するデータ
+                total_assets(int or str): 総資産額[必須]
+                total_margin(int or str): 信用株式保有額[必須]
+                api_flag(int or str): APIから取得したか[必須]
+
+        Returns:
+            result(bool): SQL実行結果
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    INSERT INTO buying_power
+                    (
+                        total_assets,
+                        total_margin,
+                        api_flag
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        %s
+                    )
+                '''
+
+                cursor.execute(sql, (
+                    data['total_assets'],
+                    data['total_margin'],
+                    data['api_flag']
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output('余力テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            return False
+
 ##### 以下テンプレ ######
     def select_tablename(self):
         '''
@@ -186,6 +275,3 @@ class Db_Operate(Db_Base):
             pass
 
         return True
-
-db = Db_Operate()
-db.insert_tablename()

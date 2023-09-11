@@ -16,12 +16,11 @@ class Db_Base(Base):
 
     def connect(self):
         '''データベースへの接続'''
-        # KabusAPIはローカルでしか動かせないのでlocalhost固定で
         return  pymysql.connect(
-            host = 'localhost',
-            user = 'root',
-            password = 'root',
-            db = 'spaft'
+            host = config.HOST,
+            user = config.USER,
+            password = config.PASSWORD,
+            db = config.DB
         )
 
     def start_transaction(self):
