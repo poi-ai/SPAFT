@@ -1,8 +1,8 @@
-import json
 import traceback
 import requests
+from base import Base
 
-class Wallet():
+class Wallet(Base):
     '''余力・保証金情報に関するAPI'''
     def __init__(self, api_headers, api_url):
         self.api_headers = api_headers
@@ -24,18 +24,11 @@ class Wallet():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
-
-            print(e)
-            print(traceback.format_exc())
+            self.error_output(f'現物余力情報取得処理でエラー', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
-            print(self.api_headers)
-            print(json.loads(response.content.decode('utf-8')))
-
-            print(response.status_code)
+            self.error_output(f'現物余力情報取得処理でエラ\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         return response.content
@@ -67,21 +60,11 @@ class Wallet():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
-
-            print(e)
-            print(traceback.format_exc())
-
+            self.error_output(f'信用余力情報取得処理でエラー', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
-
-            print(self.api_headers)
-            print(json.loads(response.content.decode('utf-8')))
-
-            print(response.status_code)
-
+            self.error_output(f'信用余力情報取得処理でエラ\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         return response.content

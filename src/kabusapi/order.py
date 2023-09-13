@@ -1,8 +1,9 @@
 import json
 import traceback
 import requests
+from base import Base
 
-class Order():
+class Order(Base):
     '''投資商品の注文に関するAPI'''
     def __init__(self, api_headers, api_url):
         self.api_headers = api_headers
@@ -96,19 +97,13 @@ class Order():
         try:
             response = requests.post(url, headers = self.api_headers, json = data)
         except Exception as e:
-            pass # TODO ここにエラー処理
-
-            print(e)
-            print(traceback.format_exc())
+            self.error_output(f'注文発注処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
-            print(self.api_headers)
-            print(json.loads(response.content.decode('utf-8')))
-
-            print(response.status_code)
+            self.error_output(f'注文発注処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
             return False
+
         return response.content
 
     def future(self):
@@ -135,14 +130,17 @@ class Order():
         '''
         url = f'{self.api_url}/cancelorder'
 
-        data = {'OrderId': order_id,
-                'Password': password}
+        data = {
+            'OrderId': order_id,
+            'Password': password
+        }
 
         try:
             response = requests.put(url, json = data)
         except Exception as e:
-            pass # ここにエラー処理
+            self.error_output(f'注文キャンセル処理でエラー\n注文ID: {order_id}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # ここにエラー処理
+            self.error_output(f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {response.status_code}\n{response.content}')
+            return False

@@ -1,6 +1,8 @@
 import requests
+import traceback
+from base import Base
 
-class Info():
+class Info(Base):
     '''市場の情報を取得するAPI'''
     def __init__(self, api_headers, api_url):
         self.api_headers = api_headers
@@ -119,11 +121,11 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
+            self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
+            self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         return response.content
@@ -187,11 +189,11 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
+            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
+            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         return response.content
@@ -288,21 +290,11 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
-
-            print(e)
-            print(traceback.format_exc())
-            return False
+            self.error_output(f'約定情報取得処理でエラー', e, traceback.format_exc())
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
-            print(self.api_headers)
-            print(json.loads(response.content.decode('utf-8')))
-
-            print(response.status_code)
+            self.error_output(f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{response.content}')
             return False
-        return response.content
-
         return response.content
 
     def positions(self):
@@ -351,18 +343,11 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
-
-            print(e)
-            print(traceback.format_exc())
+            self.error_output(f'設定上限金額情報取得処理でエラー', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
-            print(self.api_headers)
-            print(json.loads(response.content.decode('utf-8')))
-
-            print(response.status_code)
+            self.error_output(f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         return response.content
@@ -399,11 +384,11 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            pass # TODO ここにエラー処理
+            self.error_output(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            pass # TODO ここにエラー処理
+            self.error_output(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         return response.content

@@ -12,6 +12,7 @@ class Db_Base(Base):
         super().__init__(Path(inspect.stack()[1].filename).stem)
         self.conn = self.connect()
         self.conn.autocommit(True)
+        self.dict_return = pymysql.cursors.DictCursor
         self.transaction_flag = True
 
     def connect(self):

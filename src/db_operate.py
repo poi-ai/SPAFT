@@ -1,4 +1,4 @@
-import pymysql
+
 import traceback
 from db_base import Db_Base
 from datetime import datetime, timedelta
@@ -8,16 +8,24 @@ class Db_Operate(Db_Base):
     def __init__(self):
         super().__init__()
 
-    def select_buying_power_now(self):
+    def select_buying_power(self, latest = False):
         '''
-        余力テーブル(buying_power)から最新の余力情報を取得する
+        余力テーブル(buying_power)から余力情報を取得する
+
+        Args:
+            latest(bool): 最新の余力のみ取得するか
 
         Returns:
-            dict: 余力情報
-        
+            list[dict{}, dict{},..]: 余力情報
+                id(int): ID
+                total_assets(int): 総資産額
+                total_margin(int): 信用株式保有合計額
+                api_flag(str): APIから取得したか(1: APIから取得、0: DBから計算)
+                created_at(datetime): レコード追加日時
+
         '''
         try:
-            with self.conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            with self.conn.cursor(self.dict_return) as cursor:
                 sql = ''''
                     SELECT
                         id,
@@ -27,33 +35,121 @@ class Db_Operate(Db_Base):
                         created_at
                     FROM
                         buying_power
-                    ORDEY BY
-                        id desc
-                    limit 1;
                 '''
 
+                if latest: sql += 'ORDER BY id desc limit 1'
+
                 cursor.execute(sql)
-                row = cursor.fetchone()
+                row = cursor.fetchall()
 
                 # データが存在しない場合
-                if row is None:
-                    # TODO APIから余力情報を取得する
-                    data = {}
+                if len(row) == 0:
+                    return {}
 
-                    # データをテーブルに追加
-                    self.insert_buying_power(data)
+                return row
+        except Exception as e:
+            self.error_output('余力テーブル取得処理でエラー', e, traceback.format_exc())
+            return False
 
-                    # もう一回取得
-                    cursor.execute(sql)
-                    row = cursor.fetchone()
+    def select_orders(self, yet = False):
+        '''
+        注文テーブル(orders)から注文情報を取得する
 
-                    # それでもダメなら何かがおかしい
-                    if row is None:
-                        self.logger.error(sql)
-                        raise
+        Args:
+            yet(bool): 未約定注文のみ取得するか
+
+        Returns:
+            list[dict{}, dict{}...]: 注文情報
+                order_id(str): 注文ID
+                reverse_order_id(str): 反対注文ID
+                stock_code(float): 証券コード
+                order_price(int): 注文価格
+                    成行は-1.0
+                order_volume(int): 注文株数
+                transaction_price(float): 平均約定価格
+                buy_sell(str): 売買区分
+                    1: 売、2: 買
+                cash_margin(str): 信用区分
+                    1: 現物、2: 信用新規、3:信用返済
+                margin_type(str): 信用取引区分
+                    0: 現物、1: 制度信用、2: 一般信用(長期)、3: 一般信用(デイトレ)
+                profit(float): 損益額
+                    決済注文のみ、新規注文は0.0
+                status(str): 注文ステータス
+                    1: 未約定、2: 約定済、3:取消済
+                order_date(datetime): 注文日時
+                transaction_date(datetime): 約定日時
+                update_date(datetime): 更新日時
+
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = ''''
+                    SELECT
+                        order_id,
+                        reverse_order_id,
+                        stock_code,
+                        order_price,
+                        order_volume,
+                        transaction_price,
+                        buy_sell,
+                        cash_margin,
+                        margin_type,
+                        profit,
+                        status,
+                        order_date,
+                        transaction_date,
+                        update_date
+                    FROM
+                        orders
+                '''
+
+                # 未約定のみ抽出するの条件を追加
+                if yet: sql += 'WHERE status = 1'
+
+                cursor.execute(sql)
+                rows = cursor.fetchall()
+
+                # データが存在しない場合
+                if len(rows) == 0:
+                    return [{}]
+
+                return rows
+        except Exception as e:
+            self.error_output('注文テーブル取得処理でエラー', e, traceback.format_exc())
+            return False
+
+    def select_errors_minite(self):
+        '''
+        エラーテーブル(errors)から1分以内に追加されたレコード数を取得する
+
+        Returns:
+            count(int): 1分以内のエラー発生数
+
+        '''
+        try:
+            one_minute_ago = datetime.now() - timedelta(minutes = 1)
+
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = ''''
+                    SELECT
+                        CONUT(1)
+                    FROM
+                        errors
+                    WHERE
+                        created_at >= %s
+                '''
+
+                cursor.execute(sql, (one_minute_ago,))
+                row = cursor.fetchone()
+
+                if row:
+                    return int(row[0])
+                else:
+                    return 0
 
         except Exception as e:
-            self.error_output('最新の余力情報取得処理でエラー', e, traceback.format_exc())
+            self.error_output('エラー件数取得処理でエラー', e, traceback.format_exc())
             return False
 
     def insert_buying_power(self, data):
@@ -97,6 +193,115 @@ class Db_Operate(Db_Base):
             self.error_output('余力テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
             return False
 
+    def insert_orders(self, data):
+        '''
+        注文テーブル(orders)へレコードを追加する
+
+        Args:
+            data(dict): 追加するデータ
+                order_id(str): 注文ID[必須]
+                reverse_order_id(str): 反対注文ID[任意]
+                stock_code(float): 証券コード[必須]
+                order_price(int): 注文価格[必須]
+                    成行は-1.0
+                order_volume(int): 注文株数[必須]
+                buy_sell(str): 売買区分[必須]
+                    1: 売、2: 買
+                cash_margin(str): 信用区分[必須]
+                    1: 現物、2: 信用新規、3:信用返済
+                margin_type(str): 信用取引区分[必須]
+                    0: 現物、1: 制度信用、2: 一般信用(長期)、3: 一般信用(デイトレ)
+                status(str): 注文ステータス[必須]
+                    1: 未約定、2: 約定済、3:取消済
+                order_date(datetime): 注文日時[必須]
+
+        Returns:
+            result(bool): SQL実行結果
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    INSERT INTO orders
+                    (
+                        order_id,
+                        reverse_order_id,
+                        stock_code,
+                        order_price,
+                        order_volume,
+                        buy_sell,
+                        cash_margin,
+                        margin_type,
+                        status,
+                        order_date
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                '''
+
+                cursor.execute(sql, (
+                    data['order_id'],
+                    data['reverse_order_id'],
+                    data['stock_code'],
+                    data['order_price'],
+                    data['order_volume'],
+                    data['buy_sell'],
+                    data['cash_margin'],
+                    data['margin_type'],
+                    '1', # ステータス: 未約定
+                    data['order_date']
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output('注文テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            return False
+
+    def insert_errors(self, content):
+        '''
+        エラー情報テーブル(errors)へレコードを追加する
+
+        Args:
+            content(str): 処理名
+
+        Returns:
+            result(bool): SQL実行結果
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    INSERT INTO error
+                    (
+                        name,
+                        content
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s
+                    )
+                '''
+
+                cursor.execute(sql, (
+                    'scalping', # いずれ引数に
+                    content
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output('エラー情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            return False
+
 ##### 以下テンプレ ######
     def select_tablename(self):
         '''
@@ -108,7 +313,7 @@ class Db_Operate(Db_Base):
         '''
         try:
             # cursorの引数をなくすとタプルで返る
-            with self.conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            with self.conn.cursor(self.dict_return) as cursor:
                 sql = ''''
                     SELECT
                         xx

@@ -1,0 +1,8 @@
+-- エラー情報を管理するテーブル
+CREATE TABLE errors (
+    id INT NOT NULL AUTO_INCREMENT COMMENT 'ID',
+    name VARCHAR(30) NOT NULL COMMENT '処理名',
+    content VARCHAR(30) NOT NULL COMMENT '処理内容',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'レコード追加日時',
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
