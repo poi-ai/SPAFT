@@ -9,7 +9,8 @@ class Main(Base):
     def __init__(self):
         self.api = KabusApi(api_password = 'production', production = True)
         self.db = Db_Operate()
-        self.order_id_list = []
+        self.buy_order_dict = {}
+        self.sell_order_dict = {}
         result = self.init_main()
         if not result: exit()
 
@@ -76,10 +77,12 @@ class Main(Base):
                 if order_info['State'] == 5:
                     order_id = order_info['ID']
 
-                    if order_id in self.order_id_list:
-                        self.order_id_list.remove(order_id)
-                    else:
-                        self.logger.warning(f'インスタンス変数に一致する注文IDが見つかりませんでした order_id {order_id}')
+                    if order_id in self.buy_order_dict:
+                        del self.buy_order_dict[order_id]
+                        if order_id in self.sell_order_dict:
+                            del self.sell_order_dict[order_id]
+                        else:
+                            self.logger.warning(f'インスタンス変数に一致する注文IDが見つかりませんでした order_id {order_id}')
 
                     # DB更新
                     result = self.db.update_orders_status(order_id = order_info['ID'], status = 2)
@@ -102,10 +105,13 @@ class Main(Base):
                         # TODO 注文情報をDBに追加する
 
             # 板情報を取得する
-            board_data = self.api.info.board(stock_code = config.STOCK_CODE)
+            board_info = self.api.info.board(stock_code = config.STOCK_CODE)
+            if board_info == False:
+                continue
+
             board_info = json.loads(board_info)
 
-            # 現在値と最低価格売り注文・最高価格買い注文を取得する
+            # 現在値と最低売り注文価格・最高買い注文価格を取得する
             over_price = board_info["Sell1"]["Price"]
             now_price = board_info["CurrentPrice"]
             under_price = board_info["Buy1"]["Price"]

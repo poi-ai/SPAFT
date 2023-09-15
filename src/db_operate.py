@@ -302,6 +302,40 @@ class Db_Operate(Db_Base):
             self.error_output('エラー情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
             return False
 
+    def update_orders_status(self, order_id, status):
+        '''
+        注文テーブル(orders)のステータスを更新する
+
+        Args:
+            order_id(str): 注文ID
+            status(str or int): 更新後のステータス
+                1: 未約定、2: 約定済、3:取消済
+
+        Returns:
+            result(bool): SQL実行結果
+
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    UPDATE
+                        orders
+                    SET
+                        status = %s
+                    WHERE
+                        order_id = %s
+                '''
+
+                cursor.execute(sql, (
+                    status,
+                    order_id
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output(f'注文テーブルのステータス更新処理でエラー', e, traceback.format_exc())
+            return False
+
 ##### 以下テンプレ ######
     def select_tablename(self):
         '''
