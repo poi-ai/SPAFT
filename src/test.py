@@ -9,6 +9,7 @@ class Main(Base):
     def __init__(self):
         self.api = KabusApi(api_password = 'production', production = True)
         self.db = Db_Operate()
+        self.order_id_list = []
         result = self.init_main()
         if not result: exit()
 
@@ -26,7 +27,7 @@ class Main(Base):
             'AuKCStockAccountWallet': 300000.0,
             'AuJbnStockAccountWallet': 0
         }
-        # テスト用処理ここまで
+        # TODO テスト用処理ここまで
 
         # 余力データから抽出し、DBのフォーマットに成形
         buying_power = int(response['StockAccountWallet'])
@@ -58,27 +59,50 @@ class Main(Base):
                 exit() # TODO 強制成決済処理を呼び出す
 
             # DBから未約定データ取得
-            yet_data_list = self.db.select_orders(yet = True)
-            if yet_data_list == False:
+            yet_info_list = self.db.select_orders(yet = True)
+            if yet_info_list == False:
                 self.db.insert_errors('未約定データDB取得処理')
                 continue
 
             # 未約定データがあればAPIで情報を取得
-            for yet_data in yet_data_list:
+            for yet_info in yet_info_list:
                 # APIから約定情報取得
-                order_data = self.api.info.orders(id = yet_data['order_id'])
-                if order_data == False:
+                order_info = self.api.info.orders(id = yet_info['order_id'])
+                if order_info == False:
                     self.db.insert_errors('未約定データAPI取得処理')
                     continue
 
                 # 注文ステータスが完了になっている場合
-                if order_data['State'] == 5:
-                    pass # TODO
+                if order_info['State'] == 5:
+                    order_id = order_info['ID']
 
+                    if order_id in self.order_id_list:
+                        self.order_id_list.remove(order_id)
+                    else:
+                        self.logger.warning(f'インスタンス変数に一致する注文IDが見つかりませんでした order_id {order_id}')
 
+                    # DB更新
+                    result = self.db.update_orders_status(order_id = order_info['ID'], status = 2)
+                    if result == False:
+                        self.db.insert_errors('注文ステータスDB更新処理')
+                        continue
 
-            # 板情報取得
-            board_info = self.api.info.board(1570, 1)
+                    # 約定したのが新規注文なら1枚上に決済注文を入れる
+                    if order_info['CashMargin'] == 2:
+                        reverse_order_info = { #TODO
+                        }
+                        result = self.api.order.stock(reverse_order_info)
+                        if not result:
+                            self.db.insert_errors('反対注文発注API処理')
+                            continue
+
+                        # リカバリ用でインスタンス変数に注文をIDを持たせとく
+                        self.order_id_list.append(result['OrderId'])
+
+                        # TODO 注文情報をDBに追加する
+
+            # 板情報を取得する
+            board_data = self.api.info.board(stock_code = config.STOCK_CODE)
             board_info = json.loads(board_info)
 
             # 現在値と最低価格売り注文・最高価格買い注文を取得する
