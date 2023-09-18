@@ -92,7 +92,8 @@ class Main(Base):
 
                     # 約定したのが新規注文なら1枚上に決済注文を入れる
                     if order_info['CashMargin'] == 2:
-                        reverse_order_info = { #TODO
+                        # TODO データ成形用処理
+                        reverse_order_info = {
                         }
                         result = self.api.order.stock(reverse_order_info)
                         if not result:
@@ -100,16 +101,28 @@ class Main(Base):
                             continue
 
                         # リカバリ用でインスタンス変数に注文をIDを持たせとく
-                        self.order_id_list.append(result['OrderId'])
+                        self.sell_order_dict.append(result['OrderId'])
 
                         # TODO 注文情報をDBに追加する
 
             # 板情報を取得する
             board_info = self.api.info.board(stock_code = config.STOCK_CODE)
             if board_info == False:
+                self.db.insert_errors('板情報取得処理')
                 continue
 
             board_info = json.loads(board_info)
+
+            # TODO 学習用データテーブル用のフォーマットに整形
+
+            # 板情報を学習用テーブルに追加
+            result = self.db.insert_boards()
+            if result == False:
+                self.db.insert_errors('板情報DB記録処理')
+
+            # 買い対象の板5枚分の価格を取得する
+            buy_target_price = self.culc_buy_target_price(result)
+
 
             # 現在値と最低売り注文価格・最高買い注文価格を取得する
             over_price = board_info["Sell1"]["Price"]
@@ -180,6 +193,30 @@ class Main(Base):
 
         # 代金(円) x (年率)1.8% ÷ 365(日)、1円以下は切り捨て
         return math.floor(price * 0.018 / 365)
+
+    def culc_buy_target_price(self, board_info):
+        '''
+        注文を入れる対象の5枚分の価格を取得する
+
+        Args:
+            board_info(dict): APIから取得した板情報
+
+        Returns:
+            target_price_list(list): 買いの対象となる5枚分の価格
+
+        '''
+        # 買い板の注文価格が高い順に5枚分チェックをする
+        buy_price_list = [board_info[f'Buy{index}']["Price"] for index in range(1, 6)]
+
+        # 間の価格を抜けるのを防ぐため最小の価格差を取得する
+        min_diff = min([buy_price_list[i] - buy_price_list[i + 1] for i in range(len(buy_price_list) - 1)])
+
+        # 売り注文-1pipから注文を入れるか、買い注文のある最高値から注文を入れるか
+        if config.AMONG_PRICE_ORDER == True:
+            # 売り注文と買い注文間の注文のない価格を取得
+            return [price for price in range()]
+        else:
+            return []
 
 
 if __name__ == '__main__':

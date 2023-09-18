@@ -267,6 +267,41 @@ class Db_Operate(Db_Base):
             self.error_output('注文テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
             return False
 
+    def insert_boards(self, board_info):
+        '''
+        板情報(学習用)テーブル(boards)へレコードを追加する
+
+        Args:
+            borad_info(dict): 追加するデータ
+
+        Returns:
+            result(bool): SQL実行結果
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    INSERT INTO boards
+                    (
+                        ,
+                        
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s
+                    )
+                '''
+
+                cursor.execute(sql, (
+                    'scalping', # いずれ引数に
+                    content
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output('エラー情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            return False
+
     def insert_errors(self, content):
         '''
         エラー情報テーブル(errors)へレコードを追加する
