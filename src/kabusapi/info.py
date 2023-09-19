@@ -56,7 +56,7 @@ class Info(Base):
                 TradingVolume(float): 売買高 (1約定？1営業日？ TODO)
                 TradingVolumeTime(str): 売買高時刻 (直近約定時間? TODO)
                 VWAP(double): 売買高加重平均価格(VWAP)
-                TradingValue(double): 売買代金
+                TradingValue(double): 売買代金 (1約定？1営業日？ TODO)
                 BidQty(float): 最良売気配数量
                 BidPrice(float): 最良売気配値段
                 BidTime(str): 最良売気配時刻 ※株式のみ

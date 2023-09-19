@@ -277,24 +277,23 @@ class Db_Operate(Db_Base):
         Returns:
             result(bool): SQL実行結果
         '''
+        # TODO TODO TODO TODO TODO TODO
         try:
             with self.conn.cursor() as cursor:
                 sql = '''
                     INSERT INTO boards
                     (
-                        ,
-                        
+                        hogehoge,
+                        fugafuga
                     )
                     VALUES
                     (
-                        %s,
                         %s
                     )
                 '''
 
                 cursor.execute(sql, (
-                    'scalping', # いずれ引数に
-                    content
+                    board_info['TODO']
                 ))
 
             return True
