@@ -273,6 +273,58 @@ class Db_Operate(Db_Base):
 
         Args:
             borad_info(dict): 追加するデータ
+                stock_code(str or int):  証券コード[]
+                market_code(str or int): 市場コード[]
+                price(float): 現在株価[]
+                latest_transaction_date(datetime): 直近約定時刻[]
+                change_status(): []
+                present_status(): []
+                market_buy_qty(): []
+                buy1_sign(): []
+                buy1_price(): []
+                buy1_qty(): []
+                buy2_price(): []
+                buy2_qty(): []
+                buy3_price(): []
+                buy3_qty(): []
+                buy4_price(): []
+                buy4_qty(): []
+                buy5_price(): []
+                buy5_qty(): []
+                buy6_price(): []
+                buy6_qty(): []
+                buy7_price(): []
+                buy7_qty(): []
+                buy8_price(): []
+                buy8_qty(): []
+                buy9_price(): []
+                buy9_qty(): []
+                buy10_price(): []
+                buy10_qty(): []
+                market_sell_qty(): []
+                sell1_sign(): []
+                sell1_price(): []
+                sell1_qty(): []
+                sell2_price(): []
+                sell2_qty(): []
+                sell3_price(): []
+                sell3_qty(): []
+                sell4_price(): []
+                sell4_qty(): []
+                sell5_price(): []
+                sell5_qty(): []
+                sell6_price(): []
+                sell6_qty(): []
+                sell7_price(): []
+                sell7_qty(): []
+                sell8_price(): []
+                sell8_qty(): []
+                sell9_price(): []
+                sell9_qty(): []
+                sell10_price(): []
+                sell10_qty(): []
+                over_qty(): []
+                under_qty(): []
 
         Returns:
             result(bool): SQL実行結果
@@ -283,17 +335,169 @@ class Db_Operate(Db_Base):
                 sql = '''
                     INSERT INTO boards
                     (
-                        hogehoge,
-                        fugafuga
+                        stock_code,
+                        market_code,
+                        price,
+                        latest_transaction_date,
+                        change_status,
+                        present_status,
+                        market_buy_qty,
+                        buy1_sign,
+                        buy1_price,
+                        buy1_qty,
+                        buy2_price,
+                        buy2_qty,
+                        buy3_price,
+                        buy3_qty,
+                        buy4_price,
+                        buy4_qty,
+                        buy5_price,
+                        buy5_qty,
+                        buy6_price,
+                        buy6_qty,
+                        buy7_price,
+                        buy7_qty,
+                        buy8_price,
+                        buy8_qty,
+                        buy9_price,
+                        buy9_qty,
+                        buy10_price,
+                        buy10_qty,
+                        market_sell_qty,
+                        sell1_sign,
+                        sell1_price,
+                        sell1_qty,
+                        sell2_price,
+                        sell2_qty,
+                        sell3_price,
+                        sell3_qty,
+                        sell4_price,
+                        sell4_qty,
+                        sell5_price,
+                        sell5_qty,
+                        sell6_price,
+                        sell6_qty,
+                        sell7_price,
+                        sell7_qty,
+                        sell8_price,
+                        sell8_qty,
+                        sell9_price,
+                        sell9_qty,
+                        sell10_price,
+                        sell10_qty,
+                        over_qty,
+                        under_qty
                     )
                     VALUES
                     (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
                         %s
                     )
                 '''
 
                 cursor.execute(sql, (
-                    board_info['TODO']
+                    board_info['stock_code'],
+                    board_info['market_code'],
+                    board_info['price'],
+                    board_info['latest_transaction_date'],
+                    board_info['change_status'],
+                    board_info['present_status'],
+                    board_info['market_buy_qty'],
+                    board_info['buy1_sign'],
+                    board_info['buy1_price'],
+                    board_info['buy1_qty'],
+                    board_info['buy2_price'],
+                    board_info['buy2_qty'],
+                    board_info['buy3_price'],
+                    board_info['buy3_qty'],
+                    board_info['buy4_price'],
+                    board_info['buy4_qty'],
+                    board_info['buy5_price'],
+                    board_info['buy5_qty'],
+                    board_info['buy6_price'],
+                    board_info['buy6_qty'],
+                    board_info['buy7_price'],
+                    board_info['buy7_qty'],
+                    board_info['buy8_price'],
+                    board_info['buy8_qty'],
+                    board_info['buy9_price'],
+                    board_info['buy9_qty'],
+                    board_info['buy10_price'],
+                    board_info['buy10_qty'],
+                    board_info['market_sell_qty'],
+                    board_info['sell1_sign'],
+                    board_info['sell1_price'],
+                    board_info['sell1_qty'],
+                    board_info['sell2_price'],
+                    board_info['sell2_qty'],
+                    board_info['sell3_price'],
+                    board_info['sell3_qty'],
+                    board_info['sell4_price'],
+                    board_info['sell4_qty'],
+                    board_info['sell5_price'],
+                    board_info['sell5_qty'],
+                    board_info['sell6_price'],
+                    board_info['sell6_qty'],
+                    board_info['sell7_price'],
+                    board_info['sell7_qty'],
+                    board_info['sell8_price'],
+                    board_info['sell8_qty'],
+                    board_info['sell9_price'],
+                    board_info['sell9_qty'],
+                    board_info['sell10_price'],
+                    board_info['sell10_qty'],
+                    board_info['over_qty'],
+                    board_info['under_qty']
                 ))
 
             return True
