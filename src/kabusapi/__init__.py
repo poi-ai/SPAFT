@@ -26,10 +26,10 @@ class KabusApi():
 
         # APIトークンを発行
         self.auth = Auth(self.API_URL)
-        self.token = self.auth.issue_token(api_password)
+        token = self.auth.issue_token(api_password)
 
         # 認証ヘッダー
-        self.api_headers = {'X-API-KEY', self.token}
+        self.api_headers = {'X-API-KEY': token}
 
         # 情報取得関連APIクラス
         self.info = Info(self.api_headers, self.API_URL)

@@ -33,4 +33,4 @@ class Auth():
             return False
 
         self.token = response.json()['Token']
-        return True
+        return self.token

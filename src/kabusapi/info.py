@@ -5,6 +5,7 @@ from base import Base
 class Info(Base):
     '''市場の情報を取得するAPI'''
     def __init__(self, api_headers, api_url):
+        super().__init__()
         self.api_headers = api_headers
         self.api_url = api_url
 

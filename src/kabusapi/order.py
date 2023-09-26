@@ -6,6 +6,7 @@ from base import Base
 class Order(Base):
     '''投資商品の注文に関するAPI'''
     def __init__(self, api_headers, api_url):
+        super().__init__()
         self.api_headers = api_headers
         self.api_url = api_url
 

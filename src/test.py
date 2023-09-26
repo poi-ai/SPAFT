@@ -123,6 +123,36 @@ class Main(Base):
             # 買い対象の板5枚分の価格を取得する
             buy_target_price = self.culc_buy_target_price(result)
 
+            # 未約定の買い注文があるか確認
+            for target_price in buy_target_price:
+                order_info = self.db.select_orders(yet = True, order_price = target_price)
+                if result == False:
+                self.db.insert_errors('価格指定注文DB取得処理')
+                continue
+
+                # 注文が入っていなければ入れる
+                if len(order_info) == 0:
+                    # 余力チェック
+                    bp = self.db.select_buying_power()
+                    if bp == False:
+                        self.db.insert_errors('余力情報DB取得処理')
+                        continue
+
+                    # 購入後が保証金の2.5倍に収まるなら買う
+                    if bp['total_asset'] * 2.5 > bp['total_margin'] + target_price * xx(単元株数):
+                        # APIで発注
+                        result = self.api.order.stock()
+                        if result == False:
+                            self.db.insert_errors('買い注文API')
+                            continue
+
+                        # TODO リカバリ用変数に突っ込む
+                        self.buy_order_list.append()
+
+                        # TODO DB に突っ込む
+
+                        # TODO 余力更新
+
 
             # 現在値と最低売り注文価格・最高買い注文価格を取得する
             over_price = board_info["Sell1"]["Price"]
@@ -197,6 +227,7 @@ class Main(Base):
     def culc_buy_target_price(self, board_info):
         '''
         注文を入れる対象の5枚分の価格を取得する
+        1pipの値幅が変わる(TOPIX MID400構成銘柄が1000円をまたぐ)場合は不整合が起こるので注意
 
         Args:
             board_info(dict): APIから取得した板情報
@@ -211,12 +242,11 @@ class Main(Base):
         # 間の価格を抜けるのを防ぐため最小の価格差を取得する
         min_diff = min([buy_price_list[i] - buy_price_list[i + 1] for i in range(len(buy_price_list) - 1)])
 
-        # 売り注文-1pipから注文を入れるか、買い注文のある最高値から注文を入れるか
+        # 売り注文-1pipから注文を入れるか(T)、買い注文のある最高値から注文を入れるか(F)
         if config.AMONG_PRICE_ORDER == True:
-            # 売り注文と買い注文間の注文のない価格を取得
-            return [price for price in range()]
+            return [board_info['Sell1']['Price'] - pip  * min_diff for pip in range(1, 6)]
         else:
-            return []
+            return [board_info['Buy1']['Price'] - pip  * min_diff for pip in range(5)]
 
 
 if __name__ == '__main__':

@@ -5,6 +5,7 @@ from base import Base
 class Wallet(Base):
     '''余力・保証金情報に関するAPI'''
     def __init__(self, api_headers, api_url):
+        super().__init__()
         self.api_headers = api_headers
         self.api_url = api_url
 

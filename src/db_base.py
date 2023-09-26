@@ -17,11 +17,11 @@ class Db_Base(Base):
 
     def connect(self):
         '''データベースへの接続'''
-        return  pymysql.connect(
-            host = config.HOST,
-            user = config.USER,
-            password = config.PASSWORD,
-            db = config.DB
+        return pymysql.connect(
+            host = 'localhost',
+            user = 'root',
+            password = 'root',
+            db = 'spaft'
         )
 
     def start_transaction(self):
