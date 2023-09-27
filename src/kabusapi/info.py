@@ -126,7 +126,7 @@ class Info(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -194,7 +194,7 @@ class Info(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -294,7 +294,7 @@ class Info(Base):
             self.error_output(f'約定情報取得処理でエラー', e, traceback.format_exc())
 
         if response.status_code != 200:
-            self.error_output(f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
         return response.content
 
@@ -348,7 +348,7 @@ class Info(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -389,7 +389,7 @@ class Info(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content

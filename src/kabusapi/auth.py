@@ -28,7 +28,7 @@ class Auth(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'トークン発行取得処理でエラー\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'トークン発行取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         self.token = response.json()['Token']

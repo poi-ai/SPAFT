@@ -11,16 +11,10 @@ from kabusapi import KabusApi
 class DS(Db_Base):
     def __init__(self):
         super().__init__()
+        self.error_stock_code = []
         self.api = KabusApi(api_password = 'production', production = True)
         self.db = Db_Operate()
         self.today = datetime.now().strftime("%Y%m%d")
-        self.error_stock_code = []
-
-    def __del__(self):
-        if len(self.error_stock_code) > 0:
-            self.logger.warning(self.error_stock_code)
-        else:
-            self.logger.info('success!!')
 
     def main(self, stock_code = None):
 
@@ -40,6 +34,7 @@ class DS(Db_Base):
             if board_info == False:
                 self.error_stock_code.append(target_stock_code)
                 print(f'板情報取得処理でエラー stock_code: {target_stock_code}')
+                continue
 
             # dict変換
             try:
@@ -48,6 +43,7 @@ class DS(Db_Base):
                 self.error_stock_code.append(target_stock_code)
                 self.logger.error('dict変換処理でエラー', e, traceback.format_exc())
                 print(f'dict変換処理でエラー\n{e}\n{traceback.format_exc()}')
+                continue
 
             # CSVに突っ込む
             try:
@@ -56,8 +52,8 @@ class DS(Db_Base):
                 self.error_stock_code.append(target_stock_code)
                 self.logger.error('CSV出力処理でエラー', e, traceback.format_exc())
                 print(f'CSV出力処理でエラー\n{e}\n{traceback.format_exc()}')
+                continue
 
-            '''
             # DBに突っ込めるように成型
             try:
                 board_table_dict = self.mold_board_info(board_dict)
@@ -70,11 +66,11 @@ class DS(Db_Base):
             result = self.db.insert_boards(board_table_dict)
             if result == False:
                 self.error_stock_code.append(target_stock_code)
-            '''
 
-    def byte_to_dict(self, response_json):
-        '''受け取ったレスポンスをdict型に変換する'''
-        return json.loads(response_json)
+        if len(self.error_stock_code) > 0:
+            self.logger.warning(self.error_stock_code)
+        else:
+            self.logger.info('success!!')
 
     def tidy_response(self, response_json):
         '''受け取ったレスポンスをインデントをそろえた形にする'''
@@ -112,52 +108,52 @@ class DS(Db_Base):
             'market_code': board_info['Exchange'],
             'price': board_info['CurrentPrice'],
             'latest_transaction_time': board_info['CurrentPriceTime'],
-            'change_status': board_info['CurrentPriceChangeStatus'][1:],
+            'change_status': board_info['CurrentPriceChangeStatus'][2:],
             'present_status': board_info['CurrentPriceStatus'],
-            'market_buy_qty': board_info[''],
+            'market_buy_qty': board_info['MarketOrderBuyQty'],
             'buy1_sign': board_info['Buy1']['Sign'][1:],
             'buy1_price': board_info['Buy1']['Price'],
             'buy1_qty': board_info['Buy1']['Qty'],
-            'buy2_price': board_info[''],
-            'buy2_qty': board_info[''],
-            'buy3_price': board_info[''],
-            'buy3_qty': board_info[''],
-            'buy4_price': board_info[''],
-            'buy4_qty': board_info[''],
-            'buy5_price': board_info[''],
-            'buy5_qty': board_info[''],
-            'buy6_price': board_info[''],
-            'buy6_qty': board_info[''],
-            'buy7_price': board_info[''],
-            'buy7_qty': board_info[''],
-            'buy8_price': board_info[''],
-            'buy8_qty': board_info[''],
-            'buy9_price': board_info[''],
-            'buy9_qty': board_info[''],
-            'buy10_price': board_info[''],
-            'buy10_qty': board_info[''],
-            'market_sell_qty': board_info[''],
-            'sell1_sign': board_info[''],
-            'sell1_price': board_info[''],
-            'sell1_qty': board_info[''],
-            'sell2_price': board_info[''],
-            'sell2_qty': board_info[''],
-            'sell3_price': board_info[''],
-            'sell3_qty': board_info[''],
-            'sell4_price': board_info[''],
-            'sell4_qty': board_info[''],
-            'sell5_price': board_info[''],
-            'sell5_qty': board_info[''],
-            'sell6_price': board_info[''],
-            'sell6_qty': board_info[''],
-            'sell7_price': board_info[''],
-            'sell7_qty': board_info[''],
-            'sell8_price': board_info[''],
-            'sell8_qty': board_info[''],
-            'sell9_price': board_info[''],
-            'sell9_qty': board_info[''],
-            'sell10_price': board_info[''],
-            'sell10_qty': board_info[''],
+            'buy2_price': board_info['Buy2']['Price'],
+            'buy2_qty': board_info['Buy2']['Qty'],
+            'buy3_price': board_info['Buy3']['Price'],
+            'buy3_qty': board_info['Buy3']['Qty'],
+            'buy4_price': board_info['Buy4']['Price'],
+            'buy4_qty': board_info['Buy4']['Qty'],
+            'buy5_price': board_info['Buy5']['Price'],
+            'buy5_qty': board_info['Buy5']['Qty'],
+            'buy6_price': board_info['Buy6']['Price'],
+            'buy6_qty': board_info['Buy6']['Qty'],
+            'buy7_price': board_info['Buy7']['Price'],
+            'buy7_qty': board_info['Buy7']['Qty'],
+            'buy8_price': board_info['Buy8']['Price'],
+            'buy8_qty': board_info['Buy8']['Qty'],
+            'buy9_price': board_info['Buy9']['Price'],
+            'buy9_qty': board_info['Buy9']['Qty'],
+            'buy10_price': board_info['Buy10']['Price'],
+            'buy10_qty': board_info['Buy10']['Qty'],
+            'market_sell_qty': board_info['MarketOrderSellQty'],
+            'sell1_sign': board_info['Sell1']['Sign'][1:],
+            'sell1_price': board_info['Sell1']['Price'],
+            'sell1_qty': board_info['Sell1']['Qty'],
+            'sell2_price': board_info['Sell2']['Price'],
+            'sell2_qty': board_info['Sell2']['Qty'],
+            'sell3_price': board_info['Sell3']['Price'],
+            'sell3_qty': board_info['Sell3']['Qty'],
+            'sell4_price': board_info['Sell4']['Price'],
+            'sell4_qty': board_info['Sell4']['Qty'],
+            'sell5_price': board_info['Sell5']['Price'],
+            'sell5_qty': board_info['Sell5']['Qty'],
+            'sell6_price': board_info['Sell6']['Price'],
+            'sell6_qty': board_info['Sell6']['Qty'],
+            'sell7_price': board_info['Sell7']['Price'],
+            'sell7_qty': board_info['Sell7']['Qty'],
+            'sell8_price': board_info['Sell8']['Price'],
+            'sell8_qty': board_info['Sell8']['Qty'],
+            'sell9_price': board_info['Sell9']['Price'],
+            'sell9_qty': board_info['Sell9']['Qty'],
+            'sell10_price': board_info['Sell10']['Price'],
+            'sell10_qty': board_info['Sell10']['Qty'],
             'over_qty': board_info['OverSellQty'],
             'under_qty': board_info['UnderBuyQty']
         }
@@ -165,4 +161,4 @@ class DS(Db_Base):
         return board_table_info
 
 ds = DS()
-ds.main(1570)
+ds.main()

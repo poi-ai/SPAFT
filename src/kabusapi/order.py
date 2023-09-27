@@ -102,7 +102,7 @@ class Order(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'注文発注処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'注文発注処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -143,5 +143,5 @@ class Order(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False

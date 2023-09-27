@@ -29,7 +29,7 @@ class Wallet(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'現物余力情報取得処理でエラ\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'現物余力情報取得処理でエラ\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -65,7 +65,7 @@ class Wallet(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'信用余力情報取得処理でエラ\nエラーコード: {response.status_code}\n{response.content}')
+            self.error_output(f'信用余力情報取得処理でエラ\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content

@@ -99,6 +99,10 @@ class Base():
         if unsent_message != '':
             self.line_send(unsent_message, separate_no + 1)
 
+    def byte_to_dict(self, response_json):
+        '''受け取ったレスポンスをdict型に変換する'''
+        return json.loads(response_json)
+
 class Log():
     '''loggerの設定を簡略化
         ログファイル名は呼び出し元のファイル名
@@ -138,7 +142,7 @@ class Log():
         # ログ出力設定
         if self.output != 1:
             # リポジトリのルートフォルダを指定
-            repos_root = os.path.join(os.path.dirname(__file__), '..', '..')
+            repos_root = os.path.join(os.path.dirname(__file__), '..')
             log_folder = os.path.join(repos_root, 'log')
             # ログフォルダチェック。無ければ作成
             if not os.path.exists(log_folder):
