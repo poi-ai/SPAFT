@@ -1,6 +1,8 @@
 import requests
+import traceback
+from base import Base
 
-class Auth():
+class Auth(Base):
     '''トークン発行用API'''
     def __init__(self, api_url):
         self.token = ''
@@ -22,14 +24,11 @@ class Auth():
         try:
             response = requests.post(url, json = data)
         except Exception as e:
-            pass # ここにエラー処理
-            #print(e)
+            self.error_output('トークン発行取得処理でエラー', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            #print(response.status_code)
-            #print(response.content.decode('utf-8'))
-            pass # ここにエラー処理
+            self.error_output(f'トークン発行取得処理でエラー\nエラーコード: {response.status_code}\n{response.content}')
             return False
 
         self.token = response.json()['Token']

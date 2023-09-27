@@ -63,7 +63,7 @@ class Db_Operate(Db_Base):
                 order_id(str): 注文ID
                 reverse_order_id(str): 反対注文ID
                 stock_code(float): 証券コード
-                order_price(int): 注文価格
+                order_price(float): 注文価格
                     成行は-1.0
                 order_volume(int): 注文株数
                 transaction_price(float): 平均約定価格

@@ -9,8 +9,8 @@ class Main(Base):
     def __init__(self):
         self.api = KabusApi(api_password = 'production', production = True)
         self.db = Db_Operate()
-        self.buy_order_dict = {}
-        self.sell_order_dict = {}
+        self.buy_order_list = []
+        self.sell_order_list = []
         result = self.init_main()
         if not result: exit()
 
@@ -45,8 +45,23 @@ class Main(Base):
 
         # 保証金が30万を下回っていたら取引できないので終了
         if buying_power <= 300000:
-            self.logger.info('保証金額が30万円未満のため取引を行いません')
+            self.logger.info('保証金が30万円未満のため取引を行いません')
             return False
+
+        # 銘柄情報を取得
+        stock_info = self.api.info.symbol(stock_code = config.STOCK_CODE, market_code = 1)
+        if stock_info == False:
+            return False
+
+        # 銘柄情報から取引に使用するデータを変数に突っ込んどく
+        # 1単元株数
+        self.one_unit = stock_info['TradingUnit']
+        # 値幅上限(S高株価)
+        self.upper_price = stock_info['UpperLimit']
+        # 値幅下限(S安株価)
+        self.lower_price = stock_info['LowerLimit']
+        # 基準から値幅の8割減株価(取引中止ライン)
+        self.stop_price = self.lower_price + (self.upper_price - self.lower_price) / 10
 
     def main(self):
         '''スキャルピングを行うためのメイン処理'''
@@ -77,12 +92,13 @@ class Main(Base):
                 if order_info['State'] == 5:
                     order_id = order_info['ID']
 
-                    if order_id in self.buy_order_dict:
-                        del self.buy_order_dict[order_id]
-                        if order_id in self.sell_order_dict:
-                            del self.sell_order_dict[order_id]
-                        else:
-                            self.logger.warning(f'インスタンス変数に一致する注文IDが見つかりませんでした order_id {order_id}')
+                    before_len = len(self.buy_order_list) + len(self.sell_order_list)
+
+                    self.buy_order_list = list(filter(lambda buy_order: buy_order['order_id'] != order_id, self.buy_order_list))
+                    self.sell_order_list = list(filter(lambda sell_order: sell_order['order_id'] != order_id, self.sell_order_list))
+
+                    if before_len == len(self.buy_order_list) + len(self.sell_order_list):
+                        self.logger.warning(f'インスタンス変数に一致する注文IDが見つかりませんでした order_id {order_id}')
 
                     # DB更新
                     result = self.db.update_orders_status(order_id = order_info['ID'], status = 2)
@@ -95,13 +111,18 @@ class Main(Base):
                         # TODO データ成形用処理
                         reverse_order_info = {
                         }
+
                         result = self.api.order.stock(reverse_order_info)
                         if not result:
                             self.db.insert_errors('反対注文発注API処理')
                             continue
 
                         # リカバリ用でインスタンス変数に注文をIDを持たせとく
-                        self.sell_order_dict.append(result['OrderId'])
+                        self.sell_order_list.append({
+                            'order_id': result['OrderId'],
+                            'price': yet_info['order_price'], # TODO 組み立てたら
+                            'qty': yet_info['order_volume'] # TODO 組み立てたら
+                        })
 
                         # TODO 注文情報をDBに追加する
 
@@ -120,6 +141,10 @@ class Main(Base):
             if result == False:
                 self.db.insert_errors('板情報DB記録処理')
 
+            # 現在価格が値幅の8割を下回っていたら強制取引終了
+            if result['CurrentPrice'] <= self.stop_price:
+                exit() # TODO 強制成決済処理を呼び出す
+
             # 買い対象の板5枚分の価格を取得する
             buy_target_price = self.culc_buy_target_price(result)
 
@@ -127,8 +152,8 @@ class Main(Base):
             for target_price in buy_target_price:
                 order_info = self.db.select_orders(yet = True, order_price = target_price)
                 if result == False:
-                self.db.insert_errors('価格指定注文DB取得処理')
-                continue
+                    self.db.insert_errors('価格指定注文DB取得処理')
+                    continue
 
                 # 注文が入っていなければ入れる
                 if len(order_info) == 0:
@@ -139,19 +164,35 @@ class Main(Base):
                         continue
 
                     # 購入後が保証金の2.5倍に収まるなら買う
-                    if bp['total_asset'] * 2.5 > bp['total_margin'] + target_price * xx(単元株数):
+                    if bp['total_asset'] * 2.5 > bp['total_margin'] + target_price * self.one_unit:
+
+                        # TODO 注文フォーマット作成
+
                         # APIで発注
                         result = self.api.order.stock()
                         if result == False:
                             self.db.insert_errors('買い注文API')
                             continue
 
-                        # TODO リカバリ用変数に突っ込む
-                        self.buy_order_list.append()
+                        # リカバリ用変数に突っ込む
+                        self.buy_order_list.append({
+                            'order_id': result['OrderId'],
+                            'price': 1, # TODO 組み立てたら
+                            'qty': 1 # TODO 組み立てたら
+                        })
 
-                        # TODO DB に突っ込む
+                        # TODO 注文テーブルに突っ込む
 
-                        # TODO 余力更新
+                        # TODO 余力テーブルにレコード追加
+                        latest_bp = {
+                            'total_assets': bp['total_assets'],
+                            'total_margin': bp['total_margin'] + target_price * self.one_unit,
+                            'api_flag': '0'
+                        }
+
+
+
+
 
 
             # 現在値と最低売り注文価格・最高買い注文価格を取得する
@@ -215,7 +256,7 @@ class Main(Base):
             price(int): 約定代金
 
         Returns:
-            interest(int): 金利
+            interest(int): 1日にかかる金利額
 
         '''
         # ワンショット100万以上は金利0%
@@ -244,9 +285,12 @@ class Main(Base):
 
         # 売り注文-1pipから注文を入れるか(T)、買い注文のある最高値から注文を入れるか(F)
         if config.AMONG_PRICE_ORDER == True:
-            return [board_info['Sell1']['Price'] - pip  * min_diff for pip in range(1, 6)]
+            price_list = [board_info['Sell1']['Price'] - pip * min_diff for pip in range(1, 6)]
         else:
-            return [board_info['Buy1']['Price'] - pip  * min_diff for pip in range(5)]
+            price_list = [board_info['Buy1']['Price'] - pip * min_diff for pip in range(5)]
+
+        # S安未満のものは弾いて返す
+        return [price for price in price_list if price >= self.lower_price]
 
 
 if __name__ == '__main__':
