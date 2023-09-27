@@ -4,7 +4,7 @@ CREATE TABLE boards (
     stock_code VARCHAR(4) NOT NULL COMMENT '証券コード',
     market_code VARCHAR(1) NOT NULL COMMENT '市場コード (1: 東証、3: 名証、5: 福証、6: 札証)',
     price FLOAT(7,1) DEFAULT NULL COMMENT '現在株価',
-    latest_transaction_date DATETIME DEFAULT NULL COMMENT '直近約定時刻',
+    latest_transaction_time DATETIME DEFAULT NULL COMMENT '直近約定時刻',
     change_status VARCHAR(2) NOT NULL COMMENT '一取引前からのステータス変動 (00: 存在しない、56: 変動なし、57: 上昇、58: 下落、59: 中断板寄り後の初値、60: ザラ場引け、61: 板寄せ引け、62: 中断引け、63: ダウン引け、64: 逆転終値、66: 特別気配引け、67: 一時留保引け、68: 売買停止引け、69: サーキットブレーカ引け)',
     present_status VARCHAR(2) NOT NULL COMMENT '現在のステータス (1: 現在値で取引成立、2:不連続歩み、3: 板寄せ、4: システム障害、5: 中断、6: 売買停止、7: 売買停止解除・システム停止解除、8: 終値で取引成立、9: システム停止、10: 概算値、11: 参考値、12: サーキットブレイク発動中、13:システム障害解除、14: サーキットブレイク解除、15: 中断解除、16: 一時保留中、17: 一時保留解除、18: ファイル障害、19: ファイル障害解除、20: Spread/Strategy、21: ダイナミックサーキットブレーク発動中、22: ダイナミックサーキットブレーク解除、23: 板寄せ約定)',
     market_buy_qty BIGINT(11) NOT NULL COMMENT '買成行注文の株数',
