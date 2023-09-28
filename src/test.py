@@ -242,12 +242,6 @@ class Main(Base):
                 fund_type = '11'
             )
 
-    def tidy_response(self, response_json):
-        '''受け取ったレスポンスをインデントをそろえた形にする'''
-        parsed_response = json.loads(response_json)
-        formatted_response = json.dumps(parsed_response, indent = 4, ensure_ascii = False)
-        return formatted_response
-
     def get_interest(self, price):
         '''
         1約定の代金からカブコムのデイトレ金利を計算する
@@ -259,7 +253,7 @@ class Main(Base):
             interest(int): 1日にかかる金利額
 
         '''
-        # ワンショット100万以上は金利0%
+        # ワンシト100万以上は金利0%
         if price >= 1000000: return 0
 
         # 代金(円) x (年率)1.8% ÷ 365(日)、1円以下は切り捨て

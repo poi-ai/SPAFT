@@ -6,6 +6,7 @@ from datetime import datetime
 from db_base import Db_Base
 from db_operate import Db_Operate
 from kabusapi import KabusApi
+from mold import Mold
 
 # APIから返ってくる情報を調査するための処理
 class DS(Db_Base):
@@ -13,6 +14,7 @@ class DS(Db_Base):
         super().__init__()
         self.error_stock_code = []
         self.api = KabusApi(api_password = 'production', production = True)
+        self.mold = Mold()
         self.db = Db_Operate()
         self.today = datetime.now().strftime("%Y%m%d")
 
@@ -56,7 +58,7 @@ class DS(Db_Base):
 
             # DBに突っ込めるように成型
             try:
-                board_table_dict = self.mold_board_info(board_dict)
+                board_table_dict = self.mold.response_to_boards(board_dict)
             except Exception as e:
                 self.error_stock_code.append(target_stock_code)
                 self.logger.error('変換処理でエラー', e, traceback.format_exc())
@@ -91,74 +93,6 @@ class DS(Db_Base):
             # 辞書の値をCSVファイルに書き込む
             writer.writerow(input_dict)
 
-    def mold_board_info(self, board_info):
-        '''
-        板情報APIからのレスポンスをDBに突っ込めるような形に成型する
-
-        Args:
-            borad_info(dict): 板情報
-                中身は割愛
-
-        Returns:
-            board_table_info(dict): 成型後の板情報
-
-        '''
-        board_table_info = {
-            'stock_code': board_info['Symbol'],
-            'market_code': board_info['Exchange'],
-            'price': board_info['CurrentPrice'],
-            'latest_transaction_time': board_info['CurrentPriceTime'],
-            'change_status': board_info['CurrentPriceChangeStatus'][2:],
-            'present_status': board_info['CurrentPriceStatus'],
-            'market_buy_qty': board_info['MarketOrderBuyQty'],
-            'buy1_sign': board_info['Buy1']['Sign'][1:],
-            'buy1_price': board_info['Buy1']['Price'],
-            'buy1_qty': board_info['Buy1']['Qty'],
-            'buy2_price': board_info['Buy2']['Price'],
-            'buy2_qty': board_info['Buy2']['Qty'],
-            'buy3_price': board_info['Buy3']['Price'],
-            'buy3_qty': board_info['Buy3']['Qty'],
-            'buy4_price': board_info['Buy4']['Price'],
-            'buy4_qty': board_info['Buy4']['Qty'],
-            'buy5_price': board_info['Buy5']['Price'],
-            'buy5_qty': board_info['Buy5']['Qty'],
-            'buy6_price': board_info['Buy6']['Price'],
-            'buy6_qty': board_info['Buy6']['Qty'],
-            'buy7_price': board_info['Buy7']['Price'],
-            'buy7_qty': board_info['Buy7']['Qty'],
-            'buy8_price': board_info['Buy8']['Price'],
-            'buy8_qty': board_info['Buy8']['Qty'],
-            'buy9_price': board_info['Buy9']['Price'],
-            'buy9_qty': board_info['Buy9']['Qty'],
-            'buy10_price': board_info['Buy10']['Price'],
-            'buy10_qty': board_info['Buy10']['Qty'],
-            'market_sell_qty': board_info['MarketOrderSellQty'],
-            'sell1_sign': board_info['Sell1']['Sign'][1:],
-            'sell1_price': board_info['Sell1']['Price'],
-            'sell1_qty': board_info['Sell1']['Qty'],
-            'sell2_price': board_info['Sell2']['Price'],
-            'sell2_qty': board_info['Sell2']['Qty'],
-            'sell3_price': board_info['Sell3']['Price'],
-            'sell3_qty': board_info['Sell3']['Qty'],
-            'sell4_price': board_info['Sell4']['Price'],
-            'sell4_qty': board_info['Sell4']['Qty'],
-            'sell5_price': board_info['Sell5']['Price'],
-            'sell5_qty': board_info['Sell5']['Qty'],
-            'sell6_price': board_info['Sell6']['Price'],
-            'sell6_qty': board_info['Sell6']['Qty'],
-            'sell7_price': board_info['Sell7']['Price'],
-            'sell7_qty': board_info['Sell7']['Qty'],
-            'sell8_price': board_info['Sell8']['Price'],
-            'sell8_qty': board_info['Sell8']['Qty'],
-            'sell9_price': board_info['Sell9']['Price'],
-            'sell9_qty': board_info['Sell9']['Qty'],
-            'sell10_price': board_info['Sell10']['Price'],
-            'sell10_qty': board_info['Sell10']['Qty'],
-            'over_qty': board_info['OverSellQty'],
-            'under_qty': board_info['UnderBuyQty']
-        }
-
-        return board_table_info
 
 ds = DS()
 ds.main()

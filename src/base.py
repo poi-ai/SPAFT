@@ -103,6 +103,12 @@ class Base():
         '''受け取ったレスポンスをdict型に変換する'''
         return json.loads(response_json)
 
+    def tidy_response(self, response_json):
+        '''受け取ったレスポンスをインデントをそろえた形にする'''
+        parsed_response = self.byte_to_dict(response_json)
+        formatted_response = json.dumps(parsed_response, indent = 4, ensure_ascii = False)
+        return formatted_response
+
 class Log():
     '''loggerの設定を簡略化
         ログファイル名は呼び出し元のファイル名

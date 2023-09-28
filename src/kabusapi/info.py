@@ -1,5 +1,6 @@
 import requests
 import traceback
+import urllib.parse
 from base import Base
 
 class Info(Base):
@@ -199,26 +200,28 @@ class Info(Base):
 
         return response.content
 
-    def orders(self, product = None, id = None, uptime = None, details = True, symbol = None,
+    def orders(self, search_filter = None,
+               product = None, id = None, uptime = None, details = True, symbol = None,
                state = None, side = None, cashmargin = None):
         '''
         指定した注文番号の約定状況を取得する
         引数指定なしで全ての状況を取得、引数指定で絞り込み可
         Args:
-            product(str): 商品区分
-                0: すべて、1: 現物、2: 信用、3: 先物、4: オプション
-            id(str): 注文番号
-            uptime(string、yyyyMMddHHss): 更新日時 この日時以降の注文を取得
-            details(str): 注文詳細取得
-                True: 取得する、False: 取得しない
-            symbol(str): 銘柄コード
-            state(str): 取引状態
-                1: 待機（発注待機）、2: 処理中（発注送信中）、3: 処理済（発注済・訂正済）
-                4: 訂正・取消送信中、5: 終了（発注エラー・取消済・全約定・失効・期限切れ）
-            side(str): 売買区分
-                1: 売、2: 買
-            cashmargin(str): 取引区分
-                2: 新規、3: 返済
+            search_filter(dict): 絞り込む検索条件[任意]
+                product(str): 商品区分
+                    0: すべて、1: 現物、2: 信用、3: 先物、4: オプション
+                id(str): 注文番号
+                uptime(string、yyyyMMddHHss): 更新日時 この日時以降の注文を取得
+                details(str): 注文詳細取得
+                    True: 取得する、False: 取得しない
+                symbol(str): 銘柄コード
+                state(str): 取引状態
+                    1: 待機（発注待機）、2: 処理中（発注送信中）、3: 処理済（発注済・訂正済）
+                    4: 訂正・取消送信中、5: 終了（発注エラー・取消済・全約定・失効・期限切れ）
+                side(str): 売買区分
+                    1: 売、2: 買
+                cashmargin(str): 取引区分
+                    2: 新規、3: 返済
 
         Returns:
             response.content (list[dict{},dict{},...])
@@ -275,18 +278,8 @@ class Info(Base):
         '''
         url = f'{self.api_url}/orders/'
 
-        filter_list = []
-        if product: filter_list.append('product={product}')
-        if id: filter_list.append('id={id}')
-        if uptime: filter_list.append('uptime={uptime}')
-        if not details: filter_list.append('details=false')
-        if symbol: filter_list.append('symbol={symbol}')
-        if state: filter_list.append('state={state}')
-        if side: filter_list.append('side={side}')
-        if cashmargin: filter_list.append('cashmargin={cashmargin}')
-
-        if len(filter_list) != 0:
-            url = f'{url}?{"&".join(filter_list)}'
+        if search_filter != None:
+            url = f'{url}?{urllib.parse.urlencode(search_filter)}'
 
         try:
             response = requests.get(url, headers = self.api_headers)
