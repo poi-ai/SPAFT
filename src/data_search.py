@@ -19,24 +19,36 @@ class DS(Db_Base):
         self.today = datetime.now().strftime("%Y%m%d")
 
     def main(self, stock_code = None):
-
         if stock_code is not None:
             # 指定があったらそれのみ
             stock_code_list = [stock_code]
         else:
             # 指定がないなら全部
-            stock_code_list = [stock_code for stock_code in range(1000, 10000)]
+            stock_code_list = [stock_code for stock_code in range(1300, 10000)]
 
         # 一個ずつ見る
         for target_stock_code in stock_code_list:
-            time.sleep(1)
+            time.sleep(0.2)
 
             # 板情報で返ってくるデータを見たい
-            board_info = self.api.info.board(stock_code = stock_code, market_code = 1)
+            board_info = self.api.info.board(stock_code = target_stock_code, market_code = 1)
             if board_info == False:
                 self.error_stock_code.append(target_stock_code)
-                print(f'板情報取得処理でエラー stock_code: {target_stock_code}')
                 continue
+
+            # 銘柄登録数上限対応
+            if board_info == 999:
+                # 銘柄登録全解除
+                result = self.api.regist.unregist_all()
+                if result == False:
+                    stock_code_list.append(target_stock_code)
+                    continue
+
+                # 再度板情報取得
+                board_info = self.api.info.board(stock_code = target_stock_code, market_code = 1)
+                if board_info == False:
+                    self.error_stock_code.append(target_stock_code)
+                    continue
 
             # dict変換
             try:
@@ -44,7 +56,6 @@ class DS(Db_Base):
             except Exception as e:
                 self.error_stock_code.append(target_stock_code)
                 self.logger.error('dict変換処理でエラー', e, traceback.format_exc())
-                print(f'dict変換処理でエラー\n{e}\n{traceback.format_exc()}')
                 continue
 
             # CSVに突っ込む
@@ -53,7 +64,6 @@ class DS(Db_Base):
             except Exception as e:
                 self.error_stock_code.append(target_stock_code)
                 self.logger.error('CSV出力処理でエラー', e, traceback.format_exc())
-                print(f'CSV出力処理でエラー\n{e}\n{traceback.format_exc()}')
                 continue
 
             # DBに突っ込めるように成型
@@ -62,7 +72,6 @@ class DS(Db_Base):
             except Exception as e:
                 self.error_stock_code.append(target_stock_code)
                 self.logger.error('変換処理でエラー', e, traceback.format_exc())
-                print(f'変換処理でエラー\n{e}\n{traceback.format_exc()}')
 
             # レコード追加
             result = self.db.insert_boards(board_table_dict)
@@ -83,7 +92,7 @@ class DS(Db_Base):
     def write_dict_to_csv(self, input_dict):
         '''dict型のデータをCSVへ出力する'''
         # CSVファイルを書き込みモードで開く
-        with open(f'board_data_{self.today}.csv', mode = 'a', newline = '') as file:
+        with open(f'board_data_{self.today}.csv', mode = 'a', newline = '', encoding = 'UTF-8') as file:
             writer = csv.DictWriter(file, fieldnames = input_dict.keys())
 
             # ファイルが存在しない場合または空の場合、ヘッダー行を書き込む

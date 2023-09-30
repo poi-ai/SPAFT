@@ -114,7 +114,7 @@ class Info(Base):
                     0: 指数、1: 現物、101: 日経225先物、103: 日経225OP、107: TOPIX先物、121: JPX400先物、
                     144: NYダウ、145: 日経平均VI、154: 東証マザーズ指数先物、155: TOPIX_REIT、
                     171: TOPIX CORE30、901: 日経平均225ミニ先物、907: TOPIXミニ先物
-            ※取得失敗時はFalseを返す
+            ※取得失敗時はFalseを返す(ただし、登録数上限の場合のみ999を返す)
         '''
         url = f'{self.api_url}/board/{stock_code}@{market_code}'
 
@@ -127,6 +127,13 @@ class Info(Base):
             return False
 
         if response.status_code != 200:
+            # 板情報を取得した際に勝手に銘柄登録され、
+            # 登録数が50銘柄超えて新たに新規銘柄の板情報を指定しようとするとエラーが出るクソ仕様
+            # そのためこのエラーの場合のみFalseではなく999を返す
+            if response.status_code == 400:
+                if self.byte_to_dict(response.content)['Code'] == 4002006:
+                    self.logger.warning(f'板情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
+                    return 999
             self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
@@ -196,6 +203,10 @@ class Info(Base):
 
         if response.status_code != 200:
             self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            # レスポンス400の場合は銘柄登録数エラーの可能性がある
+            if response.status_code == 400:
+                if response.content['Message'] == 'レジスト数エラー':
+                    return False
             return False
 
         return response.content

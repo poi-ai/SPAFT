@@ -28,6 +28,10 @@ class KabusApi():
         self.auth = Auth(self.API_URL)
         token = self.auth.issue_token(api_password)
 
+        # トークン発行処理でエラー
+        if token == False:
+            exit()
+
         # 認証ヘッダー
         self.api_headers = {'X-API-KEY': token}
 

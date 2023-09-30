@@ -18,7 +18,7 @@ class Base():
         else:
             self.logger = Log(Path(inspect.stack()[1].filename).stem)
 
-    def error_output(self, message, e = None, stacktrace = None, line_flg = True, stdout_flg = True):
+    def error_output(self, message, e = None, stacktrace = None, line_flg = True):
         '''エラー時のログ出力/LINE通知を行う
 
         Args:
@@ -39,9 +39,6 @@ class Base():
 
         if line_flg:
             self.line_send(other_message)
-
-        if stdout_flg:
-            print(f'{other_message}\n')
 
     def line_send(self, message, separate_no = 1):
         ''' LINEにメッセージを送信する
