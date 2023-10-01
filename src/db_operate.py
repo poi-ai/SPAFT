@@ -152,6 +152,37 @@ class Db_Operate(Db_Base):
             self.error_output('エラー件数取得処理でエラー', e, traceback.format_exc())
             return False
 
+    def select_listed(self):
+        '''
+        上場銘柄テーブル(listed)からデータを取得する
+
+        Returns:
+            count(int): 1分以内のエラー発生数
+
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = ''''
+                    SELECT
+                        stock_code,
+                        market_code,
+                        listed_flg
+                    FROM
+                        listed
+                '''
+
+                cursor.execute(sql)
+                row = cursor.fetchall()
+
+                if row:
+                    return int(row[0])
+                else:
+                    return 0
+
+        except Exception as e:
+            self.error_output('上場コードテーブル取得処理でエラー', e, traceback.format_exc())
+            return False
+
     def insert_buying_power(self, data):
         '''
         余力テーブル(buying_power)へレコードを追加する
@@ -540,6 +571,45 @@ class Db_Operate(Db_Base):
             self.error_output('エラー情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
             return False
 
+    def insert_listed(self, stock_code, listed_flg):
+        '''
+        上場情報テーブル(errors)へレコードを追加する
+
+        Args:
+            stock_code(int or str): 銘柄コード
+            listed_flg(int or str): 上場中フラグ
+
+        Returns:
+            result(bool): SQL実行結果
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = '''
+                    INSERT INTO listed
+                    (
+                        stock_code,
+                        market_code,
+                        listed_flg
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        %s
+                    )
+                '''
+
+                cursor.execute(sql, (
+                    stock_code,
+                    1,
+                    listed_flg
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output('上場情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            return False
+
     def update_orders_status(self, order_id, status):
         '''
         注文テーブル(orders)のステータスを更新する
@@ -572,6 +642,69 @@ class Db_Operate(Db_Base):
             return True
         except Exception as e:
             self.error_output(f'注文テーブルのステータス更新処理でエラー', e, traceback.format_exc())
+            return False
+
+    def update_listed(self, stock_code, listed_flg):
+        '''
+        上場情報テーブル(listed)のステータスを更新する
+
+        Args:
+            stock_code(int or str): 銘柄コード
+            listed_flg(int or str): 上場中フラグ
+
+        Returns:
+            result(bool): SQL実行結果
+
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    UPDATE
+                        listed
+                    SET
+                        listed_flg = %s
+                    WHERE
+                        stock_code = %s
+                '''
+
+                cursor.execute(sql, (
+                    listed_flg,
+                    stock_code
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output(f'上場情報テーブルのステータス更新処理でエラー', e, traceback.format_exc())
+            return False
+
+    def delete_listed(self, stock_code):
+        '''
+        上場情報テーブル(errors)のレコードを削除する
+
+        Args:
+            stock_code(str): 銘柄コード
+
+        Returns:
+            result(bool): SQL実行結果
+
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    DELETE FROM
+                        listed
+                    WHERE
+                        stock_code = %s,
+                        market_code = 1
+                '''
+
+                cursor.execute(sql, (
+                    stock_code
+                ))
+
+            return True
+        except Exception as e:
+            self.error_output(f'上場コードテーブルの削除処理でエラー', e, traceback.format_exc())
             return False
 
 ##### 以下テンプレ ######
