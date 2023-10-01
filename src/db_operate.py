@@ -154,15 +154,15 @@ class Db_Operate(Db_Base):
 
     def select_listed(self):
         '''
-        上場銘柄テーブル(listed)からデータを取得する
+        上場情報テーブル(listed)からデータを取得する
 
         Returns:
-            count(int): 1分以内のエラー発生数
+            rows(dict): 上場情報テーブルに格納されているデータ
 
         '''
         try:
             with self.conn.cursor(self.dict_return) as cursor:
-                sql = ''''
+                sql = '''
                     SELECT
                         stock_code,
                         market_code,
@@ -172,10 +172,10 @@ class Db_Operate(Db_Base):
                 '''
 
                 cursor.execute(sql)
-                row = cursor.fetchall()
+                rows = cursor.fetchall()
 
-                if row:
-                    return int(row[0])
+                if rows:
+                    return rows
                 else:
                     return 0
 

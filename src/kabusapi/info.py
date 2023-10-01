@@ -137,7 +137,7 @@ class Info(Base):
 
                 # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
                 if self.byte_to_dict(response.content)['Code'] == 4002001:
-                    self.logger.warning(f'銘柄未発見エラー\n証券コード: {stock_code}')
+                    self.logger.warning(f'板情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
                     return 4002001
 
             self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
@@ -208,11 +208,20 @@ class Info(Base):
             return False
 
         if response.status_code != 200:
-            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            # レスポンス400の場合は銘柄登録数エラーの可能性がある
             if response.status_code == 400:
-                if response.content['Message'] == 'レジスト数エラー':
-                    return False
+                # 板情報を取得した際に勝手に銘柄登録され、
+                # 登録数が50銘柄超えて新たに新規銘柄の板情報を指定しようとするとエラーが出るクソ仕様
+                # そのためこのエラーの場合はFalseではなく999を返す
+                if self.byte_to_dict(response.content)['Code'] == 4002006:
+                    self.logger.warning(f'銘柄情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
+                    return 4002006
+
+                # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
+                if self.byte_to_dict(response.content)['Code'] == 4002001:
+                    self.logger.warning(f'銘柄情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
+                    return 4002001
+
+            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -328,13 +337,88 @@ class Info(Base):
         '''為替情報を取得する'''
         pass
 
-    def regurations(self):
-        '''指定した銘柄の取引規制情報を取得する'''
-        pass
+    def regurations(self, stock_code, market_code = 1):
+        '''
+        指定した銘柄の取引規制情報を取得する
 
-    def primary_exchange(self):
-        '''指定した銘柄の優先市場情報を取得する'''
-        pass
+        Args:
+            stock_code(int or str): 証券コード
+            market_code(int or str): 市場コード
+                1: 東証、3: 名証、5: 福証、6: 札証
+
+        Returns:
+            response.content(dict): 指定した銘柄の優先市場情報
+                Symbol(str): 証券コード
+                RegulationsInfo(list[dict{}, dict{}...]): 取引規制情報
+                    Exchange(int): 規制がかかっている市場
+                        0: 全市場、1: 東証、3: 名証、5: 福証、6: 札証、9: SOR、10: CXJ、21: JNX
+                    Product(int): 規制がかかっている取引
+                        0: 全、1: 現物、2: 信用新規(制度)、3: 信用新規(一般)、4: 新規／空売り、5: 信用返済(制度)、
+                        6: 信用返済(一般)、7: 返済、8: 品受、9: 品渡
+                    Side(str): 規制がかかっている売買
+                        0: 全、1: 売、2: 買
+                    Reason(str): 規制理由
+                    LimitStartDay(str, yyyy/MM/dd HH:mm): 規制開始日
+                        ※空売り規制の場合はNULL
+                    LimitEndDay(str, yyyy/MM/dd HH:mm): 規制終了日
+                        ※空売り規制の場合はNULL
+                    Level(int): コンプライアンスレベル
+                        0: 規制なし、1: ワーニング、2: エラー
+            ※エラー時はFalse
+        '''
+        url = f'{self.api_url}/regulations/{stock_code}@{market_code}'
+
+        try:
+            response = requests.get(url, headers = self.api_headers)
+        except Exception as e:
+            self.error_output(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            return False
+
+        if response.status_code != 200:
+            if response.status_code == 400:
+                # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
+                if self.byte_to_dict(response.content)['Code'] == 4002001:
+                    self.logger.warning(f'取引規制情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
+                    return 4002001
+
+            self.error_output(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            return False
+
+        return response.content
+
+    def primary_exchange(self, stock_code):
+        '''
+        指定した銘柄の優先市場情報を取得する
+
+        Args:
+            stock_code(int or string): 証券コード
+
+        Returns:
+            response.content(dict): 指定した銘柄の優先市場情報
+                Symbol(str): 証券コード
+                PrimaryExchange(int): 優先市場
+                    1: 東証、3: 名証、5: 福証、6: 札証
+            ※エラー時はFalse
+        '''
+        url = f'{self.api_url}/primaryexchange/{stock_code}'
+
+        try:
+            response = requests.get(url, headers = self.api_headers)
+        except Exception as e:
+            self.error_output(f'優先市場情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            return False
+
+        if response.status_code != 200:
+            if response.status_code == 400:
+                # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
+                if self.byte_to_dict(response.content)['Code'] == 4002001:
+                    self.logger.warning(f'優先市場情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
+                    return 4002001
+
+            self.error_output(f'優先市場情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            return False
+
+        return response.content
 
     def soft_limit(self):
         '''

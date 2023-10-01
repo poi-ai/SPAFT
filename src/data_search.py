@@ -23,16 +23,20 @@ class DS(Db_Base):
             stock_code_list = [stock_code]
         else:
             # 指定がないなら全部
-            stock_code_list = [stock_code for stock_code in range(8226, 10000)]
+            response = self.db.select_listed()
+            if response == False:
+                exit()
+
+            stock_code_list = []
+            for res in response:
+                stock_code_list.append(res['stock_code'])
 
         # 一個ずつ見る
         for target_stock_code in stock_code_list:
             time.sleep(0.13)
 
-            print(f'{time.time()}: API投げる前')
             # 板情報で返ってくるデータを見たい
             board_info = self.api.info.board(stock_code = target_stock_code, market_code = 1)
-            print(f'{time.time()}: API投げた後')
             if board_info == False or board_info == 4002001:
                 self.error_stock_code.append(target_stock_code)
                 continue
