@@ -152,9 +152,14 @@ class Db_Operate(Db_Base):
             self.error_output('エラー件数取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def select_listed(self):
+    def select_listed(self, listed_flg = None):
         '''
         上場情報テーブル(listed)からデータを取得する
+
+        Args:
+            listed_flg(int or str): 上場企業に割り振られているか[任意]
+                0: 上場企業に割り振られていないコードのみ取得
+                1: 上場企業に割り振られているコードのみ取得
 
         Returns:
             rows(dict): 上場情報テーブルに格納されているデータ
@@ -171,13 +176,18 @@ class Db_Operate(Db_Base):
                         listed
                 '''
 
-                cursor.execute(sql)
+                if listed_flg is not None:
+                    sql += ' AND listed_flg = %s'
+                    cursor.execute(sql, (listed_flg))
+                else:
+                    cursor.execute(sql)
+
                 rows = cursor.fetchall()
 
                 if rows:
                     return rows
                 else:
-                    return 0
+                    return []
 
         except Exception as e:
             self.error_output('上場コードテーブル取得処理でエラー', e, traceback.format_exc())

@@ -20,7 +20,7 @@ class Listed_Update(Db_Base):
 
         # DBに上場中として登録されている銘柄コードを取ってくる
         if listed_check:
-            listed_data = self.db.select_listed()
+            listed_data = self.db.select_listed(listed_flg = 1)
             if listed_data == False:
                 exit()
 
@@ -36,14 +36,30 @@ class Listed_Update(Db_Base):
 
                 # 銘柄未発見の(=その証券コードが存在しない)場合はステータスを変更する
                 elif response == 4002001:
-                    result = self.db.update_listed(stock_code = stock_code, listed_flg = '0')
+                    result = self.db.update_listed(stock_code = stock_code, listed_flg = 0)
                     if result == False:
                         continue
 
-
-        # DB未登録の銘柄が登録されているかのチェック
+        # 上場企業に振られていない銘柄コード(新規上場銘柄)のチェックを行う
         if unlisted_check:
-            print()  #TODO
+            unlisted_list = self.db.select_listed(listed_flg = 0)
+            if unlisted_list != False:
+                # 1コードずつチェック
+                for unlisted in unlisted_list:
+                    stock_code = unlisted['stock_code']
+                    time.sleep(0.2)
 
-ls = Listed_Update()
-ls.main()
+                    # 優先市場APIから銘柄コードの存在チェック
+                    response = self.api.info.primary_exchange(stock_code = stock_code)
+                    if response == False:
+                        continue
+
+                    # エラーでも銘柄未発見でも無い場合は割り当てられた企業がするとみなしてDBを更新
+                    elif response != 4002001:
+                        result = self.db.update_listed(stock_code = stock_code, listed_flg = 1)
+                        if result == False:
+                            continue
+
+if __name__ == '__main__':
+    ls = Listed_Update()
+    ls.main()
