@@ -226,11 +226,9 @@ class Info(Base):
 
         return response.content
 
-    def orders(self, search_filter = None,
-               product = None, id = None, uptime = None, details = True, symbol = None,
-               state = None, side = None, cashmargin = None):
+    def orders(self, search_filter = None):
         '''
-        指定した注文番号の約定状況を取得する
+        約定状況を取得する
         引数指定なしで全ての状況を取得、引数指定で絞り込み可
         Args:
             search_filter(dict): 絞り込む検索条件[任意]

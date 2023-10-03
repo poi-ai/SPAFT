@@ -51,12 +51,17 @@ class Db_Operate(Db_Base):
             self.error_output('余力テーブル取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def select_orders(self, yet = False):
+    def select_orders(self, yet = False, order_price = None,
+                      new_order = None, reverse_order = None):
         '''
         注文テーブル(orders)から注文情報を取得する
 
         Args:
+            絞り込み条件を指定できる。全て任意
             yet(bool): 未約定注文のみ取得するか
+            order_price(int): 指定した価格の注文のみ取得
+            new_order(bool): 新規注文のみ取得
+            reverse_order(bool): 決済注文のみ取得
 
         Returns:
             list[dict{}, dict{}...]: 注文情報
@@ -70,13 +75,13 @@ class Db_Operate(Db_Base):
                 buy_sell(str): 売買区分
                     1: 売、2: 買
                 cash_margin(str): 信用区分
-                    1: 現物、2: 信用新規、3:信用返済
+                    1: 現物買、2: 現物売、3: 信用新規、4:信用返済
                 margin_type(str): 信用取引区分
                     0: 現物、1: 制度信用、2: 一般信用(長期)、3: 一般信用(デイトレ)
                 profit(float): 損益額
                     決済注文のみ、新規注文は0.0
                 status(str): 注文ステータス
-                    1: 未約定、2: 約定済、3:取消済
+                    0: 未約定、1: 約定済、2: 取消中、3: 取消済
                 order_date(datetime): 注文日時
                 transaction_date(datetime): 約定日時
                 update_date(datetime): 更新日時
@@ -104,8 +109,15 @@ class Db_Operate(Db_Base):
                         orders
                 '''
 
-                # 未約定のみ抽出するの条件を追加
-                if yet: sql += 'WHERE status = 1'
+                # WHERE文の生成
+                condition = []
+                if yet: condition.append(' status = 0 ')
+                if order_price: condition.append(f' order_price = {order_price} ')
+                if new_order: condition.append(' cash_margin like (1, 3) ')
+                if reverse_order: condition.append(' cash_margin like (2, 4) ')
+
+                if len(condition) != 0:
+                    sql += ' WHERE ' + ' AND '.join(condition)
 
                 cursor.execute(sql)
                 rows = cursor.fetchall()
@@ -119,16 +131,19 @@ class Db_Operate(Db_Base):
             self.error_output('注文テーブル取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def select_errors_minite(self):
+    def select_errors_minite(self, minute = 1):
         '''
-        エラーテーブル(errors)から1分以内に追加されたレコード数を取得する
+        エラーテーブル(errors)からx分以内に追加されたレコード数を取得する
+
+        Args:
+            minite(int): 何分以内か
 
         Returns:
-            count(int): 1分以内のエラー発生数
+            count(int): x分以内のエラー発生数
 
         '''
         try:
-            one_minute_ago = datetime.now() - timedelta(minutes = 1)
+            one_minute_ago = datetime.now() - timedelta(minutes = minute)
 
             with self.conn.cursor(self.dict_return) as cursor:
                 sql = ''''
@@ -193,6 +208,53 @@ class Db_Operate(Db_Base):
             self.error_output('上場コードテーブル取得処理でエラー', e, traceback.format_exc())
             return False
 
+    def select_api_process(self, api_name = None, latest = False):
+        '''
+        APIプロセス管理テーブル(api_process)からデータを取得する
+
+        Args:
+            絞り込みを行う場合のみ指定
+            api_name(str): API／プロセス名[任意]
+            latest(bool): 実行時間の最新順にデータを取得する[任意]
+
+        Returns:
+            rows(dict): APIプロセス管理テーブルに格納されているデータ
+
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = '''
+                    SELECT
+                        name,
+                        status,
+                        api_exec_time,
+                        created_at,
+                        updated_at
+                    FROM
+                        api_process
+                '''
+
+                # API名を指定しているか
+                if api_name is not None:
+                    sql += ' WHERE name = %s'
+                    # 最新のみ取得か
+                    if latest:
+                        sql += ' order by api_exec_time desc'
+                    cursor.execute(sql, (api_name))
+                else:
+                    cursor.execute(sql)
+
+                rows = cursor.fetchall()
+
+                if rows:
+                    return rows
+                else:
+                    return []
+
+        except Exception as e:
+            self.error_output('APIプロセス管理テーブル取得処理でエラー', e, traceback.format_exc())
+            return False
+
     def insert_buying_power(self, data):
         '''
         余力テーブル(buying_power)へレコードを追加する
@@ -249,11 +311,11 @@ class Db_Operate(Db_Base):
                 buy_sell(str): 売買区分[必須]
                     1: 売、2: 買
                 cash_margin(str): 信用区分[必須]
-                    1: 現物、2: 信用新規、3:信用返済
+                    1: 現物買、2: 現物売、3: 信用新規、4:信用返済
                 margin_type(str): 信用取引区分[必須]
                     0: 現物、1: 制度信用、2: 一般信用(長期)、3: 一般信用(デイトレ)
                 status(str): 注文ステータス[必須]
-                    1: 未約定、2: 約定済、3:取消済
+                    0: 未約定、1: 約定済、2: 取消中、3: 取消済
                 order_date(datetime): 注文日時[必須]
 
         Returns:
@@ -627,7 +689,7 @@ class Db_Operate(Db_Base):
         Args:
             order_id(str): 注文ID
             status(str or int): 更新後のステータス
-                1: 未約定、2: 約定済、3:取消済
+                0: 未約定、1: 約定済、2: 取消中、3: 取消済
 
         Returns:
             result(bool): SQL実行結果

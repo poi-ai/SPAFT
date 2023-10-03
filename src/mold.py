@@ -1,5 +1,5 @@
+import traceback
 from base import Base
-
 
 class Mold(Base):
     '''DBやAPIに使うためのデータ整形を行う'''
@@ -15,61 +15,66 @@ class Mold(Base):
 
         Returns:
             board_table_info(dict): 変換後の板情報
+            ※エラー時はFalseを返す
         '''
-        board_table_info = {
-            'stock_code': board_info['Symbol'],
-            'market_code': board_info['Exchange'],
-            'price': board_info['CurrentPrice'],
-            'latest_transaction_time': board_info['CurrentPriceTime'],
-            'change_status': board_info['CurrentPriceChangeStatus'][2:],
-            'present_status': board_info['CurrentPriceStatus'],
-            'market_buy_qty': board_info['MarketOrderBuyQty'],
-            'buy1_sign': board_info['Buy1']['Sign'][1:],
-            'buy1_price': board_info['Buy1']['Price'],
-            'buy1_qty': board_info['Buy1']['Qty'],
-            'buy2_price': board_info['Buy2']['Price'],
-            'buy2_qty': board_info['Buy2']['Qty'],
-            'buy3_price': board_info['Buy3']['Price'],
-            'buy3_qty': board_info['Buy3']['Qty'],
-            'buy4_price': board_info['Buy4']['Price'],
-            'buy4_qty': board_info['Buy4']['Qty'],
-            'buy5_price': board_info['Buy5']['Price'],
-            'buy5_qty': board_info['Buy5']['Qty'],
-            'buy6_price': board_info['Buy6']['Price'],
-            'buy6_qty': board_info['Buy6']['Qty'],
-            'buy7_price': board_info['Buy7']['Price'],
-            'buy7_qty': board_info['Buy7']['Qty'],
-            'buy8_price': board_info['Buy8']['Price'],
-            'buy8_qty': board_info['Buy8']['Qty'],
-            'buy9_price': board_info['Buy9']['Price'],
-            'buy9_qty': board_info['Buy9']['Qty'],
-            'buy10_price': board_info['Buy10']['Price'],
-            'buy10_qty': board_info['Buy10']['Qty'],
-            'market_sell_qty': board_info['MarketOrderSellQty'],
-            'sell1_sign': board_info['Sell1']['Sign'][1:],
-            'sell1_price': board_info['Sell1']['Price'],
-            'sell1_qty': board_info['Sell1']['Qty'],
-            'sell2_price': board_info['Sell2']['Price'],
-            'sell2_qty': board_info['Sell2']['Qty'],
-            'sell3_price': board_info['Sell3']['Price'],
-            'sell3_qty': board_info['Sell3']['Qty'],
-            'sell4_price': board_info['Sell4']['Price'],
-            'sell4_qty': board_info['Sell4']['Qty'],
-            'sell5_price': board_info['Sell5']['Price'],
-            'sell5_qty': board_info['Sell5']['Qty'],
-            'sell6_price': board_info['Sell6']['Price'],
-            'sell6_qty': board_info['Sell6']['Qty'],
-            'sell7_price': board_info['Sell7']['Price'],
-            'sell7_qty': board_info['Sell7']['Qty'],
-            'sell8_price': board_info['Sell8']['Price'],
-            'sell8_qty': board_info['Sell8']['Qty'],
-            'sell9_price': board_info['Sell9']['Price'],
-            'sell9_qty': board_info['Sell9']['Qty'],
-            'sell10_price': board_info['Sell10']['Price'],
-            'sell10_qty': board_info['Sell10']['Qty'],
-            'over_qty': board_info['OverSellQty'],
-            'under_qty': board_info['UnderBuyQty']
-        }
+        try:
+            board_table_info = {
+                'stock_code': board_info['Symbol'],
+                'market_code': board_info['Exchange'],
+                'price': board_info['CurrentPrice'],
+                'latest_transaction_time': board_info['CurrentPriceTime'],
+                'change_status': board_info['CurrentPriceChangeStatus'][2:],
+                'present_status': board_info['CurrentPriceStatus'],
+                'market_buy_qty': board_info['MarketOrderBuyQty'],
+                'buy1_sign': board_info['Buy1']['Sign'][1:],
+                'buy1_price': board_info['Buy1']['Price'],
+                'buy1_qty': board_info['Buy1']['Qty'],
+                'buy2_price': board_info['Buy2']['Price'],
+                'buy2_qty': board_info['Buy2']['Qty'],
+                'buy3_price': board_info['Buy3']['Price'],
+                'buy3_qty': board_info['Buy3']['Qty'],
+                'buy4_price': board_info['Buy4']['Price'],
+                'buy4_qty': board_info['Buy4']['Qty'],
+                'buy5_price': board_info['Buy5']['Price'],
+                'buy5_qty': board_info['Buy5']['Qty'],
+                'buy6_price': board_info['Buy6']['Price'],
+                'buy6_qty': board_info['Buy6']['Qty'],
+                'buy7_price': board_info['Buy7']['Price'],
+                'buy7_qty': board_info['Buy7']['Qty'],
+                'buy8_price': board_info['Buy8']['Price'],
+                'buy8_qty': board_info['Buy8']['Qty'],
+                'buy9_price': board_info['Buy9']['Price'],
+                'buy9_qty': board_info['Buy9']['Qty'],
+                'buy10_price': board_info['Buy10']['Price'],
+                'buy10_qty': board_info['Buy10']['Qty'],
+                'market_sell_qty': board_info['MarketOrderSellQty'],
+                'sell1_sign': board_info['Sell1']['Sign'][1:],
+                'sell1_price': board_info['Sell1']['Price'],
+                'sell1_qty': board_info['Sell1']['Qty'],
+                'sell2_price': board_info['Sell2']['Price'],
+                'sell2_qty': board_info['Sell2']['Qty'],
+                'sell3_price': board_info['Sell3']['Price'],
+                'sell3_qty': board_info['Sell3']['Qty'],
+                'sell4_price': board_info['Sell4']['Price'],
+                'sell4_qty': board_info['Sell4']['Qty'],
+                'sell5_price': board_info['Sell5']['Price'],
+                'sell5_qty': board_info['Sell5']['Qty'],
+                'sell6_price': board_info['Sell6']['Price'],
+                'sell6_qty': board_info['Sell6']['Qty'],
+                'sell7_price': board_info['Sell7']['Price'],
+                'sell7_qty': board_info['Sell7']['Qty'],
+                'sell8_price': board_info['Sell8']['Price'],
+                'sell8_qty': board_info['Sell8']['Qty'],
+                'sell9_price': board_info['Sell9']['Price'],
+                'sell9_qty': board_info['Sell9']['Qty'],
+                'sell10_price': board_info['Sell10']['Price'],
+                'sell10_qty': board_info['Sell10']['Qty'],
+                'over_qty': board_info['OverSellQty'],
+                'under_qty': board_info['UnderBuyQty']
+            }
+        except Exception as e:
+            self.error_output(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
+            return False
         return board_table_info
 
     def create_order_request(self, password, stock_code, exchange, side, cash_margin,
