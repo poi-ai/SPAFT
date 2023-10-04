@@ -1,9 +1,9 @@
 import config
+import datetime
 import math
 import time
 import traceback
 from base import Base
-from datetime import datetime, timedelta
 from db_operate import Db_Operate
 from kabusapi import KabusApi
 from mold import Mold
@@ -99,11 +99,11 @@ class Main(Base):
             # 最終呼び出し時間のデータ存在チェック
             if len(api_process_info) == 0:
                 # レコードがない場合は今日の8時59分に設定
-                today = datetime.now()
-                latest_exec_time = datetime(today.year, today.month, today.day, 8, 59).strftime("%Y%m%d%H%M%S")
+                today = datetime.datetime.now()
+                latest_exec_time = datetime.datetime(today.year, today.month, today.day, 8, 59).strftime("%Y%m%d%H%M%S")
             else:
                 # 最新の実行時間を取り出し10秒前に設定
-                latest_exec_time = api_process_info[0]['api_exex_time'] - timedelta(seconds = 10)
+                latest_exec_time = api_process_info[0]['api_exex_time'] - datetime.timedelta(seconds = 10)
                 latest_exec_time = latest_exec_time.strftime('%Y%m%d%H%M%S')
 
             # 検索用フォーマットに合わせる
@@ -129,14 +129,17 @@ class Main(Base):
                         # リカバリ変数から注文情報削除
                         self.delete_recovery(order_id)
 
-                        # 注文テーブルのステータスを約定済みに更新
-                        result = self.db.update_orders_status(order_id = order_info['ID'], status = 1)
-                        if result == False:
-                            self.db.insert_errors('注文テーブル約定ステータス更新処理')
-                            continue
-
-                        # 新規注文の場合は反対注文を入れる
+                        # 新規注文の場合
                         if order_info['CashMargin'] == 2:
+
+                            # TODO 平均約定価格とか設定
+
+                            # 注文テーブルのステータスを約定済みに更新
+                            result = self.db.update_orders_status(order_id = order_info['ID'], status = 1)
+                            if result == False:
+                                self.db.insert_errors('注文テーブル約定ステータス更新処理')
+                                continue
+
                             # 約定した1枚上に決済注文を入れる
                             # TODO データ成形用処理
                             reverse_order_info = {}
@@ -150,6 +153,35 @@ class Main(Base):
                             self.add_recovery(order_id = result['OrderId'], price = 'TODO', qty = 'TODO', order_type = 3)
 
                             # TODO 注文情報をDBに追加する
+
+                        # 決済注文の場合は余力情報を更新する
+                        else:
+                            # TODO 平均約定価格とか設定
+
+                            # 注文テーブルのステータスを約定済みに更新 TODO ステータス以外にも約定価格とか
+                            result = self.db.update_orders_status(order_id = order_info['ID'], status = 1)
+                            if result == False:
+                                self.db.insert_errors('注文テーブル約定ステータス更新処理')
+                                continue
+
+                            # 現在の余力取得
+                            bp_info = self.db.select_buying_power(latest = True)
+                            if bp_info == False:
+                                self.db.insert_errors('決済注文後余力テーブル取得処理')
+
+                            # 解放された拘束額を引いて再設定
+                            latest_bp = {
+                                'total_assets': bp['total_assets'] + order_info['profit'], # 総資産 + 損益額(利益 - 手数料・経費)
+                                'total_margin': bp['total_margin'] - order_info['order_price'] * order_info['order_qty'], # 保有中の信用総額 - 注文価格 * 注文株数
+                                'api_flag': '0'
+                            }
+
+                            # 新しい余力レコードの追加
+                            result = self.db.insert_buying_power(latest_bp)
+                            if result == False:
+                                self.db.insert_errors('決済注文後余力テーブル取得')
+
+
 
             # 板情報を取得する
             board_info = self.api.info.board(stock_code = config.STOCK_CODE)
@@ -186,8 +218,10 @@ class Main(Base):
             if board_info['CurrentPrice'] <= self.stop_price:
                 self.enforce_liquidation()
 
-            # 買い対象の板5枚分の価格を取得する
+            # 買い対象の板5枚分の価格を計算する
             buy_target_price = self.culc_buy_target_price(result)
+
+            # TODO 買い対象より下に買い注文を入れていたらキャンセル
 
             # 買い対象の5枚に未約定の注文を入れているかチェック
             for target_price in buy_target_price:
@@ -199,15 +233,12 @@ class Main(Base):
                 # 注文が入っていなければ入れる
                 if len(order_info) == 0:
                     # 余力チェック
-                    bp = self.db.select_buying_power()
+                    bp = self.db.select_buying_power(latest = True)
                     if bp == False:
                         self.db.insert_errors('余力テーブル情報取得処理')
                         continue
 
-                    # dict変換
-                    bp = self.byte_to_dict(bp)
-
-                    # 購入後が保証金の2.5倍に収まるなら買う
+                    # 購入後が保証金の2.5倍(=維持率40%)に収まるなら買う
                     if bp['total_asset'] * 2.5 > bp['total_margin'] + target_price * self.one_unit:
 
                         # TODO 注文フォーマット作成
@@ -223,17 +254,17 @@ class Main(Base):
 
                         # TODO 注文テーブルに突っ込む
 
-                        # TODO 余力テーブルにレコード追加
+                        # 余力情報更新
                         latest_bp = {
                             'total_assets': bp['total_assets'],
                             'total_margin': bp['total_margin'] + target_price * self.one_unit,
                             'api_flag': '0'
                         }
 
-
-
-
-
+                        # 余力テーブルに突っ込む
+                        result = self.db.insert_buying_power(latest_bp)
+                        if result == False:
+                            self.db.insert_errors('購入処理余力テーブル取得')
 
             # 現在値と最低売り注文価格・最高買い注文価格を取得する
             over_price = board_info["Sell1"]["Price"]
@@ -375,6 +406,37 @@ class Main(Base):
         else:
             self.logger.error(f'リカバリ変数への注文情報削除処理に失敗しました\norder_id {order_id}')
             return False
+
+    def lunch_break(self):
+        '''
+        お昼休みに取引を中断する
+
+        '''
+        # 現在時刻とお昼休みの時間を取得
+        current = datetime.datetime.now().time()
+        start = datetime.time(11, 30)
+        end = datetime.time(12, 30)
+
+        # 今がお昼休みか
+        if start <= current <= end:
+            # 後場開始30秒前までお休み
+            sleep_seconds = (end.hour - current.hour) * 3600 + (end.minute - current.minute) * 60 + (end.second - current.second)
+            if sleep_seconds > 30:
+                time.sleep(sleep_seconds - 30)
+
+            # TODO 板取得
+
+            # TODO 買い注文入れ直し(気配が上下にぶれている)
+
+            # 現在時刻更新
+            current = datetime.datetime.now().time()
+
+            # 一連の処理が終わったら後場開始+1秒後までお休み
+            sleep_seconds = (end.hour - current.hour) * 3600 + (end.minute - current.minute) * 60 + (end.second - current.second)
+            if sleep_seconds > 0:
+                time.sleep(sleep_seconds + 1)
+
+        return True
 
 if __name__ == '__main__':
     m = Main()
