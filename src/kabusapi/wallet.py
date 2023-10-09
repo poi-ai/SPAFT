@@ -20,7 +20,7 @@ class Wallet(Base):
                 AuJbnStockAccountWallet(float): auじぶん銀行残高
 
         '''
-        url = f'{self.api_url}/wallet/cash/'
+        url = f'{self.api_url}/wallet/cash'
 
         try:
             response = requests.get(url, headers = self.api_headers)
@@ -50,7 +50,7 @@ class Wallet(Base):
                 ConsignmentDepositRate(float): 委託保証金率 ※銘柄指定時のみ
                 CashOfConsignmentDepositRate(float): 現金委託保証金率 ※銘柄指定時のみ
         '''
-        url = f'{self.api_url}/wallet/margin/'
+        url = f'{self.api_url}/wallet/margin'
 
         if stock_code != None and market_code != None:
             url += f'{stock_code}@{market_code}'

@@ -7,7 +7,7 @@ from db_operate import Db_Operate
 from kabusapi import KabusApi
 from mold import Mold
 
-# APIから返ってくる情報を調査するための処理
+# APIから返ってくる板情報の各パラメータの値を調査するための処理
 class DS(Db_Base):
     def __init__(self):
         super().__init__()
@@ -23,7 +23,7 @@ class DS(Db_Base):
             stock_code_list = [stock_code]
         else:
             # 指定がないなら全部
-            response = self.db.select_listed()
+            response = self.db.select_listed(1)
             if response == False:
                 exit()
 
@@ -64,6 +64,7 @@ class DS(Db_Base):
                 self.logger.error(f'dict変換処理でエラー\n{e}\n{traceback.format_exc()}')
                 continue
 
+            '''
             print(f'{time.time()}: CSVに突っ込む')
             # CSVに突っ込む
             try:
@@ -78,6 +79,7 @@ class DS(Db_Base):
             result = self.db.insert_listed(target_stock_code)
             if result == False:
                 self.error_stock_code.append(target_stock_code)
+            '''
 
             print(f'{time.time()}: ordersに突っ込むために整形')
             # DBに突っ込めるように成型

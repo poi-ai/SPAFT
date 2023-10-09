@@ -21,9 +21,9 @@ class Main(Base):
         '''主処理の前に動かしておくべき処理'''
 
         # APIから余力取得(TODO 動かん)
-        #response = self.api.wallet.cash()
-        #if response == False:
-        #    return False
+        response = self.api.wallet.cash()
+        if response == False:
+            return False
 
         # TODO テスト用処理
         response = {
