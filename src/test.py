@@ -73,7 +73,7 @@ class Main(Base):
             result = self.db.select_errors_minite()
             if result == False:
                 # 1分待って再取得
-                time.sleep(1)
+                time.sleep(60)
                 result = self.db.select_errors_minite(2)
                 # それでもエラーなら強制決済
                 if result == False:
@@ -83,6 +83,9 @@ class Main(Base):
             if result >= 5:
                 self.error_output('スキャルピング処理で1分以内に5回以上のエラーが発生したため強制成行決済を行います')
                 self.enforce_liquidation()
+
+            # お昼休みチェック
+            self.lunch_break()
 
             # DBから未約定データ取得
             yet_order_list = self.db.select_orders(yet = True)
@@ -181,8 +184,6 @@ class Main(Base):
                             if result == False:
                                 self.db.insert_errors('決済注文後余力テーブル取得')
 
-
-
             # 板情報を取得する
             board_info = self.api.info.board(stock_code = config.STOCK_CODE)
             if board_info == False:
@@ -200,7 +201,7 @@ class Main(Base):
                 # 再度板情報取得
                 board_info = self.api.info.board(stock_code = config.STOCK_CODE, market_code = 1)
                 if board_info == False:
-                    self.db.insert_errors('再板情報取得処理')
+                    self.db.insert_errors('板情報再取得処理')
                     continue
 
             # dict変換
@@ -221,7 +222,14 @@ class Main(Base):
             # 買い対象の板5枚分の価格を計算する
             buy_target_price = self.culc_buy_target_price(result)
 
-            # TODO 買い対象より下に買い注文を入れていたらキャンセル
+            # 買い対象より下に買い注文を入れていたらキャンセル
+            for api_order in api_order_list:
+                if buy_target_price[4] >= order_info['Price'] and order_info['CashMargin'] == 2:
+                    result = self.api.order.cancel(order)
+                    if result == False:
+                        self.db.insert_errors('新規注文キャンセル処理')
+
+                    # この時点では完了ではないのでステータスは変えない
 
             # 買い対象の5枚に未約定の注文を入れているかチェック
             for target_price in buy_target_price:
