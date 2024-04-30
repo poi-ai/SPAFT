@@ -7,13 +7,6 @@ class Main():
         self.api = KabusApi('production', production = True)
 
     def main(self):
-        # 優待売却用に一時的に作成
-        if len(sys.argv) == 3:
-            self.api.order.yutai_settlement(sys.argv[1], sys.argv[2])
-        elif len(sys.argv) == 2:
-            self.api.order.yutai_settlement(sys.argv[1])
-
-        exit()
 
 
         # 余力取得(動かん)
