@@ -1,10 +1,9 @@
 import json
 import sys
 from main import Main
-from kabusapi import KabusApi
 
 class Yutai(Main):
-    '''信用の成行決済買いを行う'''
+    '''信用の成行決済買い注文を行う'''
     def __init__(self):
         super().__init__()
 
