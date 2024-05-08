@@ -1,6 +1,7 @@
 import requests
 import traceback
 from base import Base
+from requests.exceptions import RequestException
 
 class Auth(Base):
     '''トークン発行用API'''
@@ -24,12 +25,15 @@ class Auth(Base):
 
         try:
             response = requests.post(url, json = data)
+        except RequestException:
+            self.log.error('KabuStaionが起動していません')
+            return False
         except Exception as e:
-            self.error_output('トークン発行取得処理でエラー', e, traceback.format_exc())
+            self.log.error('トークン発行取得処理でエラー', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            self.error_output(f'トークン発行取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'トークン発行取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         self.token = response.json()['Token']

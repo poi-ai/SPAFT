@@ -10,7 +10,9 @@ class Main():
 
 
         # 余力取得(動かん)
-        #print(self.api.wallet.margin())
+        print(self.api.wallet.margin())
+
+        exit()
 
         # プレ料取得
         premium_price_info = self.api.info.premium_price(1570)
@@ -50,6 +52,7 @@ class Main():
 
         #exit()
         # 1570を売り注文 (動作確認済)
+        '''
         result = self.api.order.stock(
             stock_code = 1570,
             password = 'p@ssword',
@@ -66,6 +69,7 @@ class Main():
             expire_day = 0,
             fund_type = '11'
         )
+        '''
 
     def tidy_response(self, response_json):
         '''受け取ったレスポンスをインデントをそろえた形にする'''
