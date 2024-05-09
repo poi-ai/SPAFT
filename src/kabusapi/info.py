@@ -1,14 +1,13 @@
 import requests
 import traceback
 import urllib.parse
-from base import Base
 
-class Info(Base):
+class Info():
     '''市場の情報を取得するAPI'''
-    def __init__(self, api_headers, api_url):
-        super().__init__()
+    def __init__(self, api_headers, api_url, log):
         self.api_headers = api_headers
         self.api_url = api_url
+        self.log = log
 
     def board(self, stock_code, market_code, add_info = True):
         '''
@@ -123,7 +122,7 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            self.log.error(f'板情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
@@ -140,7 +139,7 @@ class Info(Base):
                     self.logger.warning(f'板情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
                     return 4002001
 
-            self.error_output(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -204,7 +203,7 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            self.log.error(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
@@ -221,7 +220,7 @@ class Info(Base):
                     self.logger.warning(f'銘柄情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
                     return 4002001
 
-            self.error_output(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -308,10 +307,10 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'約定情報取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'約定情報取得処理でエラー', e, traceback.format_exc())
 
         if response.status_code != 200:
-            self.error_output(f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
         return response.content
 
@@ -369,7 +368,7 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            self.log.error(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
@@ -379,7 +378,7 @@ class Info(Base):
                     self.logger.warning(f'取引規制情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
                     return 4002001
 
-            self.error_output(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -403,7 +402,7 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'優先市場情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            self.log.error(f'優先市場情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
@@ -413,7 +412,7 @@ class Info(Base):
                     self.logger.warning(f'優先市場情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
                     return 4002001
 
-            self.error_output(f'優先市場情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'優先市場情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -436,11 +435,11 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'設定上限金額情報取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'設定上限金額情報取得処理でエラー', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            self.error_output(f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -477,11 +476,11 @@ class Info(Base):
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.error_output(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            self.log.error(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            self.error_output(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content

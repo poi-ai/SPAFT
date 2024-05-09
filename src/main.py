@@ -1,10 +1,12 @@
 import json
 import sys
+from base import Log
 from kabusapi import KabusApi
 
-class Main():
+class Main(Log):
     def __init__(self):
-        self.api = KabusApi('production', production = True)
+        self.log = Log()
+        self.api = KabusApi(self.log, 'production', production = True)
 
     def main(self):
 

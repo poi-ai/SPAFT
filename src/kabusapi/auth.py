@@ -1,12 +1,10 @@
 import requests
 import traceback
-from base import Base
 from requests.exceptions import RequestException
 
-class Auth(Base):
+class Auth():
     '''トークン発行用API'''
     def __init__(self, api_url):
-        super().__init__()
         self.token = ''
         self.api_url = api_url
 

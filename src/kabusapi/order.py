@@ -1,14 +1,13 @@
 import json
 import traceback
 import requests
-from base import Base
 
-class Order(Base):
+class Order():
     '''投資商品の注文に関するAPI'''
-    def __init__(self, api_headers, api_url):
-        super().__init__()
+    def __init__(self, api_headers, api_url, log):
         self.api_headers = api_headers
         self.api_url = api_url
+        self.log = log
 
     def stock(self, order_info):
         '''
@@ -28,11 +27,11 @@ class Order(Base):
         try:
             response = requests.post(url, headers = self.api_headers, json = order_info)
         except Exception as e:
-            self.error_output(f'注文発注処理でエラー\n証券コード: {order_info["Symbol"]}', e, traceback.format_exc())
+            self.log.error(f'注文発注処理でエラー\n証券コード: {order_info["Symbol"]}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            self.error_output(f'注文発注処理でエラー\n証券コード: {order_info["Symbol"]}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'注文発注処理でエラー\n証券コード: {order_info["Symbol"]}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
@@ -69,11 +68,11 @@ class Order(Base):
         try:
             response = requests.put(url, json = data)
         except Exception as e:
-            self.error_output(f'注文キャンセル処理でエラー\n注文ID: {order_id}', e, traceback.format_exc())
+            self.log.error(f'注文キャンセル処理でエラー\n注文ID: {order_id}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
-            self.error_output(f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
     def yutai_settlement(self, stock_code, num = 100, order_type = 2):
@@ -110,10 +109,10 @@ class Order(Base):
             response = requests.put(url, headers = self.api_headers, json = order_info)
         except Exception as e:
             print(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}\n{e}\n{traceback.format_exc()}')
-            self.error_output(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
+            self.log.error(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
             return False
 
         if response.status_code != 200:
             print(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}\nステータスコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            self.error_output(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}\nステータスコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            self.log.error(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}\nステータスコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
