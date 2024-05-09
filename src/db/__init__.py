@@ -1,16 +1,36 @@
-import config
 import pymysql
 import traceback
+import os, sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-class Db_Base():
-    '''データベース接続/操作を簡略化するための共通クラス'''
+from api_process import Api_Process
+from board import Board
+from buying_power import Buying_Power
+from errors import Errors
+from listed import Listed
+from orders import Orders
 
+class Db():
     def __init__(self, log):
+        '''
+        初期設定処理
+
+        Args:
+            log(Log): カスタムログクラスのインスタンス
+
+        '''
         self.log = log
         self.conn = self.connect()
         self.conn.autocommit(True)
         self.dict_return = pymysql.cursors.DictCursor
-        self.transaction = True
+        self.transaction = False
+
+        self.api_process = Api_Process(log, self.conn, self.dict_return)
+        self.board = Board(log, self.conn, self.dict_return)
+        self.buying_power = Buying_Power(log, self.conn, self.dict_return)
+        self.errors = Errors(log, self.conn, self.dict_return)
+        self.listed = Listed(log, self.conn, self.dict_return)
+        self.orders = Orders(log, self.conn, self.dict_return)
 
     def connect(self):
         '''データベースへの接続'''
@@ -56,4 +76,3 @@ class Db_Base():
         except Exception as e:
             self.log.error('ロールバックでエラー', e, traceback.format_exc())
             return
-
