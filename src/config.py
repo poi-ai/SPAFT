@@ -2,6 +2,11 @@
 STOCK_CODE = 1570 # 日経レバ
 # STOCK_CODE = 9432 # NTT
 
+# 板を記録する銘柄コードリスト
+RECORD_STOCK_CODE_LIST = [
+
+]
+
 # 買い板と売り板の間の価格に注文を入れるか
 AMONG_PRICE_ORDER = True
 

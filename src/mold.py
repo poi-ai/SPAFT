@@ -1,10 +1,9 @@
 import traceback
-from base import Base
 
-class Mold(Base):
+class Mold():
     '''DBやAPIに使うためのデータ整形を行う'''
-    def __init__(self):
-        super().__init__()
+    def __init__(self, log):
+        self.log = log
 
     def response_to_boards(self, board_info):
         '''
@@ -73,7 +72,7 @@ class Mold(Base):
                 'under_qty': board_info['UnderBuyQty']
             }
         except Exception as e:
-            self.error_output(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
+            self.log.error(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
             return False
         return board_table_info
 

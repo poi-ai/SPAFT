@@ -4,59 +4,73 @@ import math
 import time
 import traceback
 from base import Log
-#from common import Common
 from db_operate import Db_Operate
 from kabusapi import KabusApi
 from mold import Mold
 
 class Main(Log):
-    '''板情報をDBに保存するための処理のテストコード'''
+    '''1円スキャルピングを行う処理のテストコード'''
     def __init__(self):
         self.log = Log()
         self.api = KabusApi(self.log, api_password = 'production', production = True)
-        # DB操作のSQLを記載しているクラス
         self.db = Db_Operate()
-        # レスポンス/リクエストフォーマット整形する処理をまとめたクラス
         self.mold = Mold()
-        # 共通処理を記載したクラス
-        #self.common = Common()
-        # 板情報取得対象の銘柄リスト
-        self.target_code_list = config.RECORD_STOCK_CODE_LIST
-        # 初期処理
-        self.init_main()
-
+        self.order_list = []
+        result = self.init_main()
+        if not result: exit()
 
     def init_main(self):
-        '''
-        主処理の前に動かしておくべき処理
-        必要になり次第適宜追加
+        '''主処理の前に動かしておくべき処理'''
 
-        '''
+        # APIから余力取得(TODO 動かん)
+        response = self.api.wallet.cash()
+        if response == False:
+            return False
 
-        # 50銘柄ルールに引っ掛からないように登録銘柄をすべて解除しておく
-        result = self.api.regist.unregist_all()
-        if result == False:
-            pass # 特にエラー出ても後の処理にそんな影響ないので特に何もしない
+        # TODO テスト用処理
+        response = {
+            'StockAccountWallet': 300000.0,
+            'AuKCStockAccountWallet': 300000.0,
+            'AuJbnStockAccountWallet': 0
+        }
+        # TODO テスト用処理ここまで
 
-        return
+        # 余力データから抽出し、DBのフォーマットに成形
+        buying_power = int(response['StockAccountWallet'])
+        bp_data = {
+            'total_assets': buying_power,
+            'total_marin': 0,
+            'api_flag': '1'
+        }
 
+        # 余力情報をテーブルに追加
+        result = self.db.insert_buying_power(bp_data)
+        if not result:
+            return False
+
+        # 保証金が30万を下回っていたら取引できないので終了
+        if buying_power <= 300000:
+            self.log.info('保証金が30万円未満のため取引を行いません')
+            return False
+
+        # 銘柄情報を取得 TODO 50銘柄ルールに引っ掛かるか確認
+        stock_info = self.api.info.symbol(stock_code = config.STOCK_CODE, market_code = 1)
+        if stock_info == False:
+            return False
+
+        # 銘柄情報から取引に使用するデータを変数に突っ込んどく
+        # 1単元株数
+        self.one_unit = stock_info['TradingUnit']
+        # 値幅上限(S高株価)
+        self.upper_price = stock_info['UpperLimit']
+        # 値幅下限(S安株価)
+        self.lower_price = stock_info['LowerLimit']
+        # 基準から値幅の8割減株価(取引中止ライン)
+        self.stop_price = self.lower_price + (self.upper_price - self.lower_price) / 10
 
     def main(self):
-        '''板情報取得のメイン処理'''
+        '''スキャルピングを行うためのメイン処理'''
         while True:
-            # TODO 時間チェック(取引時間外ならチェックしない)
-
-            # TODO 板情報リクエスト作成
-
-            # TODO 板取得API実行
-
-            # TODO 板情報からのレスポンスを成形
-
-            # TODO 成型した板情報をDBに登録
-
-
-            #### 以下別処理で作ったやつ、使えそうなのあれば使う
-
             # 1分以内のエラー発生回数を取得
             result = self.db.select_errors_minite()
             if result == False:
