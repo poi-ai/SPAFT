@@ -4,7 +4,7 @@ import math
 import time
 import traceback
 from base import Log
-from db_operate import Db_Operate
+from db import Db
 from kabusapi import KabusApi
 from mold import Mold
 
@@ -13,7 +13,7 @@ class Main(Log):
     def __init__(self):
         self.log = Log()
         self.api = KabusApi(self.log, api_password = 'production', production = True)
-        self.db = Db_Operate()
+        self.db = Db()
         self.mold = Mold()
         self.order_list = []
         result = self.init_main()

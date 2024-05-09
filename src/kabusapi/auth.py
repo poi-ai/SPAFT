@@ -4,9 +4,10 @@ from requests.exceptions import RequestException
 
 class Auth():
     '''トークン発行用API'''
-    def __init__(self, api_url):
+    def __init__(self, api_url, log):
         self.token = ''
         self.api_url = api_url
+        self.log = log
 
     def issue_token(self, api_password):
         '''

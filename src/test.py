@@ -5,7 +5,7 @@ import time
 import traceback
 from base import Log
 #from common import Common
-from db_operate import Db_Operate
+from db import Db
 from kabusapi import KabusApi
 from mold import Mold
 
@@ -15,7 +15,7 @@ class Main(Log):
         self.log = Log()
         self.api = KabusApi(self.log, api_password = 'production', production = True)
         # DB操作のSQLを記載しているクラス
-        self.db = Db_Operate()
+        self.db = Db()
         # レスポンス/リクエストフォーマット整形する処理をまとめたクラス
         self.mold = Mold()
         # 共通処理を記載したクラス
@@ -53,6 +53,8 @@ class Main(Log):
             # TODO 板情報からのレスポンスを成形
 
             # TODO 成型した板情報をDBに登録
+            
+            exit()
 
 
             #### 以下別処理で作ったやつ、使えそうなのあれば使う
@@ -213,7 +215,7 @@ class Main(Log):
             # 買い対象より下に買い注文を入れていたらキャンセル
             for api_order in api_order_list:
                 if buy_target_price[4] >= order_info['Price'] and order_info['CashMargin'] == 2:
-                    result = self.api.order.cancel(order)
+                    result = self.api.order.cancel(api_order['ID'])
                     if result == False:
                         self.db.insert_errors('新規注文キャンセル処理')
 
