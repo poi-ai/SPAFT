@@ -1,7 +1,7 @@
 import traceback
 
 class Template():
-    '''DB¥á¥½¥Ã¥É¤Î¥Æ¥ó¥×¥ì¡¼¥È,¤É¤³¤«¤é¤â¸Æ¤Ğ¤ì¤Ê¤¤¤·¸Æ¤Ğ¤ì¤Æ¤âÆ°¤«¤Ê¤¤'''
+    '''DBãƒ¡ã‚½ãƒƒãƒ‰ã®ãƒ†ãƒ³ãƒ—ãƒ¬ãƒ¼ãƒˆ,ã©ã“ã‹ã‚‰ã‚‚å‘¼ã°ã‚Œãªã„ã—å‘¼ã°ã‚Œã¦ã‚‚å‹•ã‹ãªã„'''
     def __init__(self, log):
         self.log = log
 
@@ -14,7 +14,7 @@ class Template():
         Returns:
         '''
         try:
-            # cursor¤Î°ú¿ô¤ò¤Ê¤¯¤¹¤È¥¿¥×¥ë¤ÇÊÖ¤ë
+            # cursorã®å¼•æ•°ã‚’ãªãã™ã¨ã‚¿ãƒ—ãƒ«ã§è¿”ã‚‹
             with self.conn.cursor(self.dict_return) as cursor:
                 sql = ''''
                     SELECT
@@ -27,29 +27,29 @@ class Template():
 
                 cursor.execute(sql)
 
-                # 1¹Ô¤À¤±È´¤­½Ğ¤¹
+                # 1è¡Œã ã‘æŠœãå‡ºã™
                 #row = cursor.fetchone()
-                # °ú¿ô¤Ê¤·,¥Ç¡¼¥¿¤Ê¤· -> None
-                # °ú¿ô¤Ê¤·,¥Ç¡¼¥¿¤¢¤ê -> tuple
-                # pymysql.cursors.DictCursor,¥Ç¡¼¥¿¤Ê¤· -> None
-                # pymysql.cursors.DictCursor,¥Ç¡¼¥¿¤¢¤ê -> dict
+                # å¼•æ•°ãªã—,ãƒ‡ãƒ¼ã‚¿ãªã— -> None
+                # å¼•æ•°ãªã—,ãƒ‡ãƒ¼ã‚¿ã‚ã‚Š -> tuple
+                # pymysql.cursors.DictCursor,ãƒ‡ãƒ¼ã‚¿ãªã— -> None
+                # pymysql.cursors.DictCursor,ãƒ‡ãƒ¼ã‚¿ã‚ã‚Š -> dict
 
 
-                # Á´¹ÔÈ´¤­½Ğ¤¹
+                # å…¨è¡ŒæŠœãå‡ºã™
                 rows = cursor.fetchall()
-                # °ú¿ô¤Ê¤·,¥Ç¡¼¥¿¤Ê¤· -> ¶õtuple
-                # °ú¿ô¤Ê¤·,¥Ç¡¼¥¿1¹Ô -> tuple
-                # °ú¿ô¤Ê¤·,¥Ç¡¼¥¿Ê£¿ô¹Ô -> tuple(tuple,tuple,...)
-                # pymysql.cursors.DictCursor,¥Ç¡¼¥¿¤Ê¤· -> ¶õtuple
-                # pymysql.cursors.DictCursor,¥Ç¡¼¥¿1¹Ô -> list[dict]
-                # pymysql.cursors.DictCursor,¥Ç¡¼¥¿Ê£¿ô¹Ô -> list[dict,dict,...]
+                # å¼•æ•°ãªã—,ãƒ‡ãƒ¼ã‚¿ãªã— -> ç©ºtuple
+                # å¼•æ•°ãªã—,ãƒ‡ãƒ¼ã‚¿1è¡Œ -> tuple
+                # å¼•æ•°ãªã—,ãƒ‡ãƒ¼ã‚¿è¤‡æ•°è¡Œ -> tuple(tuple,tuple,...)
+                # pymysql.cursors.DictCursor,ãƒ‡ãƒ¼ã‚¿ãªã— -> ç©ºtuple
+                # pymysql.cursors.DictCursor,ãƒ‡ãƒ¼ã‚¿1è¡Œ -> list[dict]
+                # pymysql.cursors.DictCursor,ãƒ‡ãƒ¼ã‚¿è¤‡æ•°è¡Œ -> list[dict,dict,...]
 
-                # »ØÄê¤·¤¿¹Ô¿ôÈ´¤­½Ğ¤¹
+                # æŒ‡å®šã—ãŸè¡Œæ•°æŠœãå‡ºã™
                 num = 100
                 rows = cursor.fetchmany(num)
-                # fetchall¤ÈÆ±
+                # fetchallã¨åŒ
         except Exception as e:
-            self.log.error('xx¤Ç¥¨¥é¡¼', e, traceback.format_exc())
+            self.log.error('xxã§ã‚¨ãƒ©ãƒ¼', e, traceback.format_exc())
             return False
 
     def insert_tablename(self):
@@ -77,7 +77,7 @@ class Template():
                     )
                 '''
 
-                    # ¥×¥ì¡¼¥¹¥Û¥ë¥À¡¼¤Ïint¤Ç¤âstr¤Ç¤â¼õ¤±Æş¤ì¤Æ¤¯¤ì¤ë¤Î¤Ç¤È¤ê¤¢¤¨¤º%s¤Ë¤·¤È¤±¤ĞÎÉ¤¤
+                    # ãƒ—ãƒ¬ãƒ¼ã‚¹ãƒ›ãƒ«ãƒ€ãƒ¼ã¯intã§ã‚‚strã§ã‚‚å—ã‘å…¥ã‚Œã¦ãã‚Œã‚‹ã®ã§ã¨ã‚Šã‚ãˆãš%sã«ã—ã¨ã‘ã°è‰¯ã„
 
                 cursor.execute(sql, (
                     'huga',
@@ -87,7 +87,7 @@ class Template():
 
             return True
         except Exception as e:
-            self.log.error('xxx¤Ø¤ÎINSERT¤Ç¥¨¥é¡¼', e, traceback.format_exc())
+            self.log.error('xxxã¸ã®INSERTã§ã‚¨ãƒ©ãƒ¼', e, traceback.format_exc())
             return False
 
     def update_tablename(self):
@@ -118,7 +118,7 @@ class Template():
 
             return True
         except Exception as e:
-            self.log.error(f'xx¤ÎUPDATE¤Ç¥¨¥é¡¼', e, traceback.format_exc())
+            self.log.error(f'xxã®UPDATEã§ã‚¨ãƒ©ãƒ¼', e, traceback.format_exc())
             return False
 
     def delete_tablename(self):
@@ -145,7 +145,7 @@ class Template():
 
             return True
         except Exception as e:
-            self.log.error(f'xx¤ÎDELETE¤Ç¥¨¥é¡¼', e, traceback.format_exc())
+            self.log.error(f'xxã®DELETEã§ã‚¨ãƒ©ãƒ¼', e, traceback.format_exc())
             return False
 
 
@@ -161,24 +161,24 @@ class Template():
 
             # self.start_transaction()
 
-            # INSERT ÄÉ²Ã¤¹¤ë¥Ç¡¼¥¿¤È¥«¡¼¥½¥ë¤ò°ú¿ô¤ÇÅÏ¤¹
+            # INSERT è¿½åŠ ã™ã‚‹ãƒ‡ãƒ¼ã‚¿ã¨ã‚«ãƒ¼ã‚½ãƒ«ã‚’å¼•æ•°ã§æ¸¡ã™
             # result = self.insert_test(data, cursor)
 
-            # UPDATE ¹¹¿·¤¹¤ë¥Ç¡¼¥¿¤È¤«¾ò·ï¤È¤«¥«¡¼¥½¥ë¤ò°ú¿ô¤ÇÅÏ¤¹
+            # UPDATE æ›´æ–°ã™ã‚‹ãƒ‡ãƒ¼ã‚¿ã¨ã‹æ¡ä»¶ã¨ã‹ã‚«ãƒ¼ã‚½ãƒ«ã‚’å¼•æ•°ã§æ¸¡ã™
             # result = self.update_test(data, conditions, cursor)
 
-            # UPDATE ºï½ü¤¹¤ë¾ò·ï¤È¤«¥«¡¼¥½¥ë¤ò°ú¿ô¤ÇÅÏ¤¹
+            # UPDATE å‰Šé™¤ã™ã‚‹æ¡ä»¶ã¨ã‹ã‚«ãƒ¼ã‚½ãƒ«ã‚’å¼•æ•°ã§æ¸¡ã™
             # result = self.delete_test(data, cursor)
 
-            # ¤½¤ì¤¾¤ì¤Î½èÍı¸å¤ËÊÖ¤êÃÍ¤Ç¼Â¹Ô·ë²Ì¤ò¼õ¤±¼è¤Ã¤Æ ¥³¥ß¥Ã¥È¤«¥í¡¼¥ë¥Ğ¥Ã¥¯¤«
+            # ãã‚Œãã‚Œã®å‡¦ç†å¾Œã«è¿”ã‚Šå€¤ã§å®Ÿè¡Œçµæœã‚’å—ã‘å–ã£ã¦ ã‚³ãƒŸãƒƒãƒˆã‹ãƒ­ãƒ¼ãƒ«ãƒãƒƒã‚¯ã‹
             # if result:
             #     self.commit()
             # else:
             #     self.rollback()
 
-            # SQL¼Â¹Ô·ë²Ì¤òself.transaction_flag¤ËÆÍ¤Ã¹ş¤ó¤À¸å¤Ë
+            # SQLå®Ÿè¡Œçµæœã‚’self.transaction_flagã«çªã£è¾¼ã‚“ã å¾Œã«
             # self.end_transaction()
-            # ¤Ç¤â¤è¤¤
+            # ã§ã‚‚ã‚ˆã„
             pass
 
         return True

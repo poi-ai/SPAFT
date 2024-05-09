@@ -88,7 +88,7 @@ class Order():
         url = f'{self.api_url}/sendorder'
 
         order_info = {
-            'Password': 'production',
+            'Password': 'production',      # TODO ここはKabuStationではなくカブコムの取引パスワード
             'Symbol': str(stock_code),     # 証券コード
             'Exchange': 1,                 # 証券所   1: 東証、3: 名証、5: 福証、6: 札証
             'SecurityType': 1,             # 商品種別 1: 株式 のみ指定可
@@ -106,7 +106,7 @@ class Order():
         }
 
         try:
-            response = requests.put(url, headers = self.api_headers, json = order_info)
+            response = requests.post(url, headers = self.api_headers, json = order_info)
         except Exception as e:
             print(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}\n{e}\n{traceback.format_exc()}')
             self.log.error(f'優待用信用空売り決済処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())

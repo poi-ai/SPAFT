@@ -227,7 +227,7 @@ class Main(Log):
             # 買い対象より下に買い注文を入れていたらキャンセル
             for api_order in api_order_list:
                 if buy_target_price[4] >= order_info['Price'] and order_info['CashMargin'] == 2:
-                    result = self.api.order.cancel(order)
+                    result = self.api.order.cancel(api_order['ID'])
                     if result == False:
                         self.db.insert_errors('新規注文キャンセル処理')
 
@@ -251,7 +251,8 @@ class Main(Log):
                     # 購入後が保証金の2.5倍(=維持率40%)に収まるなら買う
                     if bp['total_asset'] * 2.5 > bp['total_margin'] + target_price * self.one_unit:
 
-                        # TODO 注文フォーマット作成
+                        # 注文フォーマット作成
+                        request = self.mold.create_order_request()
 
                         # APIで発注
                         result = self.api.order.stock()
@@ -275,11 +276,6 @@ class Main(Log):
                         result = self.db.insert_buying_power(latest_bp)
                         if result == False:
                             self.db.insert_errors('購入処理余力テーブル取得')
-
-            # 現在値と最低売り注文価格・最高買い注文価格を取得する
-            over_price = board_info["Sell1"]["Price"]
-            now_price = board_info["CurrentPrice"]
-            under_price = board_info["Buy1"]["Price"]
 
             '''
             # 1570をunder_priceで買い注文
