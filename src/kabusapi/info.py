@@ -129,17 +129,18 @@ class Info():
             if response.status_code == 400:
                 # 板情報を取得した際に勝手に銘柄登録され、
                 # 登録数が50銘柄超えて新たに新規銘柄の板情報を指定しようとするとエラーが出るクソ仕様
-                # そのためこのエラーの場合はFalseではなく999を返す
+                # そのためこのエラーの場合はFalseではなくエラーコードの4002006を返す
                 if self.byte_to_dict(response.content)['Code'] == 4002006:
                     self.logger.warning(f'板情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
                     return 4002006
 
                 # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
                 if self.byte_to_dict(response.content)['Code'] == 4002001:
-                    self.logger.warning(f'板情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
+                    self.logger.error(f'板情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
                     return 4002001
-
-            self.log.error(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
+            else:
+                # 400以外のエラーコードの場合
+                self.log.error(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
             return False
 
         return response.content
