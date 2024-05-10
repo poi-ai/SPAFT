@@ -15,7 +15,7 @@ class Buying_Power():
         self.conn = conn
         self.dict_return = dict_return
 
-    def select_buying_power(self, latest = False):
+    def select(self, latest = False):
         '''
         余力テーブル(buying_power)から余力情報を取得する
 
@@ -62,7 +62,7 @@ class Buying_Power():
             self.log.error('余力テーブル取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def insert_buying_power(self, data):
+    def insert(self, data):
         '''
         余力テーブル(buying_power)へレコードを追加する
 

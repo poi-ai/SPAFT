@@ -16,7 +16,7 @@ class Errors():
         self.conn = conn
         self.dict_return = dict_return
 
-    def select_errors_minite(self, minute = 1):
+    def select(self, minute = 1):
         '''
         エラーテーブル(errors)からx分以内に追加されたレコード数を取得する
 
@@ -52,7 +52,7 @@ class Errors():
             self.log.error('エラー件数取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def insert_errors(self, content):
+    def insert(self, content):
         '''
         エラー情報テーブル(errors)へレコードを追加する
 

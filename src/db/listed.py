@@ -15,7 +15,7 @@ class Listed():
         self.conn = conn
         self.dict_return = dict_return
 
-    def select_listed(self, listed_flg = None):
+    def select(self, listed_flg = None):
         '''
         上場情報テーブル(listed)からデータを取得する
 
@@ -56,7 +56,7 @@ class Listed():
             self.log.error('上場コードテーブル取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def insert_listed(self, stock_code, listed_flg):
+    def insert(self, stock_code, listed_flg):
         '''
         上場情報テーブル(errors)へレコードを追加する
 
@@ -95,7 +95,7 @@ class Listed():
             self.log.error('上場情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
             return False
 
-    def update_listed(self, stock_code, listed_flg):
+    def update(self, stock_code, listed_flg):
         '''
         上場情報テーブル(listed)のステータスを更新する
 
@@ -128,7 +128,7 @@ class Listed():
             self.log.error(f'上場情報テーブルのステータス更新処理でエラー', e, traceback.format_exc())
             return False
 
-    def delete_listed(self, stock_code):
+    def delete(self, stock_code):
         '''
         上場情報テーブル(errors)のレコードを削除する
 

@@ -5,7 +5,6 @@ class Board():
 
     def __init__(self, log, conn, dict_return):
         '''
-
         Args:
             log(Log): カスタムログクラスのインスタンス
             conn(): DB接続クラスのインスタンス
@@ -16,7 +15,7 @@ class Board():
         self.conn = conn
         self.dict_return = dict_return
 
-    def insert_boards(self, board_info):
+    def insert(self, board_info):
         '''
         板情報(学習用)テーブル(boards)へレコードを追加する
 

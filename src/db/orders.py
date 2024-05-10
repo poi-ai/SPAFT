@@ -15,7 +15,7 @@ class Orders():
         self.conn = conn
         self.dict_return = dict_return
 
-    def select_orders(self, yet = False, order_price = None,
+    def select(self, yet = False, order_price = None,
                       new_order = None, reverse_order = None):
         '''
         注文テーブル(orders)から注文情報を取得する
@@ -99,7 +99,7 @@ class Orders():
             self.log.error('注文テーブル取得処理でエラー', e, traceback.format_exc())
             return False
 
-    def insert_orders(self, data):
+    def insert(self, data):
         '''
         注文テーブル(orders)へレコードを追加する
 
@@ -181,7 +181,7 @@ class Orders():
             self.log.error('注文テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
             return False
 
-    def update_orders_status(self, order_id, status):
+    def update_status(self, order_id, status):
         '''
         注文テーブル(orders)のステータスを更新する
 

@@ -5,7 +5,6 @@ class Api_Process():
 
     def __init__(self, log, conn, dict_return):
         '''
-
         Args:
             log(Log): カスタムログクラスのインスタンス
             conn(): DB接続クラスのインスタンス
@@ -16,7 +15,7 @@ class Api_Process():
         self.conn = conn
         self.dict_return = dict_return
 
-    def select_api_process(self, api_name = None, latest = False):
+    def select(self, api_name = None, latest = False):
         '''
         APIプロセス管理テーブル(api_process)からデータを取得する
 
