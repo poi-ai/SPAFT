@@ -1,4 +1,4 @@
-import lxml
+import csv
 import requests
 import time
 from bs4 import BeautifulSoup
@@ -7,6 +7,7 @@ from datetime import datetime
 def get_stock_price(stock_code, start_date, end_date):
     '''
     指定期間内の株価を取得して成形して返す
+    ※直近1年分しか取得できない
 
     Args:
         stock_code(int): 取得対象の証券コード
@@ -68,26 +69,20 @@ def get_stock_price(stock_code, start_date, end_date):
             return
         new_data_list = mold_stock_price(table)
 
-        print('hogehoge')
         if not include_flag:
-            print('fugafuga')
             data_list = []
             if end_date > new_data_list[-1]['date_time']:
                 include_flag = True
                 continue
-        print('piyo')
         # これまでに取得したリストへ結合
         data_list += new_data_list
-        print('piyopiyo')
-
         # 開始日がこのページのデータに含まれていたらループ終了
         if start_date > new_data_list[-1]['date_time']:
             break
         elif page_num == 10:
             print(f'開始日のデータがサイトに存在しない 終了日: {start_date}')
             return False
-        
-        print(new_data_list[-1]['date_time'])
+
     shave_data_list = shave_data(data_list, start_date, end_date)
     return shave_data_list
 
@@ -185,6 +180,32 @@ def shave_data(data_list, start_date, end_date):
 
     return data_list[start_index:end_index+1]
 
+def list_of_dicts_to_csv(data_list, file_name):
+    '''dict型のデータをCSV出力する'''
+
+    # リストが空の場合は何もしない
+    if not data_list:
+        return
+
+    # CSVファイルを書き込みモードで開く
+    with open(file_name, 'w', newline='') as csvfile:
+        # カラム名を取得するために最初の辞書のキーを使用
+        fieldnames = data_list[0].keys()
+        # DictWriterを作成し、カラム名を指定
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        # カラム名を書き込む
+        writer.writeheader()
+        # 各辞書をCSVファイルに書き込む
+        for row in data_list:
+            writer.writerow(row)
+
+
 if __name__ == '__main__':
-    hoge = get_stock_price(9432, '20220820', '20221115')
-    print(hoge)
+
+    for code in [1579,1360,1580,1458,1459,1365,1366,1456,1570,1571,1357,1358]:
+        stock_code = code
+        start_date = '20230501'
+        end_date = '20240430'
+
+        result = get_stock_price(stock_code, start_date, end_date)
+        list_of_dicts_to_csv(result, f'../../csv/{stock_code}_{start_date}to{end_date}.csv')
