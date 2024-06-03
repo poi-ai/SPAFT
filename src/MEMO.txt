@@ -1,0 +1,11 @@
+base - BaseクラスとLogクラスを定義、BaseクラスでLogクラスを継承
+board_record - configファイルで指定した銘柄の板情報をDBに追加
+common - 現在は取引時間と営業日判定の処理のみある
+config - 各種情報を設定
+data_search - これも板情報をDBとCSVに出力？（なんでふたつあんねん）
+holiday - controllerからは呼ばない営業日判定処理
+listed_update - 上場している銘柄のコードを保持(なんでこんなん作ったかしらん。今んとこいらん)
+main - ほぼsandbox
+mold - APIからのレスポンスをdictに変えたり、DBに追加できる形に変えたり
+scraping_test - 1円スキャの原型。たぶんこれが今後のメイン処理になると思う。
+yutai - コマンドラインから成決済注文が簡単に行えるように。手数料代浮かせるためのもの。
