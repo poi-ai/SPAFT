@@ -44,7 +44,7 @@ class Main(Log):
         }
 
         # 余力情報をテーブルに追加
-        result = self.db.insert_buying_power(bp_data)
+        result = self.db.buying_power.insert(bp_data)
         if not result:
             return False
 
@@ -72,11 +72,11 @@ class Main(Log):
         '''スキャルピングを行うためのメイン処理'''
         while True:
             # 1分以内のエラー発生回数を取得
-            result = self.db.select_errors_minite()
+            result = self.db.errors.select()
             if result == False:
                 # 1分待って再取得
                 time.sleep(60)
-                result = self.db.select_errors_minite(2)
+                result = self.db.errors.select(2)
                 # それでもエラーなら強制決済
                 if result == False:
                     self.enforce_liquidation()
@@ -90,15 +90,15 @@ class Main(Log):
             self.lunch_break()
 
             # DBから未約定データ取得
-            yet_order_list = self.db.select_orders(yet = True)
+            yet_order_list = self.db.orders.select(yet = True)
             if yet_order_list == False:
-                self.db.insert_errors('未約定データDB取得処理')
+                self.db.errors.insert('未約定データDB取得処理')
                 continue # TODO ここでcontinueしても意味ない
 
             # DBからAPIの最終呼び出し時間を取得
-            api_process_info = self.db.select_api_process(name = 'order_info')
+            api_process_info = self.db.api_process.select(name = 'order_info')
             if api_process_info:
-                self.db.insert_errors('約定データAPI取得処理')
+                self.db.errors.insert('約定データAPI取得処理')
                 continue # TODO ここでcontinueしても意味ない
 
             # 最終呼び出し時間のデータ存在チェック
@@ -140,9 +140,9 @@ class Main(Log):
                             # TODO 平均約定価格とか設定
 
                             # 注文テーブルのステータスを約定済みに更新
-                            result = self.db.update_orders_status(order_id = order_info['ID'], status = 1)
+                            result = self.db.orders.update_status(order_id = order_info['ID'], status = 1)
                             if result == False:
-                                self.db.insert_errors('注文テーブル約定ステータス更新処理')
+                                self.db.errors.insert('注文テーブル約定ステータス更新処理')
                                 continue
 
                             # 約定した1枚上に決済注文を入れる
@@ -151,7 +151,7 @@ class Main(Log):
 
                             result = self.api.order.stock(reverse_order_info)
                             if not result:
-                                self.db.insert_errors('反対注文発注API処理')
+                                self.db.errors.insert('反対注文発注API処理')
                                 continue
 
                             # リカバリ変数に追加  # TODO 注文用のreverse_order_infoを組み立てたらそこから埋める
@@ -164,15 +164,15 @@ class Main(Log):
                             # TODO 平均約定価格とか設定
 
                             # 注文テーブルのステータスを約定済みに更新 TODO ステータス以外にも約定価格とか
-                            result = self.db.update_orders_status(order_id = order_info['ID'], status = 1)
+                            result = self.db.orders.update_status(order_id = order_info['ID'], status = 1)
                             if result == False:
-                                self.db.insert_errors('注文テーブル約定ステータス更新処理')
+                                self.db.errors.insert('注文テーブル約定ステータス更新処理')
                                 continue
 
                             # 現在の余力取得
-                            bp_info = self.db.select_buying_power(latest = True)
+                            bp_info = self.db.buying_power.select(latest = True)
                             if bp_info == False:
-                                self.db.insert_errors('決済注文後余力テーブル取得処理')
+                                self.db.errors.insert('決済注文後余力テーブル取得処理')
 
                             # 解放された拘束額を引いて再設定
                             latest_bp = {
@@ -182,14 +182,14 @@ class Main(Log):
                             }
 
                             # 新しい余力レコードの追加
-                            result = self.db.insert_buying_power(latest_bp)
+                            result = self.db.buying_power.insert(latest_bp)
                             if result == False:
-                                self.db.insert_errors('決済注文後余力テーブル取得')
+                                self.db.errors.insert('決済注文後余力テーブル取得')
 
             # 板情報を取得する
             board_info = self.api.info.board(stock_code = config.STOCK_CODE)
             if board_info == False:
-                self.db.insert_errors('板情報取得処理')
+                self.db.errors.insert('板情報取得処理')
                 continue
 
             # 銘柄登録数上限対応
@@ -197,13 +197,13 @@ class Main(Log):
                 # 銘柄登録全解除
                 result = self.api.regist.unregist_all()
                 if result == False:
-                    self.db.insert_errors('銘柄登録全解除')
+                    self.db.errors.insert('銘柄登録全解除')
                     continue
 
                 # 再度板情報取得
                 board_info = self.api.info.board(stock_code = config.STOCK_CODE, market_code = 1)
                 if board_info == False:
-                    self.db.insert_errors('板情報再取得処理')
+                    self.db.errors.insert('板情報再取得処理')
                     continue
 
             # dict変換
@@ -214,7 +214,7 @@ class Main(Log):
             board_table_dict = self.mold.response_to_boards(board_info)
             if board_table_dict != False:
                 # 板情報を学習用テーブルに追加
-                self.db.insert_boards(board_table_dict)
+                self.db.board.insert(board_table_dict)
 
             # S安で決済できなくなるのを防ぐため
             # 現在価格が値幅の8割を下回っていたら強制成行決済
@@ -229,23 +229,23 @@ class Main(Log):
                 if buy_target_price[4] >= order_info['Price'] and order_info['CashMargin'] == 2:
                     result = self.api.order.cancel(api_order['ID'])
                     if result == False:
-                        self.db.insert_errors('新規注文キャンセル処理')
+                        self.db.errors.insert('新規注文キャンセル処理')
 
                     # この時点では完了ではないのでステータスは変えない
 
             # 買い対象の5枚に未約定の注文を入れているかチェック
             for target_price in buy_target_price:
-                order_info = self.db.select_orders(yet = True, order_price = target_price, new_order = True)
+                order_info = self.db.orders.select(yet = True, order_price = target_price, new_order = True)
                 if result == False:
-                    self.db.insert_errors('価格指定の注文テーブル取得処理')
+                    self.db.errors.insert('価格指定の注文テーブル取得処理')
                     continue
 
                 # 注文が入っていなければ入れる
                 if len(order_info) == 0:
                     # 余力チェック
-                    bp = self.db.select_buying_power(latest = True)
+                    bp = self.db.buying_power.select(latest = True)
                     if bp == False:
-                        self.db.insert_errors('余力テーブル情報取得処理')
+                        self.db.errors.insert('余力テーブル情報取得処理')
                         continue
 
                     # 購入後が保証金の2.5倍(=維持率40%)に収まるなら買う
@@ -257,7 +257,7 @@ class Main(Log):
                         # APIで発注
                         result = self.api.order.stock()
                         if result == False:
-                            self.db.insert_errors('買い注文API')
+                            self.db.errors.insert('買い注文API')
                             continue
 
                         # リカバリ用変数に突っ込む TODO 注文フォーマットから取得
@@ -273,9 +273,9 @@ class Main(Log):
                         }
 
                         # 余力テーブルに突っ込む
-                        result = self.db.insert_buying_power(latest_bp)
+                        result = self.db.buying_power.insert(latest_bp)
                         if result == False:
-                            self.db.insert_errors('購入処理余力テーブル取得')
+                            self.db.errors.insert('購入処理余力テーブル取得')
 
             '''
             # 1570をunder_priceで買い注文
@@ -318,27 +318,6 @@ class Main(Log):
                 expire_day = 0,
                 fund_type = '11'
             )
-
-    def get_interest(self, price):
-        '''
-        1約定の代金からカブコムのデイトレ金利を計算する
-
-        Args:
-            price(int): 約定代金
-
-        Returns:
-            interest(int): 1日にかかる金利額
-
-        '''
-        # ワンショット100万以上は金利0%
-        if price >= 1000000: return 0
-
-        # MEMO
-        # 1回の約定代金が20,277円未満は金利0円
-        # 2024/6/3 からは約定代金に関わらず全て無料
-
-        # 代金(円) x (年率)1.8% ÷ 365(日)、1円以下は切り捨て
-        return math.floor(price * 0.018 / 365)
 
     def culc_buy_target_price(self, board_info):
         '''
@@ -414,7 +393,7 @@ class Main(Log):
         if list_len - 1 == len(self.sell_order_list):
             return True
         else:
-            self.logger.error(f'リカバリ変数への注文情報削除処理に失敗しました\norder_id {order_id}')
+            self.log.error(f'リカバリ変数への注文情報削除処理に失敗しました\norder_id {order_id}')
             return False
 
     def lunch_break(self):
