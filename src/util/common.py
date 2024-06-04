@@ -105,8 +105,3 @@ class Common():
                 self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました サーバー: {server}\n{e}')
                 # サブのNTPサーバーもダメな場合はdatetimeライブラリから取得する
                 return datetime.now()
-
-
-from base import Log
-c = Common(Log())
-print(c.next_exchange_workday())

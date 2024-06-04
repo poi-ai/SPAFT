@@ -2,22 +2,22 @@ import requests
 import traceback
 import urllib.parse
 
-class Regist():
+class Register():
     '''PUSH配信に関連するAPI'''
     def __init__(self, api_headers, api_url, log):
         self.api_headers = api_headers
         self.api_url = api_url
         self.log = log
 
-    def regist(self):
+    def register(self):
         '''PUSH配信する銘柄を登録する'''
         pass
 
-    def unregist(self):
+    def unregister(self):
         '''指定した銘柄のPUSH配信を解除する'''
         pass
 
-    def unregist_all(self):
+    def unregister_all(self):
         '''全ての銘柄のPUSH配信を解除する'''
         url = f'{self.api_url}/unregister/all'
 

@@ -21,7 +21,7 @@ class Mold():
                 'stock_code': board_info['Symbol'],
                 'market_code': board_info['Exchange'],
                 'price': board_info['CurrentPrice'],
-                'latest_transaction_time': board_info['CurrentPriceTime'],
+                'latest_transaction_time': board_info['CurrentPriceTime'].replace('+09:00', ''),
                 'change_status': board_info['CurrentPriceChangeStatus'][2:],
                 'present_status': board_info['CurrentPriceStatus'],
                 'market_buy_qty': board_info['MarketOrderBuyQty'],

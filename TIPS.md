@@ -120,4 +120,4 @@ python yutai.py [証券コード] [株数] [信用種別]
 * order(発注系)      5件/秒
 * wallet(余力情報系) 10件/秒
 * info(銘柄情報系)   10件/秒
-* regist(銘柄登録系) 記載なし
+* register(銘柄登録系) 記載なし

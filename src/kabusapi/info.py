@@ -9,7 +9,7 @@ class Info():
         self.api_url = api_url
         self.log = log
 
-    def board(self, stock_code, market_code, add_info = True):
+    def board(self, stock_code, market_code = 1, add_info = True):
         '''
         指定した銘柄の板・取引情報を取得する
 

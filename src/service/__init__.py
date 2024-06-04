@@ -1,9 +1,8 @@
-import traceback
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class Service():
-    def __init__(self, log):
+    def __init__(self, log, util, api, db):
         '''
         初期設定処理
 
@@ -12,4 +11,7 @@ class Service():
 
         '''
         self.log = log
+        self.util = util
+        self.api = api
+        self.db = db
 

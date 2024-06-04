@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from auth import Auth
 from info import Info
 from order import Order
-from regist import Regist
+from register import Register
 from wallet import Wallet
 
 class KabusApi():
@@ -42,6 +42,6 @@ class KabusApi():
         # 注文関連APIクラス
         self.order = Order(self.api_headers, self.API_URL, log)
         # 登録関連APIクラス
-        self.regist = Regist(self.api_headers, self.API_URL, log)
+        self.register = Register(self.api_headers, self.API_URL, log)
         # 余力関連APIクラス
         self.wallet = Wallet(self.api_headers, self.API_URL, log)

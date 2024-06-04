@@ -5,7 +5,7 @@ from datetime import datetime
 from db_base import Db_Base
 from db_operate import Db_Operate
 from kabusapi import KabusApi
-from mold import Mold
+from util.mold import Mold
 
 # APIから返ってくる板情報の各パラメータの値を調査するための処理
 class DS(Db_Base):
@@ -44,7 +44,7 @@ class DS(Db_Base):
             # 銘柄登録数上限対応
             if board_info == 4002006:
                 # 銘柄登録全解除
-                result = self.api.regist.unregist_all()
+                result = self.api.register.unregister_all()
                 if result == False:
                     stock_code_list.append(target_stock_code)
                     continue

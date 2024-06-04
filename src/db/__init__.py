@@ -21,6 +21,8 @@ class Db():
         '''
         self.log = log
         self.conn = self.connect()
+        # 接続失敗したら処理終了
+        if self.conn == False: exit()
         self.conn.autocommit(True)
         self.dict_return = pymysql.cursors.DictCursor
         self.transaction = False
@@ -34,12 +36,18 @@ class Db():
 
     def connect(self):
         '''データベースへの接続'''
-        return pymysql.connect(
-            host = 'localhost',
-            user = 'root',
-            password = 'root',
-            db = 'spaft'
-        )
+        try:
+            conn = pymysql.connect(
+                host = 'localhost',
+                user = 'root',
+                password = 'password',
+                db = 'spaft'
+            )
+        except Exception as e:
+            self.log.error(f'データベースに接続できません\n{e}')
+            return False
+
+        return conn
 
     def start_transaction(self):
         '''トランザクション開始'''

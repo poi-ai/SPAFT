@@ -195,7 +195,7 @@ class Main(Log):
             # 銘柄登録数上限対応
             if board_info == 4002006:
                 # 銘柄登録全解除
-                result = self.api.regist.unregist_all()
+                result = self.api.register.unregister_all()
                 if result == False:
                     self.db.errors.insert('銘柄登録全解除')
                     continue

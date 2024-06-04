@@ -24,7 +24,7 @@ class Board():
                 stock_code(str):  証券コード[]
                 market_code(str or int): 市場コード[]
                 price(float): 現在株価[]
-                latest_transaction_date(datetime): 直近約定時刻[]
+                latest_transaction_time(datetime): 直近約定時刻[]
                 change_status(): []
                 present_status(): []
                 market_buy_qty(): []
