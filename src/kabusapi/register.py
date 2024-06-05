@@ -1,6 +1,5 @@
+import json
 import requests
-import traceback
-import urllib.parse
 
 class Register():
     '''PUSH配信に関連するAPI'''
@@ -24,9 +23,9 @@ class Register():
         try:
            response = requests.put(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'全銘柄登録解除取得処理でエラー', e, traceback.format_exc())
-            return False
+            return e
 
         if response.status_code != 200:
-            self.log.error(f'全銘柄登録解除処理でエラ\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return f'{response.status_code}\n{json.loads(response.content)}'
+
+        return True

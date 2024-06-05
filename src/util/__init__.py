@@ -1,9 +1,9 @@
-import traceback
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from common import Common
 from mold import Mold
+from culc_time import CulcTime
 
 class Util():
     def __init__(self, log):
@@ -21,4 +21,7 @@ class Util():
 
         # API<->DBのデータ変換を行うクラス
         self.mold = Mold(self.log)
+
+        # 時間・日付の計算や判定を行うクラス
+        self.culc_time = CulcTime()
 

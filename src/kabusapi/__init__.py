@@ -28,10 +28,14 @@ class KabusApi():
 
         # APIトークンを発行
         self.auth = Auth(self.API_URL, log)
-        token = self.auth.issue_token(api_password)
+        result, token = self.auth.issue_token(api_password)
 
         # トークン発行処理でエラー
-        if token == False:
+        if result == False:
+            if token == -1:
+                self.log.error('KabuStationが起動していません')
+            else:
+                self.log.error(f'トークン発行処理に失敗\n{token}')
             exit()
 
         # 認証ヘッダー

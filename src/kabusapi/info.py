@@ -1,3 +1,4 @@
+import json
 import requests
 import traceback
 import urllib.parse
@@ -21,6 +22,7 @@ class Info():
                 「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
 
         Returns:
+            result(bool): 実行結果
             response.content(dict): 指定した銘柄の板情報
                 Symbol(str): 証券コード
                 SymbolName(str): 銘柄名
@@ -113,7 +115,6 @@ class Info():
                     0: 指数、1: 現物、101: 日経225先物、103: 日経225OP、107: TOPIX先物、121: JPX400先物、
                     144: NYダウ、145: 日経平均VI、154: 東証マザーズ指数先物、155: TOPIX_REIT、
                     171: TOPIX CORE30、901: 日経平均225ミニ先物、907: TOPIXミニ先物
-            ※取得失敗時はFalseを返す(ただし、登録数上限の場合のみ999を返す)
         '''
         url = f'{self.api_url}/board/{stock_code}@{market_code}'
 
@@ -122,26 +123,29 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'板情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
-            return False
+            return False, e
 
         if response.status_code != 200:
             if response.status_code == 400:
+                error_code = json.loads(response.content)['Code']
+
                 # 板情報を取得した際に勝手に銘柄登録され、
                 # 登録数が50銘柄超えて新たに新規銘柄の板情報を指定しようとするとエラーが出るクソ仕様
                 # そのためこのエラーの場合はFalseではなくエラーコードの4002006を返す
-                if self.byte_to_dict(response.content)['Code'] == 4002006:
-                    self.logger.warning(f'板情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
-                    return 4002006
+                if error_code == 4002006:
+                    return False, 4002006
 
-                # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
-                if self.byte_to_dict(response.content)['Code'] == 4002001:
-                    self.logger.error(f'板情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
-                    return 4002001
+                # 銘柄が見つからない場合は見つからない場合はエラーコード4002001を返す
+                if error_code == 4002001:
+                    return False, 4002001
+
+                # 未知のエラーコードの場合エラーコードのみ返す
+                else:
+                    return False, f'エラーコード: {error_code}'
+
+            # 400以外のエラーコードの場合
             else:
-                # 400以外のエラーコードの場合
-                self.log.error(f'板情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+                return False, f'ステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
         return response.content
 

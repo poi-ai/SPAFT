@@ -1,5 +1,5 @@
+import json
 import requests
-import traceback
 from requests.exceptions import RequestException
 
 class Auth():
@@ -17,7 +17,8 @@ class Auth():
             api_password(str): APIのパスワード
 
         Returns:
-            bool: 処理結果
+            result(bool): 処理結果
+            token(str): APIトークン or エラーメッセージ
         '''
         url = f'{self.api_url}/token'
         data = {'APIPassword': api_password}
@@ -25,15 +26,12 @@ class Auth():
         try:
             response = requests.post(url, json = data)
         except RequestException:
-            self.log.error('KabuStaionが起動していません')
-            return False
+            return False, -1
         except Exception as e:
-            self.log.error('トークン発行取得処理でエラー', e, traceback.format_exc())
-            return False
+            return False, e
 
         if response.status_code != 200:
-            self.log.error(f'トークン発行取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return False, f'{response.status_code}\n{json.loads(response.content)}'
 
         self.token = response.json()['Token']
-        return self.token
+        return True, self.token

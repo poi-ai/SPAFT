@@ -96,10 +96,18 @@ class Log():
         file_name, line = self.call_info(inspect.stack())
         self.logger.warning(f'{message} [{file_name} in {line}]')
 
-    def error(self, message):
+    def error(self, message, error_content = '', stack_trace = ''):
         self.date_check()
         file_name, line = self.call_info(inspect.stack())
-        self.logger.error(f'{message} [{file_name} in {line}]')
+        error_message = f'{message} [{file_name} in {line}]'
+
+        if error_content != '':
+            error_message += f'\n{error_content}'
+
+        if stack_trace != '':
+            error_message += f'\n{stack_trace}'
+
+        self.logger.error(error_message)
 
     def critical(self, message):
         self.date_check()
