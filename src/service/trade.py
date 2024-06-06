@@ -1,7 +1,6 @@
-class Trade():
-    '''取引に関するServiceクラス'''
-    def __init__(self, log, util, api, db):
-        self.log = log
-        self.util = util
-        self.api = api
-        self.db = db
+from service_base import ServiceBase
+
+class Trade(ServiceBase):
+    '''データ取得に関するServiceクラス'''
+    def __init__(self, api_headers, api_url, conn):
+        super().__init__(api_headers, api_url, conn)

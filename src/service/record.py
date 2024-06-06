@@ -1,13 +1,11 @@
 import json
 import time
+from service_base import ServiceBase
 
-class Record():
+class Record(ServiceBase):
     '''データ取得に関するServiceクラス'''
-    def __init__(self, log, util, api, db):
-        self.log = log
-        self.util = util
-        self.api = api
-        self.db = db
+    def __init__(self, api_headers, api_url, conn):
+        super().__init__(api_headers, api_url, conn)
 
     def record_init(self):
         '''
@@ -34,8 +32,19 @@ class Record():
 
         return True
 
-    def board(self):
-        pass
+    def insert_board(self, board_info):
+        '''
+        boardテーブルにレコードを追加する
+
+        Args:
+            board_info(dict): 板情報データ
+
+        Returns:
+            result(bool): SQL実行結果
+        '''
+        result = self.db.board.insert(board_info)
+        if result != True:
+            self.log.error(f'板情報追加処理でエラー\n{result}')
 
     def info_board(self, stock_code, market_code = 1, add_info = True, retry_count = 0):
         '''

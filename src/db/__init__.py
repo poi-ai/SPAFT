@@ -11,28 +11,33 @@ from listed import Listed
 from orders import Orders
 
 class Db():
-    def __init__(self, log):
-        '''
-        初期設定処理
-
-        Args:
-            log(Log): カスタムログクラスのインスタンス
-
-        '''
+    def controller_init(self, log):
+        '''起動ファイルから呼び出す場合'''
         self.log = log
+
+        # MySQLへ接続
         self.conn = self.connect()
+
         # 接続失敗したら処理終了
         if self.conn == False: exit()
-        self.conn.autocommit(True)
-        self.dict_return = pymysql.cursors.DictCursor
-        self.transaction = False
 
-        self.api_process = Api_Process(log, self.conn, self.dict_return)
-        self.board = Board(log, self.conn, self.dict_return)
-        self.buying_power = Buying_Power(log, self.conn, self.dict_return)
-        self.errors = Errors(log, self.conn, self.dict_return)
-        self.listed = Listed(log, self.conn, self.dict_return)
-        self.orders = Orders(log, self.conn, self.dict_return)
+        # SQL実行時に自動的にcommitになるように
+        self.conn.autocommit(True)
+
+        return self.conn
+
+    def service_init(self, log, conn):
+        self.log = log
+
+        # SELECT文の返しをdict型にする
+        dict_return = pymysql.cursors.DictCursor
+
+        self.api_process = Api_Process(log, conn, dict_return)
+        self.board = Board(log, conn, dict_return)
+        self.buying_power = Buying_Power(log, conn, dict_return)
+        self.errors = Errors(log, conn, dict_return)
+        self.listed = Listed(log, conn, dict_return)
+        self.orders = Orders(log, conn, dict_return)
 
     def connect(self):
         '''データベースへの接続'''

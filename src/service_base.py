@@ -9,9 +9,8 @@ from util import Util
 from util.log import Log
 from db import Db
 from kabusapi import KabusApi
-from service import Service
 
-class Base():
+class ServiceBase():
     '''
     共通の初期処理とエラー通知メソッドを記載
 
@@ -30,18 +29,11 @@ class Base():
 
     '''
 
-    def __init__(self, use_db = True, use_api = True):
+    def __init__(self, api_headers, api_url, conn):
         '''
-        UtilクラスとServiceクラスのインスタンスを生成する
-        また、DBとAPIを使う場合は設定を行う
-        Controller(起動ファイル)から呼び出す初期処理
+        Utilクラス、Dbクラス、Apiクラスのインスタンスを生成する
+        Serviceクラスから呼び出す初期処理
 
-        Args:
-            use_db(bool): DBクラスを呼び出す/使用するか
-                ※DBに接続されていないとエラーとなるので必要な場合のみTrueに
-
-            use_api(bool): KabuStationAPIクラスを呼び出す/使用するか
-                ※KabuStationが起動/API利用設定が完了していないとエラーとなるので必要な場合のみTrueに
         '''
         self.log = Log()
 
@@ -49,25 +41,18 @@ class Base():
         self.util = Util(log = self.log)
 
         # KabuStation APIの操作に関連するクラス
-        if use_api:
-            api = KabusApi()
-            api_url, api_headers = api.controller_init(log = self.log,
-                                                        api_password = config.API_PASSWORD,
-                                                        production = config.API_PRODUCTION)
+        if api_url == False:
+            self.api = False
         else:
-            api_url, api_headers = False, False
+            self.api = KabusApi()
+            self.api.service_init(self.log, api_headers, api_url)
 
         # データベースの操作に関連するクラス
-        if use_db:
-            db = Db()
-            conn = db.controller_init(self.log) # TODO configファイルからとるように
+        if conn == False:
+            self.db = False
         else:
-            conn = False
-
-        # Serviceクラス
-        self.service = Service(api_headers = api_headers,
-                               api_url = api_url,
-                               conn = conn)
+            self.db = Db()
+            self.db.service_init(self.log, conn)
 
 
     def error_output(self, message, e = None, stacktrace = None, line_flg = True):

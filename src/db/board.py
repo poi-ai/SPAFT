@@ -250,5 +250,4 @@ class Board():
 
             return True
         except Exception as e:
-            self.log.error('エラー情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
-            return False
+            return f'エラー情報テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}'

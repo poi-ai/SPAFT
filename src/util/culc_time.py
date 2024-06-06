@@ -335,7 +335,7 @@ class CulcTime():
         # どちらからも取れなかった場合はdatetimeから取得
         return datetime.now()
 
-    def ntp(server_id = 1):
+    def ntp(self, server_id = 1):
         '''NTPサーバーから現在の時刻を取得する'''
         if server_id == 1:
             server = 'ntp.jst.mfeed.ad.jp' # stratum2

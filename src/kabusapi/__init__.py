@@ -8,44 +8,49 @@ from register import Register
 from wallet import Wallet
 
 class KabusApi():
-    def __init__(self, log, api_password, production = False):
+    def controller_init(self, log, api_password, production = False):
         '''
-        初期設定処理
+        起動ファイルから呼び出す場合
 
         Args:
             log(Log): カスタムログクラスのインスタンス
             api_password(str): kabuステーションで設定したパスワード
             production(bool): 実行環境
                 True: 本番環境、False: 検証環境
-        '''
-        self.log = log
 
+        '''
         # ポート番号の設定
         if production:
-            self.API_URL = 'http://localhost:18080/kabusapi'
+            api_url = 'http://localhost:18080/kabusapi'
         else:
-            self.API_URL = 'http://localhost:18081/kabusapi'
+            api_url = 'http://localhost:18081/kabusapi'
 
         # APIトークンを発行
-        self.auth = Auth(self.API_URL, log)
+        self.auth = Auth(api_url, log)
         result, token = self.auth.issue_token(api_password)
 
         # トークン発行処理でエラー
         if result == False:
             if token == -1:
-                self.log.error('KabuStationが起動していません')
+                log.error('KabuStationが起動していません')
             else:
-                self.log.error(f'トークン発行処理に失敗\n{token}')
+                log.error(f'トークン発行処理に失敗\n{token}')
             exit()
 
         # 認証ヘッダー
-        self.api_headers = {'X-API-KEY': token}
+        api_headers = {'X-API-KEY': token}
 
+        return api_url, api_headers
+
+    def service_init(self, log, api_headers, api_url):
+        '''Serviceクラスから呼び出す場合'''
+        # 認証情報発行APIクラス
+        self.auth = Auth(api_url, log)
         # 情報取得関連APIクラス
-        self.info = Info(self.api_headers, self.API_URL, log)
+        self.info = Info(api_headers, api_url, log)
         # 注文関連APIクラス
-        self.order = Order(self.api_headers, self.API_URL, log)
+        self.order = Order(api_headers, api_url, log)
         # 登録関連APIクラス
-        self.register = Register(self.api_headers, self.API_URL, log)
+        self.register = Register(api_headers, api_url, log)
         # 余力関連APIクラス
-        self.wallet = Wallet(self.api_headers, self.API_URL, log)
+        self.wallet = Wallet(api_headers, api_url, log)

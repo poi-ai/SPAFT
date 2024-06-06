@@ -5,22 +5,19 @@ from trade import Trade
 from record import Record
 
 class Service():
-    def __init__(self, log, util, api, db):
+    def __init__(self, api_headers, api_url, conn):
         '''
         初期設定処理
 
         Args:
-            log(Log): カスタムログクラスのインスタンス
+            api_url(str): KabusAPIのリクエストで使用するエンドポイント
+            api_headers(dict): KabusAPIのリクエストで使用する認証用ヘッダー
+            conn(pymysql.Conn): MySQLへの接続情報
 
         '''
-        self.log = log
-        self.util = util
-        self.api = api
-        self.db = db
-
         # 情報取得/記録に関するクラス
-        self.record = Record(self.log, self.util, self.api, self.db)
+        self.record = Record(api_headers, api_url, conn)
 
         # 取引/注文に関するクラス
-        self.trade = Trade(self.log, self.util, self.api, self.db)
+        self.trade = Trade(api_headers, api_url, conn)
 

@@ -6,11 +6,8 @@ from base import Base
 class Main(Base):
     '''板情報をDBに保存するための処理のテストコード'''
     def __init__(self):
-        # ログインスタンスの設定
+        # 初期設定
         super().__init__()
-
-        # 各クラスの設定
-        self.create_instance()
 
         # 板情報取得対象の銘柄リスト
         self.target_code_list = config.RECORD_STOCK_CODE_LIST
@@ -56,7 +53,9 @@ class Main(Base):
                 board_table_dict = self.util.mold.response_to_boards(board_info)
                 if board_table_dict != False:
                     # 板情報を学習用テーブルに追加
-                    self.db.board.insert(board_table_dict)
+                    result = self.service.record.insert_board(board_table_dict)
+                    if result == False:
+                        continue
 
             # 除外した銘柄コードをリストから除去
             self.target_code_list = copy_code_list

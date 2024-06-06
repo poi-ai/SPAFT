@@ -147,7 +147,7 @@ class Info():
             else:
                 return False, f'ステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
-        return response.content
+        return True, response.content
 
     def symbol(self, stock_code, market_code, add_info = True):
         '''
