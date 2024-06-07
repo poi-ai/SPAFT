@@ -59,8 +59,19 @@ class Base():
 
         # データベースの操作に関連するクラス
         if use_db:
+            try:
+                db_info = {
+                    'host': config.DB_HOST,
+                    'user': config.DB_USER,
+                    'password': config.DB_PASSWORD,
+                    'db': config.DB_NAME
+                }
+            except Exception as e:
+                self.log.error(f'MySQLの接続情報取得処理でエラー\n{e}')
+                exit()
+
             db = Db()
-            conn = db.controller_init(self.log) # TODO configファイルからとるように
+            conn = db.controller_init(self.log, db_info)
         else:
             conn = False
 
@@ -148,12 +159,12 @@ class Base():
         if unsent_message != '':
             self.line_send(unsent_message, separate_no + 1)
 
-    def byte_to_dict(self, response_json):
-        '''受け取ったレスポンスをdict型に変換する'''
-        return json.loads(response_json)
+    #def byte_to_dict(self, response_json):
+    #    '''受け取ったレスポンスをdict型に変換する'''
+    #    return json.loads(response_json)
 
-    def tidy_response(self, response_json):
-        '''受け取ったレスポンスをインデントをそろえた形にする'''
-        parsed_response = self.byte_to_dict(response_json)
-        formatted_response = json.dumps(parsed_response, indent = 4, ensure_ascii = False)
-        return formatted_response
+    #def tidy_response(self, response_json):
+    #    '''受け取ったレスポンスをインデントをそろえた形にする'''
+    #    parsed_response = self.byte_to_dict(response_json)
+    #    formatted_response = json.dumps(parsed_response, indent = 4, ensure_ascii = False)
+    #    return formatted_response

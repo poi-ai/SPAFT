@@ -7,11 +7,11 @@ class Trade(ServiceBase):
         super().__init__(api_headers, api_url, conn)
 
 
-    def yutai_settlement(self):
+    def yutai_settlement(self, trade_password):
         '''
         優待銘柄売却用に信用空売りの成行決済注文を行う
 
-        argv:
+        コマンドライン引数:
             sys.argv[2]: 必須。決済対象の証券コード
             sys.argv[3]: 任意。決済株数 ※デフォルト 100
             sys.argv[4]: 任意。信用の種類 ※デフォルト 2(一般長期)
@@ -32,7 +32,7 @@ class Trade(ServiceBase):
         self.log.info(f'信用空売り決済処理[優待用]のAPIリクエスト送信処理開始 証券コード: {stock_code}')
 
         order_info = {
-            'Password': 'production',      # TODO ここはKabuStationではなくカブコムの取引パスワード
+            'Password': trade_password,      # TODO ここはKabuStationではなくカブコムの取引パスワード
             'Symbol': str(stock_code),     # 証券コード
             'Exchange': 1,                 # 証券所   1: 東証 (3: 名証、5: 福証、6: 札証)
             'SecurityType': 1,             # 商品種別 1: 株式 のみ指定可

@@ -44,13 +44,27 @@ class ServiceBase():
         if api_url == False:
             self.api = False
         else:
+            try:
+                trade_password = config.TRADE_PASSWORD
+            except:
+                trade_password = False
             self.api = KabusApi()
-            self.api.service_init(self.log, api_headers, api_url)
+            self.api.service_init(log = self.log,
+                                  api_headers = api_headers,
+                                  api_url = api_url,
+                                  trade_password = trade_password)
 
         # データベースの操作に関連するクラス
         if conn == False:
             self.db = False
+            self.db_info = False
         else:
+            self.db_info = {
+                'host': config.DB_HOST,
+                'user': config.DB_USER,
+                'password': config.DB_PASSWORD,
+                'db': config.DB_NAME
+            }
             self.db = Db()
             self.db.service_init(self.log, conn)
 

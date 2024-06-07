@@ -42,14 +42,14 @@ class KabusApi():
 
         return api_url, api_headers
 
-    def service_init(self, log, api_headers, api_url):
+    def service_init(self, log, api_headers, api_url, trade_password):
         '''Serviceクラスから呼び出す場合'''
         # 認証情報発行APIクラス
         self.auth = Auth(api_url, log)
         # 情報取得関連APIクラス
         self.info = Info(api_headers, api_url, log)
         # 注文関連APIクラス
-        self.order = Order(api_headers, api_url, log)
+        self.order = Order(api_headers, api_url, log, trade_password)
         # 登録関連APIクラス
         self.register = Register(api_headers, api_url, log)
         # 余力関連APIクラス

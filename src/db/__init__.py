@@ -11,12 +11,12 @@ from listed import Listed
 from orders import Orders
 
 class Db():
-    def controller_init(self, log):
+    def controller_init(self, log, db_info):
         '''起動ファイルから呼び出す場合'''
         self.log = log
 
         # MySQLへ接続
-        self.conn = self.connect()
+        self.conn = self.connect(db_info)
 
         # 接続失敗したら処理終了
         if self.conn == False: exit()
@@ -26,8 +26,10 @@ class Db():
 
         return self.conn
 
-    def service_init(self, log, conn):
+    def service_init(self, log, conn, db_info):
         self.log = log
+
+        self.db_info = db_info
 
         # SELECT文の返しをdict型にする
         dict_return = pymysql.cursors.DictCursor
@@ -39,14 +41,18 @@ class Db():
         self.listed = Listed(log, conn, dict_return)
         self.orders = Orders(log, conn, dict_return)
 
-    def connect(self):
-        '''データベースへの接続'''
+    def connect(self, db_info):
+        '''データベースへの接続
+
+        Args:
+            db_info(dict): DB接続情報
+        '''
         try:
             conn = pymysql.connect(
-                host = 'localhost',
-                user = 'root',
-                password = 'password',
-                db = 'spaft'
+                host = db_info['host'],
+                user = db_info['user'],
+                password = db_info['password'],
+                db = db_info['db']
             )
         except Exception as e:
             self.log.error(f'データベースに接続できません\n{e}')

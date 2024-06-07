@@ -4,10 +4,11 @@ import requests
 
 class Order():
     '''投資商品の注文に関するAPI'''
-    def __init__(self, api_headers, api_url, log):
+    def __init__(self, api_headers, api_url, log, trade_password):
         self.api_headers = api_headers
         self.api_url = api_url
         self.log = log
+        self.trade_password = trade_password
 
     def stock(self, order_info):
         '''
