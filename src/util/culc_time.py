@@ -1,4 +1,5 @@
 import json
+import time
 import requests
 import ntplib
 from datetime import datetime, timedelta
@@ -334,6 +335,59 @@ class CulcTime():
 
         # どちらからも取れなかった場合はdatetimeから取得
         return datetime.now()
+
+    def wait_time(self, hour, minute, second = None):
+        '''
+        指定した時間まで待機する(日付は跨がない)
+
+        Args:
+            hour(int): この時間(時)まで待機する[必須]
+            minute(int): この時間(分)まで待機する[必須]
+            second(int): この時間(秒)まで待機する[任意]
+
+        '''
+        # 現在の時刻を取得する
+        now = self.get_now()
+
+        # この時間まで待つ
+        if second != None:
+            schedule_time = now.replace(hour = hour, minute = minute, second = second)
+        else:
+            schedule_time = now.replace(hour = hour, minute = minute)
+
+        # もう対象の時間を過ぎていたら何もせず返す
+        if now >= schedule_time:
+            self.log.info(f'{hour}時{minute}分を過ぎているため待機しません')
+            return True
+
+        # 待機する時間(マイクロ秒)を計る
+        wait_seconds = (schedule_time - now).total_seconds()
+
+        self.log.info(f'{hour}時{minute}分まで{wait_seconds}秒待機します')
+        time.sleep(wait_seconds)
+        self.log.info('待機終了')
+        return True
+
+    def wait_time_second(self):
+        '''
+        次の秒まで待機する
+
+        '''
+        # 現在の時刻を取得する
+        now = self.get_now()
+
+        # この時間まで待つ
+        next_minute = now + timedelta(days=1)
+
+
+        # 待機する時間(マイクロ秒)を計る
+        wait_seconds = (next_minute - now).total_seconds()
+
+        self.log.info('wait_seconds秒待機します')
+        time.sleep(wait_seconds)
+        self.log.info('待機終了')
+        return True
+
 
     def ntp(self, server_id = 1):
         '''NTPサーバーから現在の時刻を取得する'''

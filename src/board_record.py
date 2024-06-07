@@ -29,12 +29,14 @@ class Main(Base):
 
             # 日付・時刻チェック
             time_type = self.util.culc_time.exchange_time()
-            # 寄付き前
+            # 前場前
             if time_type == 3:
-                pass
+                # 前場開始1秒前まで待機
+                self.util.culc_time.wait_time(hour = 8, minute = 59, second = 59)
             # お昼休み
             elif time_type == 4:
-                pass
+                # 後場開始1秒前まで待機
+                self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59)
             # 大引け後
             elif time_type == 5:
                 finish_flag = True # 大引け後は板を一回だけ記録するため,それ用のフラグ
@@ -63,11 +65,8 @@ class Main(Base):
             # 大引け後に記録を取ったら処理終了
             if finish_flag: break
 
-            # 1周1秒未満の場合は1秒になるように時間調整
-            end_time = time.time()
-            if end_time - start_time < 1:
-                time.sleep(1 - (end_time - start_time))
-
+            # 次の秒まで待機
+            self.util.culc_time.wait_time_next_second()
 
 if __name__ == '__main__':
     m = Main()
