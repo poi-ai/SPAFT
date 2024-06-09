@@ -59,6 +59,9 @@ class Main(Base):
                     if result == False:
                         continue
 
+                # レート制限回避のため0.05秒待機
+                time.sleep(0.05)
+
             # 除外した銘柄コードをリストから除去
             self.target_code_list = copy_code_list
 

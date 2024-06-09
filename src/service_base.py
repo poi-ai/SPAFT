@@ -66,7 +66,7 @@ class ServiceBase():
                 'db': config.DB_NAME
             }
             self.db = Db()
-            self.db.service_init(self.log, conn)
+            self.db.service_init(self.log, conn, self.db_info)
 
 
     def error_output(self, message, e = None, stacktrace = None, line_flg = True):

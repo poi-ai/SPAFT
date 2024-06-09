@@ -64,6 +64,7 @@ class CulcTime():
 
         Returns:
             bool: 判定結果
+                True: 営業日、False: 非営業日
         '''
 
         # 土日祝日かの判定を行う
@@ -110,6 +111,8 @@ class CulcTime():
 
         Returns:
             bool: 判定結果
+                True: 営業日、False: 非営業日
+
         '''
 
         # 土日判定
@@ -131,6 +134,8 @@ class CulcTime():
 
         Returns:
             bool: 判定結果
+                True: 祝日、False: 非祝日
+
         '''
         # 祝日のリストの取得
         until_year, holiday_list = self.get_holiday_list()
@@ -364,11 +369,10 @@ class CulcTime():
         wait_seconds = (schedule_time - now).total_seconds()
 
         self.log.info(f'{hour}時{minute}分まで{wait_seconds}秒待機します')
-        time.sleep(wait_seconds)
         self.log.info('待機終了')
         return True
 
-    def wait_time_second(self):
+    def wait_time_next_second(self):
         '''
         次の秒まで待機する
 
@@ -376,14 +380,13 @@ class CulcTime():
         # 現在の時刻を取得する
         now = self.get_now()
 
-        # この時間まで待つ
-        next_minute = now + timedelta(days=1)
-
+        # 次の秒の00(≒1秒後)
+        next_minute = (now + timedelta(seconds = 1)).replace(microsecond = 0)
 
         # 待機する時間(マイクロ秒)を計る
         wait_seconds = (next_minute - now).total_seconds()
 
-        self.log.info('wait_seconds秒待機します')
+        self.log.info(f'{wait_seconds}秒待機します')
         time.sleep(wait_seconds)
         self.log.info('待機終了')
         return True

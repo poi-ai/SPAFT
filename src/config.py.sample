@@ -10,9 +10,9 @@ RECORD_STOCK_CODE_LIST = [
 AMONG_PRICE_ORDER = True
 
 # DB情報 kabusAPIはWindows上でしか動かせないので基本は固定
-DB_HOST = 'localhost',
-DB_USER = 'root',
-DB_PASSWORD = 'password',
+DB_HOST = 'localhost'
+DB_USER = 'root'
+DB_PASSWORD = 'password'
 DB_NAME = 'spaft'
 
 # LINE通知メッセージトークン[任意]

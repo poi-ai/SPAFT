@@ -48,6 +48,7 @@ class Db():
             db_info(dict): DB接続情報
         '''
         try:
+            print(db_info)
             conn = pymysql.connect(
                 host = db_info['host'],
                 user = db_info['user'],

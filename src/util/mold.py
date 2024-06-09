@@ -16,6 +16,7 @@ class Mold():
             board_table_info(dict): 変換後の板情報
             ※エラー時はFalseを返す
         '''
+
         try:
             board_table_info = {
                 'stock_code': board_info['Symbol'],
@@ -73,6 +74,7 @@ class Mold():
             }
         except Exception as e:
             self.log.error(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
+            self.log.info(board_info)
             return False
         return board_table_info
 
