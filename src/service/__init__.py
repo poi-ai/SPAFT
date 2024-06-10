@@ -1,8 +1,9 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from trade import Trade
-from record import Record
+from .trade import Trade
+from .record import Record
+from .simulation import Simulation
 
 class Service():
     def __init__(self, api_headers, api_url, conn):
@@ -20,4 +21,7 @@ class Service():
 
         # 取引/注文に関するクラス
         self.trade = Trade(api_headers, api_url, conn)
+
+        # DBに保存された板情報から取引のシミュレーションを行うクラス
+        self.simulation = Simulation(api_headers, api_url, conn)
 

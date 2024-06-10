@@ -1,11 +1,34 @@
-base - BaseクラスとLogクラスを定義、BaseクラスでLogクラスを継承
-board_record - configファイルで指定した銘柄の板情報をDBに追加
-common - 現在は取引時間と営業日判定の処理のみある
-config - 各種情報を設定
-data_search - これも板情報をDBとCSVに出力？（なんでふたつあんねん）
-holiday - controllerからは呼ばない営業日判定処理
-listed_update - 上場している銘柄のコードを保持(なんでこんなん作ったかしらん。今んとこいらん)
-main - ほぼsandbox
-mold - APIからのレスポンスをdictに変えたり、DBに追加できる形に変えたり
-scraping_test - 1円スキャの原型。たぶんこれが今後のメイン処理になると思う。
-yutai - コマンドラインから成決済注文が簡単に行えるように。手数料代浮かせるためのもの。
+◎起動ファイル(Controllerクラス)
+src/ 配下に設定。コマンドではこいつを呼び出す
+▲今動く
+・board_record.py - configファイルで指定した銘柄の板情報をDBに追加。
+▲今動かん
+・data_search.py - 全銘柄の板情報をCSV出力する。各カラムのステータスチェック用なので、チェックが完了したら消す。
+・listed_update - 上場している銘柄のコードを保持、data_searchで効率よく回すために使う。
+・main - メインとか書きつつも実質sandbox
+・scraping_test - 1円スキャのテスト用処理。たぶんこれが今後のメイン処理になると思う。
+・yutai - コマンドラインから優待権利確定後の成決済注文が簡単に行えるように。取引手数料やキャッシング手数料を浮かせるためのもの。
+
+◎継承元クラス
+base.py - Controllerクラスの継承元、Logクラスのインスタンス生成・Utilクラスのインスタンス生成+(必要な場合引数で指定すれば)DB接続・APIのトークン取得を行う
+service_base.py - Serviceクラスの継承元、Utilクラス・APIクラス・DBクラスのインスタンス生成を行う
+
+◎Utilクラス
+src/util/ 配下に設定。
+ログや時間計算、データ加工などどのクラスでも使用しそうな処理を配置
+
+◎Serviceクラス
+src/service/ 配下に設定。
+具体的なロジックはこのクラスで行う。ログ出力・API・DBの各メソッドの呼び出しもここで行う
+
+◎DBクラス
+src/db/ 配下に設定。
+db操作はこのクラスで行う
+
+◎apiクラス
+src/kabusapi/ 配下に設定。
+KabuStation APIへのリクエスト送信はこのクラスで行う
+
+◎設定ファイル
+config.py.sample - 各種情報を設定するconfig.pyのサンプル
+config.py - 各種情報を設定。誤って取引パスワードなどをpushしてしまうのを防ぐためにcommit対象から外しているため、config.py.sampleをコピー・リネームして設定する。

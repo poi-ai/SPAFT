@@ -251,3 +251,37 @@ class Board():
             return True
         except Exception as e:
             return f'エラー情報テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}'
+
+    def select_specify_of_time(self, stock_code, start_time, end_time):
+        '''
+        指定した期間内に作成されたレコードを取得する
+
+        Args:
+            stock_code(str): 証券コード
+            start_time(str, YYYY-MM-DD HH:MM): 対象の最古の時間
+            end_time(str, YYYY-MM-DD HH:MM): 対象の最新の時間
+
+        Returns:
+            result(bool): 実行結果
+            records(list[dict,dict,...] or str): 取得したレコード or エラーメッセージ
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = '''
+                    SELECT
+                        *
+                    FROM
+                        boards
+                    WHERE
+                        stock_code = %s
+                    AND
+                        created_at BETWEEN %s AND %s
+                    ORDER BY
+                        created_at
+                '''
+                cursor.execute(sql, (stock_code, start_time, end_time))
+                records = cursor.fetchall()
+        except Exception as e:
+            return False, f'boardテーブルから指定期間内のレコードを取得する処理でエラー\n{e}\n{traceback.format_exc()}'
+
+        return True, records

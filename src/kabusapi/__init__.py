@@ -1,11 +1,11 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from auth import Auth
-from info import Info
-from order import Order
-from register import Register
-from wallet import Wallet
+from .auth import Auth
+from .info import Info
+from .order import Order
+from .register import Register
+from .wallet import Wallet
 
 class KabusApi():
     def controller_init(self, log, api_password, production = False):

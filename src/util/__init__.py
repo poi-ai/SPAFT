@@ -1,9 +1,9 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from common import Common
-from mold import Mold
-from culc_time import CulcTime
+from .common import Common
+from .mold import Mold
+from .culc_time import CulcTime
 
 class Util():
     def __init__(self, log):

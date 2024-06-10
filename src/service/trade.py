@@ -6,7 +6,6 @@ class Trade(ServiceBase):
     def __init__(self, api_headers, api_url, conn):
         super().__init__(api_headers, api_url, conn)
 
-
     def yutai_settlement(self, trade_password):
         '''
         優待銘柄売却用に信用空売りの成行決済注文を行う

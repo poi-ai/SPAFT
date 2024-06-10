@@ -3,12 +3,12 @@ import traceback
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from api_process import Api_Process
-from board import Board
-from buying_power import Buying_Power
-from errors import Errors
-from listed import Listed
-from orders import Orders
+from .api_process import Api_Process
+from .board import Board
+from .buying_power import Buying_Power
+from .errors import Errors
+from .listed import Listed
+from .orders import Orders
 
 class Db():
     def controller_init(self, log, db_info):
@@ -48,7 +48,6 @@ class Db():
             db_info(dict): DB接続情報
         '''
         try:
-            print(db_info)
             conn = pymysql.connect(
                 host = db_info['host'],
                 user = db_info['user'],
