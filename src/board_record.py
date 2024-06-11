@@ -24,9 +24,6 @@ class Main(Base):
         finish_flag = False
 
         while True:
-            # レート制限のための時間計測
-            start_time = time.time()
-
             # 日付・時刻チェック
             time_type = self.util.culc_time.exchange_time()
             # 前場前

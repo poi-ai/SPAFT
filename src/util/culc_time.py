@@ -369,6 +369,7 @@ class CulcTime():
         wait_seconds = (schedule_time - now).total_seconds()
 
         self.log.info(f'{hour}時{minute}分まで{wait_seconds}秒待機します')
+        time.sleep(wait_seconds)
         self.log.info('待機終了')
         return True
 
