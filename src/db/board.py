@@ -263,7 +263,7 @@ class Board():
 
         Returns:
             result(bool): 実行結果
-            records(list[dict,dict,...] or str): 取得したレコード or エラーメッセージ
+            records(list[dict,dict,...] or list): 取得したレコード or エラー内容
         '''
         try:
             with self.conn.cursor(self.dict_return) as cursor:
@@ -282,6 +282,6 @@ class Board():
                 cursor.execute(sql, (stock_code, start_time, end_time))
                 records = cursor.fetchall()
         except Exception as e:
-            return False, f'boardテーブルから指定期間内のレコードを取得する処理でエラー\n{e}\n{traceback.format_exc()}'
+            return False, [e, traceback.format_exc()]
 
         return True, records

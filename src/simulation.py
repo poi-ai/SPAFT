@@ -16,7 +16,14 @@ class Simulation(Base):
 
     def main(self):
         # DBから対象のレコードを取得
-        self.service.simulation.select_boards(config.STOCK_CODE, config.TARGET_DATE, config.START_TIME, config.END_TIME)
+        result, board_info = self.service.simulation.select_boards(config.STOCK_CODE, config.TARGET_DATE, config.START_TIME, config.END_TIME)
+        if result == False:
+            return
+
+        # 1レコードずつ進めながらシミュレーションを行う
+        for board in board_info:
+            # TODO 今なにも持っていない判定チェック
+            pass
 
 
 
