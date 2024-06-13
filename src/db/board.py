@@ -282,6 +282,6 @@ class Board():
                 cursor.execute(sql, (stock_code, start_time, end_time))
                 records = cursor.fetchall()
         except Exception as e:
-            return False, [e, traceback.format_exc()]
+            return False, '\n'.join([e, traceback.format_exc()])
 
         return True, records

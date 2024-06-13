@@ -15,6 +15,7 @@ class Simulation(Base):
             exit()
 
     def main(self):
+        self.log.info('スキャルピングシミュレーション処理開始')
         # DBから対象のレコードを取得
         result, board_info = self.service.simulation.select_boards(config.STOCK_CODE, config.TARGET_DATE, config.START_TIME, config.END_TIME)
         if result == False:
@@ -24,6 +25,8 @@ class Simulation(Base):
         for board in board_info:
             # TODO 今なにも持っていない判定チェック
             pass
+
+        self.log.info('スキャルピングシミュレーション処理終了')
 
 
 

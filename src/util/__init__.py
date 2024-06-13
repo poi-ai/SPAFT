@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from .common import Common
 from .mold import Mold
 from .culc_time import CulcTime
+from .stock_price import StockPrice
 
 class Util():
     def __init__(self, log):
@@ -25,3 +26,5 @@ class Util():
         # 時間・日付の計算や判定を行うクラス
         self.culc_time = CulcTime(self.log)
 
+        # 株価の計算や判定を行うクラス
+        self.stock_price = StockPrice(self.log)

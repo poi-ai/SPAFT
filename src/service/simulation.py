@@ -27,12 +27,12 @@ class Simulation(ServiceBase):
         end = f'{target_date} {end_time}'
         result, board_info = self.db.board.select_specify_of_time(stock_code, start, end)
         if result == False:
-            self.log.error(f'設定した期間内の板情報取得に失敗\n{"\n".join(board_info)}')
+            self.log.error(f'設定した期間内の板情報取得に失敗\n{board_info}')
             return False, None
 
         # 取得できたレコードが0件
         if len(board_info) == 0:
-            self.log.info('シミュレート対象のレコード数が0件のため確認できません')
+            self.log.info('対象のレコード数が0件のためシミュレートできません')
             return False
 
         self.log.info(f'シミュレートレコード件数: {len(board_info)}件')
