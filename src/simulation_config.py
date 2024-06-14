@@ -1,8 +1,8 @@
 # シミュレーションをする銘柄
-STOCK_CODE = 7201 # 1570 日経レバ、9432 NTT、8411 みずほ、4755 楽天、8306 三菱UFJ、7201 日産
+STOCK_CODE = 9432 # 1570 日経レバ、9432 NTT、8411 みずほ、4755 楽天、8306 三菱UFJ、7201 日産
 
 # シミュレーション日(yyyy-mm-dd)
-TARGET_DATE = '2024-06-07'
+TARGET_DATE = ['2024-06-07','2024-06-10','2024-06-11','2024-06-12','2024-06-13']
 
 # シミュレーション時間(HH:MM)
 START_TIME = '09:00'
@@ -13,7 +13,7 @@ BUY_POWER = 1000000
 
 # 利確/損切ライン(pips)
 SECURING_BENEFIT_BORDER = 1
-LOSS_CUT_BORDER = 10
+LOSS_CUT_BORDER = 3
 
 # 利確/損切後の再注文(利確/損切額の何pips下に入れるか)
 REORDER_LINE = 2

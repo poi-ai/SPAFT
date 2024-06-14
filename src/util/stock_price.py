@@ -50,7 +50,3 @@ class StockPrice():
                 return range_value
 
         return False
-
-from log import Log
-s = StockPrice(1)
-print(s.get_price_range(10000, 7000))
