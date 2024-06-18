@@ -39,12 +39,16 @@ class Simulation(ServiceBase):
         self.log.info(f'シミュレートレコード件数: {len(board_info)}件')
         return True, board_info
 
-    def buy_order(self, buy_power, now_price):
+    def buy_order(self, setting_info, now_price):
         '''
         新規買い注文を入れる
 
         Args:
-            buy_power(int): 余力
+            setting_info(dict): シミュレーションの設定情報
+                buy_power(int): 余力
+                order_line(int): 買い注文を何pips下に入れるか
+                price_range(float): 呼値
+                unit_num(int): 売買単位
             now_price(float): 現在株価
 
         Returns:
@@ -53,65 +57,74 @@ class Simulation(ServiceBase):
 
         '''
         # n枚下の株価を計算
-        order_price = now_price - (self.config.PRICE_RANGE * self.config.REORDER_LINE)
+        order_price = now_price - (setting_info['price_range'] * setting_info['order_line'])
 
         # 購入額を計算
-        buy_price = order_price * self.config.UNIT_NUM
+        buy_price = order_price * setting_info['unit_num']
 
         # 余力チェック
-        if buy_power < buy_price:
-            self.log.warning(f'余力が足りません。必要額: {buy_price}、余力: {buy_power}')
-            return False, buy_power
+        if setting_info['buy_power'] < buy_price:
+            self.log.warning(f'余力が足りません。必要額: {buy_price}、余力: {setting_info["buy_power"]}')
+            return False, setting_info['buy_power']
 
         # 余力から購入額を引く
-        buy_power = buy_power - buy_price
+        setting_info['buy_power'] -= buy_price
 
         order_info = {
             'order_type': 'buy',
             'order_price': order_price, # 注文株価
             'sum_price': buy_price, # 購入金額
             'status': 'order',
-            'sum_num': self.config.UNIT_NUM, # 注文株数
-            'cancel_price': order_price + self.config.PRICE_RANGE #注文取消価格(1枚上に行ったら注文も1枚上に差し替え)
+            'sum_num': setting_info['unit_num'], # 注文株数
+            'cancel_price': order_price + setting_info['price_range'] #注文取消価格(1枚上に行ったら注文も1枚上に差し替え)
         }
-        return order_info, buy_power
+        return order_info, setting_info['buy_power']
 
-    def sell_order(self, buy_price):
+    def sell_order(self, buy_price, setting_info):
         '''
         決済売り注文を入れる
 
         Args:
             buy_price(float): 購入株価
+            setting_info(dict): シミュレーションの設定情報
+                price_range(float): 呼値
+                unit_num(int): 売買単位
+                benefit_border(int): 何pip上で利確するか
+                loss_cut_border(int): 何pip下で損切りするか
 
         Returns:
             order_info(dict): 注文情報
         '''
         # 利確価格(注文価格)と損切り価格の計算
-        order_price = buy_price + (self.config.SECURING_BENEFIT_BORDER * self.config.PRICE_RANGE)
-        loss_cut_price = buy_price - (self.config.LOSS_CUT_BORDER * self.config.PRICE_RANGE)
+        order_price = buy_price + (setting_info['benefit_border'] * setting_info['price_range'])
+        loss_cut_price = buy_price - (setting_info['loss_cut_border'] * setting_info['price_range'])
 
         # 売却成立時の金額
-        sell_price = order_price * self.config.UNIT_NUM
+        sell_price = order_price * setting_info['unit_num']
 
         order_info = {
             'order_type': 'sell',
             'order_price': order_price, # 注文株価
             'sum_price': sell_price, # 売却金額
             'status': 'order',
-            'sum_num': self.config.UNIT_NUM, # 注文株数
-            'cancel_price': loss_cut_price # 注文取消価格(損切価格)
+            'sum_num': setting_info['unit_num'], # 注文株数
+            'cancel_price': loss_cut_price # 注文取消価格(損切り価格)
         }
 
         return order_info
 
-    def traded_check(self, order_list, now_price, buy_power, trade_list):
+    def traded_check(self, order_list, now_price, setting_info, trade_list):
         '''
         注文中のものが約定したかのチェック
 
         Args:
             order_list(list): 注文一覧
             now_price(float): 現在株価
-            buy_power(int): 余力
+            setting_info(dict): シミュレーションの設定情報
+                price_range(float): 呼値
+                unit_num(int): 売買単位
+                benefit_border(int): 何pip上で利確するか
+                loss_cut_border(int): 何pip下で損切りするか
             trade_list(dict): 取引回数情報
 
         Returns:
@@ -127,29 +140,30 @@ class Simulation(ServiceBase):
                     # ステータス更新
                     order['status'] = 'complete'
                     # 売り注文を入れる
-                    order_info = self.sell_order(order['order_price'])
+                    order_info = self.sell_order(order['order_price'], setting_info)
                     order_list.append(order_info)
             # 売り注文約定判定
             else:
                 if now_price > order['order_price']:
                     # ステータス更新
                     order['status'] = 'complete'
-                    buy_power += order['sum_price']
+                    setting_info['buy_power'] += order['sum_price']
                     trade_list['securing_benefit_num'] += 1
 
 
         # 完了したレコードは削除して返す
-        return [order for order in order_list if order.get('status') != 'complete'], buy_power, trade_list
+        return [order for order in order_list if order.get('status') != 'complete'], setting_info['buy_power'], trade_list
 
-    def loss_cut_check(self, order_list, now_price, buy_power, board, trade_list):
+    def loss_cut_check(self, order_list, board, setting_info, trade_list):
         '''
         損切りラインを割った注文について損切り注文を入れる
 
         Args:
             order_list(list): 注文一覧
-            now_price(float): 現在株価
-            sell_possible_price(float): 売却可能価格
-            buy_power(int): 余力
+            board(dict): 板情報
+            setting_info(dict): シミュレーションの設定情報
+                buy_power(int): 余力
+                unit_num(int): 売買単位
             trade_list(dict): 取引回数情報
 
         Return:
@@ -158,24 +172,27 @@ class Simulation(ServiceBase):
             trade_list(dict): 損切り情報反映後の取引回数情報
         '''
         for order in order_list:
-            if order['order_type'] == 'sell' and now_price <= order['cancel_price']:
+            if order['order_type'] == 'sell' and board['price'] <= order['cancel_price']:
                 order['status'] = 'cancel'
                 # 買い注文のある中で最も高い価格で損切り 本当は板の枚数もチェックしなきゃいけないけど今はパス
-                buy_power = buy_power + (board['buy1_price'] * self.config.UNIT_NUM)
+                setting_info['buy_power'] += (board['buy1_price'] * setting_info['unit_num'])
                 trade_list['loss_cut_num'] += 1
 
 
-        # キャンセルしたレコードは削除して返す
-        return [order for order in order_list if order.get('status') != 'cancel'], buy_power, trade_list
+        # 損切りしたレコードは削除して返す
+        return [order for order in order_list if order.get('status') != 'cancel'], setting_info['buy_power'], trade_list
 
-    def reorder_buy_check(self, order_list, now_price, buy_power):
+    def reorder_buy_check(self, order_list, now_price, setting_info):
         '''
         買い注文が約定せずに株価が上がったものについて注文をし直す
 
         Args:
             order_list(list): 注文一覧
             now_price(float): 現在株価
-            buy_power(int): 余力
+            setting_info(dict): シミュレーションの設定情報
+                buy_power(int): 余力
+                order_line(int): 買い注文を何pips下に入れるか
+                price_range(float): 呼値
 
         Return:
             order_list(list): 再注文後の注文一覧
@@ -189,14 +206,49 @@ class Simulation(ServiceBase):
                 # 注文価格からのpip数を計算
                 diff_price = now_price - order['order_price']
                 # 買い注文が成立せず株価が上がっていたら注文しなおし
-                if diff_price / self.config.PRICE_RANGE > self.config.REORDER_LINE:
+                if diff_price / setting_info['price_range'] > setting_info['order_line']:
                     # 今の注文は取り消し
                     order['status'] = 'cancel'
                     # 余力も戻す
-                    buy_power += order['sum_price']
+                    setting_info['buy_power'] += order['sum_price']
                     # 今の株価を基準に買い注文の入れ直し
-                    order_info, buy_power = self.buy_order(buy_power, now_price)
+                    order_info, setting_info['buy_power'] = self.buy_order(setting_info, now_price)
                     tmp_order_list.append(order_info)
 
         # キャンセルしたレコードは削除して返す
-        return [order for order in order_list if order.get('status') != 'cancel'] + tmp_order_list, buy_power
+        return [order for order in order_list if order.get('status') != 'cancel'] + tmp_order_list, setting_info['buy_power']
+
+    def last_settlement(self, order_list, setting_info, board, trade_list):
+        '''
+        保有中の株を一括で決済する
+
+        Args:
+            order_list(list): 注文一覧
+            now_price(float): 現在株価
+            sell_possible_price(float): 売却可能価格
+            setting_info(dict): シミュレーションの設定情報
+                buy_power(int): 余力
+                price_range(float): 呼値
+                unit_num(int): 売買単位
+                benefit_border(int): 何pip上で利確するか
+            trade_list(dict): 取引回数情報
+
+        Return:
+            order_list(list): 損切り後の注文一覧
+            buy_power(int): 損切り後の余力
+            trade_list(dict): 損切り情報反映後の取引回数情報
+        '''
+        for order in order_list:
+            if order['order_type'] == 'sell':
+                # 買い注文のある中で最も高い価格で損切り／利確
+                setting_info['buy_power'] += (board['buy1_price'] * setting_info['unit_num'])
+
+                # 利確か損切りか判定
+                buy_price = order['order_price'] - (setting_info['price_range'] * setting_info['benefit_border'])
+                if buy_price < board['buy1_price']:
+                    trade_list['loss_cut_num'] += 1
+                elif buy_price > board['buy1_price']:
+                    trade_list['securing_benefit_num'] += 1
+
+        # 損切りしたレコードは削除して返す、買い注文中のものも削除する
+        return [], setting_info['buy_power'], trade_list
