@@ -174,10 +174,9 @@ class Simulation(ServiceBase):
         for order in order_list:
             if order['order_type'] == 'sell' and board['price'] <= order['cancel_price']:
                 order['status'] = 'cancel'
-                # 買い注文のある中で最も高い価格で損切り 本当は板の枚数もチェックしなきゃいけないけど今はパス
+                # 買い板の中で最も高い価格で損切り 本当は板の枚数もチェックしなきゃいけないけど今はパス
                 setting_info['buy_power'] += (board['buy1_price'] * setting_info['unit_num'])
                 trade_list['loss_cut_num'] += 1
-
 
         # 損切りしたレコードは削除して返す
         return [order for order in order_list if order.get('status') != 'cancel'], setting_info['buy_power'], trade_list
@@ -240,7 +239,7 @@ class Simulation(ServiceBase):
         '''
         for order in order_list:
             if order['order_type'] == 'sell':
-                # 買い注文のある中で最も高い価格で損切り／利確
+                # 買い板の中で最も高い価格で損切り／利確
                 setting_info['buy_power'] += (board['buy1_price'] * setting_info['unit_num'])
 
                 # 利確か損切りか判定
@@ -249,6 +248,9 @@ class Simulation(ServiceBase):
                     trade_list['loss_cut_num'] += 1
                 elif buy_price > board['buy1_price']:
                     trade_list['securing_benefit_num'] += 1
+            else:
+                # 買い注文はキャンセルして購入額をそのまま余力に戻す
+                setting_info['buy_power'] += order['sum_price']
 
         # 損切りしたレコードは削除して返す、買い注文中のものも削除する
         return [], setting_info['buy_power'], trade_list

@@ -77,13 +77,10 @@ class Simulation(Base):
                         # 大引けで利確/損切り
                         order_list, setting_info['buy_power'], trade_info = self.logic.last_settlement(order_list, setting_info, board_info[-1], trade_info)
 
-                        ##### 評価額計算
-                        valuation = 0
-                        for order in order_list:
-                            valuation += order['sum_num'] * now_price
-
                         ##### 結果出力 いずれちゃんと
-                        print(f'銘柄コード: {config.STOCK_CODE}、シミュレーション日: {target_date} {config.START_TIME}~{config.END_TIME}、買い注文位置: {setting_info["order_line"]}pip↓、利確ライン: {setting_info["benefit_border"]}pip↑、損切りライン: {setting_info["loss_cut_border"]}pip↓、収支: {setting_info["buy_power"] + valuation - config.BUY_POWER}円、利確回数: {trade_info["securing_benefit_num"]}、損切り回数: {trade_info["loss_cut_num"]}')
+                        print(f'銘柄コード: {config.STOCK_CODE}、シミュレーション日: {target_date} {config.START_TIME}~{config.END_TIME}、買い注文位置: {setting_info["order_line"]}pip↓、利確ライン: {setting_info["benefit_border"]}pip↑、損切りライン: {setting_info["loss_cut_border"]}pip↓、収支: {setting_info["buy_power"] - config.BUY_POWER}円、利確回数: {trade_info["securing_benefit_num"]}、損切り回数: {trade_info["loss_cut_num"]}')
+                        #### Excel貼り付け用
+                        #print(f'{setting_info["order_line"]}pip↓ {setting_info["benefit_border"]}pip↑ {setting_info["loss_cut_border"]}pip↓ {setting_info["buy_power"] + valuation - config.BUY_POWER} {trade_info["securing_benefit_num"]} {trade_info["loss_cut_num"]}')
 
         self.log.info('スキャルピングシミュレーション処理終了')
 
