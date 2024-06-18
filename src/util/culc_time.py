@@ -299,7 +299,7 @@ class CulcTime():
         try:
             r = requests.get('https://holidays-jp.github.io/api/v1/date.json')
         except Exception as e:
-            return False. e
+            return False, e
 
         if r.status_code != 200:
             self.log.error(f'祝日情報取得APIエラー ステータスコード: {r.status_code}')
@@ -331,12 +331,12 @@ class CulcTime():
         result, now = self.ntp(server_id = 1)
         if result == True:
             return now
-        self.log.error('NTPサーバーからの時刻取得処理に失敗しました\n{e}')
+        self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
 
         result, now = self.ntp(server_id = 2)
         if result == True:
             return now
-        self.log.error('NTPサーバーからの時刻取得処理に失敗しました\n{e}')
+        self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
 
         # どちらからも取れなかった場合はdatetimeから取得
         return datetime.now()
