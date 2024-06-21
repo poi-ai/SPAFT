@@ -22,7 +22,6 @@ class Mold():
                 'stock_code': board_info['Symbol'],
                 'market_code': board_info['Exchange'],
                 'price': board_info['CurrentPrice'],
-                'latest_transaction_time': board_info['CurrentPriceTime'].replace('+09:00', ''),
                 'change_status': board_info['CurrentPriceChangeStatus'][2:],
                 'present_status': board_info['CurrentPriceStatus'],
                 'market_buy_qty': board_info['MarketOrderBuyQty'],
@@ -72,6 +71,12 @@ class Mold():
                 'over_qty': board_info['OverSellQty'],
                 'under_qty': board_info['UnderBuyQty']
             }
+            # まだ取引未成立の場合は直近約定日時の置換ができないので別対応
+            current_price_time = board_info['CurrentPriceTime']
+            if current_price_time == None:
+                board_table_info['latest_transaction_time'] = None
+            else:
+                board_table_info['latest_transaction_time'] = current_price_time.replace('+09:00', '')
         except Exception as e:
             self.log.error(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
             self.log.info(board_info)
