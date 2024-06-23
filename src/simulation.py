@@ -77,13 +77,17 @@ class Simulation(Base):
                                     # 買い注文しなおしチェック
                                     order_list, setting_info['buy_power'] = self.logic.reorder_buy_check(order_list, now_price, setting_info)
 
+                                # 11:30なら一旦ポジション全解消
+                                if '11:30:0' in str(board['latest_transaction_time']):
+                                    order_list, setting_info['buy_power'], trade_info = self.logic.last_settlement(order_list, setting_info, board, trade_info)
+
                             # 大引けで利確/損切り
                             order_list, setting_info['buy_power'], trade_info = self.logic.last_settlement(order_list, setting_info, board_info[-1], trade_info)
 
                             ##### 結果出力 いずれちゃんと
                             #print(f'銘柄コード: {stock_code}、シミュレーション日: {target_date} {config.START_TIME}~{config.END_TIME}、買い注文位置: {setting_info["order_line"]}pip↓、利確ライン: {setting_info["benefit_border"]}pip↑、損切りライン: {setting_info["loss_cut_border"]}pip↓、収支: {setting_info["buy_power"] - config.BUY_POWER}円、利確回数: {trade_info["securing_benefit_num"]}、損切り回数: {trade_info["loss_cut_num"]}')
                             #### Excel貼り付け用
-                            print(f'{stock_code} {setting_info["order_line"]}pip↓ {setting_info["benefit_border"]}pip↑ {setting_info["loss_cut_border"]}pip↓ {setting_info["buy_power"] - config.BUY_POWER} {trade_info["securing_benefit_num"]} {trade_info["loss_cut_num"]}')
+                            print(f'{stock_code} {target_date} {config.START_TIME} {config.END_TIME} {setting_info["order_line"]} {setting_info["benefit_border"]} {setting_info["loss_cut_border"]} {setting_info["buy_power"] - config.BUY_POWER} {trade_info["securing_benefit_num"]} {trade_info["loss_cut_num"]} {trade_info["securing_benefit_num"] + trade_info["loss_cut_num"]}')
 
         self.log.info('スキャルピングシミュレーション処理終了')
 
