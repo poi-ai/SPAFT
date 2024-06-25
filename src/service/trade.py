@@ -2,9 +2,124 @@ import sys
 from service_base import ServiceBase
 
 class Trade(ServiceBase):
-    '''データ取得に関するServiceクラス'''
+    '''取引に関するServiceクラス'''
     def __init__(self, api_headers, api_url, conn):
         super().__init__(api_headers, api_url, conn)
+
+        # 余力
+        self.buy_power = -1
+
+    def scalping_init(self, config):
+        '''
+        スキャルピングトレードを行う場合の初期処理
+
+        Args:
+            config(config): 設定ファイル
+
+        Returns:
+            result(bool): 実行結果
+
+        '''
+        # 設定ファイルのパラメータチェック
+        result = self.param_check(config)
+        if result == False:
+            exit()
+
+        # 信用余力の取得/インスタンス変数への設定
+        buy_power = self.get_margin_buy_power()
+        if buy_power == False:
+            return False
+
+        if buy_power == 0.0:
+            self.log.warning('余力が0円のため取引できません')
+            return False
+
+        self.buy_power = buy_power
+
+        ### # プレミアム料の取得/チェック 現時点では空売りはやらないので一旦保留
+        ### premium_info = self.get_premium_price(stock_code)
+
+        # TODO 今日約定した注文で未決済のものを決済する リカバリ用
+
+        # TODO 値幅チェック
+
+        # TODO ソフトリミットの値チェック
+
+        return True
+
+    def scalping(self):
+        '''スキャルピングを行う'''
+        pass
+
+    def param_check(self, config):
+        '''設定ファイルで設定したパラメータのチェック'''
+        # TODO あとで
+        return True
+
+    def get_margin_buy_power(self):
+        '''
+        現在の信用余力を取得する
+
+        Returns:
+            result(float or False): 信用余力 or エラーメッセージ
+        '''
+
+        # API実行
+        response = self.api.wallet.margin()
+
+        # 取得成功した場合はdict型で返ってくる
+        if type(response) == 'dict':
+            try:
+                return response['MarginAccountWallet']
+            except Exception as e:
+                self.log.error(f'信用余力情報の取り出しに失敗\n{e}')
+                return False
+        else:
+            self.log.error(response)
+            return False
+
+    def get_premium_price(self, stock_code):
+        '''
+        指定した銘柄のデイトレプレミアム料を取得する
+
+        Args:
+            stock_code(str): 証券コード
+
+        Returns:
+            premium_info(dict) or False: プレミアム手数料データ or エラーメッセージ
+                premium_type(bool): 空売り可不
+                    True: 空売り可能、False: 空売り不可能
+                premium(float): プレミアム料
+        '''
+
+        # API実行
+        response = self.api.info.premium_price(stock_code)
+
+        # 取得成功した場合はdict型で返ってくる
+        if type(response) == 'dict':
+            premium_info = {}
+            try:
+                # 銘柄の種別 Noneの場合のみ空売りできない
+                if response['MarginPremiumType'] == None:
+                    premium_info['premium_type'] == False
+                else:
+                    premium_info['premium_type'] == True
+
+                # プレミアム料
+                if response['MarginPremium'] == None:
+                    premium_info['premium'] == 0.0
+                else:
+                    premium_info['premium'] == response['MarginPremium']
+
+                return premium_info
+
+            except Exception as e:
+                self.log.error(f'信用余力情報の取り出しに失敗\n{e}')
+                return False
+        else:
+            self.log.error(response)
+            return False
+
 
     def yutai_settlement(self, trade_password):
         '''
@@ -70,6 +185,7 @@ class Trade(ServiceBase):
             response.content(dict or bool): 注文結果情報 or False
                 Result(int): 結果コード
                     0: 成功、それ以外: 失敗
-                OrderId(str): 受付注文番号'''
+                OrderId(str): 受付注文番号
+        '''
         result, response = self.api.order.stock(order_info = order_info)
         # TODO

@@ -1,25 +1,29 @@
+import config
 import json
-import sys
-from base import Log
-from kabusapi import KabusApi
+from base import Base
 
-class Main(Log):
+class Main(Base):
     def __init__(self):
-        self.log = Log()
-        self.api = KabusApi(self.log, 'production', production = True)
+        # 初期設定
+        super().__init__(use_api = False)
+
+        # 取引関連の処理のサービスクラスをインスタンス変数に
+        self.logic = self.service.trade
 
     def main(self):
+        self.log.info('SPAFT起動')
 
+        # トレード開始前の事前準備/チェック
+        result = self.logic.scalping_init(config)
+        if result == False:
+            return False
 
-        # 余力取得(動かん)
-        print(self.api.wallet.margin())
+        # トレードを行う
+        self.logic.scalping()
 
-        exit()
+        self.log.info('SPAFT終了')
 
-        # プレ料取得
-        premium_price_info = self.api.info.premium_price(1570)
-        print(self.tidy_response(premium_price_info))
-
+        '''
         # 板情報取得
         board_info = self.api.info.board(1570, 1)
         board_info = json.loads(board_info)
@@ -29,7 +33,6 @@ class Main(Log):
         now_price = board_info["CurrentPrice"]
         under_price = board_info["Buy1"]["Price"]
 
-        '''
         # 1570をunder_priceで買い注文
         result = self.api.order.stock(
             stock_code = 1570,
@@ -72,12 +75,6 @@ class Main(Log):
             fund_type = '11'
         )
         '''
-
-    def tidy_response(self, response_json):
-        '''受け取ったレスポンスをインデントをそろえた形にする'''
-        parsed_response = json.loads(response_json)
-        formatted_response = json.dumps(parsed_response, indent = 4, ensure_ascii = False)
-        return formatted_response
 
 if __name__ == '__main__':
     m = Main()

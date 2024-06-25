@@ -8,8 +8,7 @@ class Simulation(ServiceBase):
         super().__init__(api_headers, api_url, conn)
 
     def param_check(self, config):
-        '''シミュレーション設定ファイルで設定したファイルのパラメータチェック'''
-        self.config = config
+        '''シミュレーション設定ファイルで設定したパラメータのチェック'''
         # TODO あとで
         return True
 

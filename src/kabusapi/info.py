@@ -339,7 +339,7 @@ class Info():
         '''為替情報を取得する'''
         pass
 
-    def regurations(self, stock_code, market_code = 1):
+    def regulations(self, stock_code, market_code = 1):
         '''
         指定した銘柄の取引規制情報を取得する
 
@@ -454,14 +454,14 @@ class Info():
         指定した銘柄のプレミアム(空売り)手数料を取得する
 
         Args:
-            stock_code(int or string): 証券コード
+            stock_code(str): 証券コード
 
         Returns:
-            response.content(dict): 指定した銘柄のプレミアム(空売り)手数料データ
+            response.content(dict): 指定した銘柄のプレミアム(空売り)手数料データ or エラーメッセージ
                 Symbol(str): 証券コード
                 GeneralMargin(dict): 一般信用(長期)のデータ
                     MarginPremiumType(int): プレミアム料区分
-                        Null: 空売り非対応銘柄、0: プレミアム料がない銘柄、
+                        None: 空売り非対応銘柄、0: プレミアム料がない銘柄、
                         1: プレミアム料が固定の銘柄、2: プレミアム料が入札で決定する銘柄
                     MarginPremium(float): プレミアム料
                     UpperMarginPremium(float): 上限プレミアム料
@@ -469,7 +469,7 @@ class Info():
                     TickMarginPremium(float): プレミアム料刻値
                 DayTrade(dict): 一般信用(デイトレ)のデータ
                     MarginPremiumType(int): プレミアム料区分
-                        Null: 空売り非対応銘柄、0: プレミアム料がない銘柄、
+                        None: 空売り非対応銘柄、0: プレミアム料がない銘柄、
                         1: プレミアム料が固定の銘柄、2: プレミアム料が入札で決定する銘柄
                     MarginPremium(float): プレミアム料
                     UpperMarginPremium(float): 上限プレミアム料
@@ -481,11 +481,9 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
-            return False
+            return f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\n{e}\n{traceback.format_exc()}'
 
         if response.status_code != 200:
-            self.log.error(f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}'
 
         return response.content
