@@ -349,6 +349,7 @@ class Info():
                 1: 東証、3: 名証、5: 福証、6: 札証
 
         Returns:
+            result(bool): 実行結果
             response.content(dict): 指定した銘柄の優先市場情報
                 Symbol(str): 証券コード
                 RegulationsInfo(list[dict{}, dict{}...]): 取引規制情報
@@ -366,25 +367,23 @@ class Info():
                         ※空売り規制の場合はNULL
                     Level(int): コンプライアンスレベル
                         0: 規制なし、1: ワーニング、2: エラー
-            ※エラー時はFalse
+
         '''
         url = f'{self.api_url}/regulations/{stock_code}@{market_code}'
 
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
-            return False
+            return False, f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\n{e}{stock_code}\n{traceback.format_exc()}'
+
 
         if response.status_code != 200:
             if response.status_code == 400:
                 # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
-                if self.byte_to_dict(response.content)['Code'] == 4002001:
-                    self.logger.warning(f'取引規制情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
-                    return 4002001
+                if self.json_dump(response.content)['Code'] == 4002001:
+                    return False, self.log.error(f'取引規制情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
 
-            self.log.error(f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return False, f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}'
 
         return response.content
 
@@ -427,6 +426,7 @@ class Info():
         kabuステーションで利用者が設定した一注文上限額を取得する
 
         Returns:
+            result(bool): 実行結果
             response.content(dict): 設定した一注文(ワンショット)上限額
                 Stock(float): 現物のワンショット上限金額
                 Margin(float): 信用のワンショット上限金額
@@ -440,12 +440,10 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'設定上限金額情報取得処理でエラー', e, traceback.format_exc())
-            return False
+            return False, f'設定上限金額情報取得処理でエラー\n{e}\n{traceback.format_exc()}'
 
         if response.status_code != 200:
-            self.log.error(f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return False, f'設定上限金額取得処理でエラー\nエラーコード: {response.status_code}\n{json.loads(response.content)}'
 
         return response.content
 
@@ -484,6 +482,6 @@ class Info():
             return f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\n{e}\n{traceback.format_exc()}'
 
         if response.status_code != 200:
-            return f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}'
+            return f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{json.loads(response.content)}'
 
         return response.content

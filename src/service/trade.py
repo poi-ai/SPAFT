@@ -1,4 +1,5 @@
 import sys
+import time
 from service_base import ServiceBase
 
 class Trade(ServiceBase):
@@ -34,16 +35,51 @@ class Trade(ServiceBase):
             self.log.warning('余力が0円のため取引できません')
             return False
 
+        # 銘柄の市場情報を取得
+        result, stock_info = self.api.info.primary_exchange(stock_code = config.STOCK_CODE)
+        if result == False:
+            self.log.error(stock_info)
+            return False
+
+        # 銘柄情報から市場のIDを抜き出す
+        market_code = stock_info['PrimaryExchange']
+
+        time.sleep(1)
+
+        # 銘柄情報を取得
+        result, stock_info = self.api.info.symbol(stock_code = config.STOCK_CODE,
+                                                  market_code = market_code,
+                                                  add_info = False)
+
+        time.sleep(1)
         self.buy_power = buy_power
+
+        # 取引規制チェック
+        result, regulations_info = self.api.info.regulations(stock_code = config.STOCK_CODE)
+        if result == False:
+            self.log.error(regulations_info)
+
+
+
+
+
 
         ### # プレミアム料の取得/チェック 現時点では空売りはやらないので一旦保留
         ### premium_info = self.get_premium_price(stock_code)
 
-        # TODO 今日約定した注文で未決済のものを決済する リカバリ用
+        # TODO 今日約定したデイトレ信用の注文から未決済のものを決済する リカバリ用
+        # 要検討 決済しておかないと巻き込まれるが、initで処理するもの違う気が
 
         # TODO 値幅チェック
 
-        # TODO ソフトリミットの値チェック
+        # ソフトリミットの値をチェック
+        result, response =  self.api.info.soft_limit()
+        if result == False:
+            self.log.error(response)
+            return False
+
+        # 信用のソフトリミットを取得
+        margin_soft_limit = result['Margin']
 
         return True
 
