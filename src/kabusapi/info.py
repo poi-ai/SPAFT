@@ -161,7 +161,8 @@ class Info():
                 「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
 
         Returns:
-            response_content: 指定した銘柄の情報
+            result(bool): 実行結果
+            response_content(dict): 指定した銘柄の情報 or エラーメッセージ(str) or エラーコード(int)
                 Symbol(str): 証券コード
                 SymbolName(str): 銘柄名
                 DisplayName(str): 銘柄略称
@@ -208,27 +209,23 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}', e, traceback.format_exc())
-            return False
+            return False, f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\n{e}\n{traceback.format_exc()}'
 
         if response.status_code != 200:
             if response.status_code == 400:
                 # 板情報を取得した際に勝手に銘柄登録され、
                 # 登録数が50銘柄超えて新たに新規銘柄の板情報を指定しようとするとエラーが出るクソ仕様
                 # そのためこのエラーの場合はFalseではなく999を返す
-                if self.byte_to_dict(response.content)['Code'] == 4002006:
-                    self.logger.warning(f'銘柄情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
-                    return 4002006
+                if json.dump(response.content)['Code'] == 4002006:
+                    return False, 4002006
 
                 # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
-                if self.byte_to_dict(response.content)['Code'] == 4002001:
-                    self.logger.warning(f'銘柄情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}')
-                    return 4002001
+                if json.dump(response.content)['Code'] == 4002001:
+                    return False, f'銘柄情報取得処理でエラー\n証券コードが不正\n証券コード: {stock_code}\n'
 
-            self.log.error(f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return False, f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{json.dump(response.content)}'
 
-        return response.content
+        return True, response.content
 
     def orders(self, search_filter = None):
         '''

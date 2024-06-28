@@ -26,6 +26,6 @@ class Register():
             return e
 
         if response.status_code != 200:
-            return f'{response.status_code}\n{json.loads(response.content)}'
+            return f'PUSH配信登録全解除APIでエラー\nステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
         return True

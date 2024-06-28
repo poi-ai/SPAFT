@@ -16,6 +16,7 @@ class Main(Base):
         # トレード開始前の事前準備/チェック
         result = self.logic.scalping_init(config)
         if result == False:
+            self.log.info('トレード前の初期処理でエラーが発生したため処理を終了します')
             return False
 
         # トレードを行う

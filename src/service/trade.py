@@ -9,6 +9,8 @@ class Trade(ServiceBase):
 
         # 余力
         self.buy_power = -1
+        # 市場コード
+        self.market_code = -1
 
     def scalping_init(self, config):
         '''
@@ -24,16 +26,17 @@ class Trade(ServiceBase):
         # 設定ファイルのパラメータチェック
         result = self.param_check(config)
         if result == False:
-            exit()
+            return False
 
-        # 信用余力の取得/インスタンス変数への設定
+        # 信用余力の取得
         buy_power = self.get_margin_buy_power()
         if buy_power == False:
             return False
 
-        if buy_power == 0.0:
-            self.log.warning('余力が0円のため取引できません')
-            return False
+        # インスタンス変数へ設定
+        self.buy_power = buy_power
+
+        time.sleep(1)
 
         # 銘柄の市場情報を取得
         result, stock_info = self.api.info.primary_exchange(stock_code = config.STOCK_CODE)
@@ -41,18 +44,20 @@ class Trade(ServiceBase):
             self.log.error(stock_info)
             return False
 
-        # 銘柄情報から市場のIDを抜き出す
-        market_code = stock_info['PrimaryExchange']
+        # 市場IDを抜き出してインスタンス変数へセット
+        self.market_code = stock_info['PrimaryExchange']
 
         time.sleep(1)
 
         # 銘柄情報を取得
         result, stock_info = self.api.info.symbol(stock_code = config.STOCK_CODE,
-                                                  market_code = market_code,
+                                                  market_code = self.market_code,
                                                   add_info = False)
+        if result == False:
+            self.log.error(stock_info)
+            return False
 
         time.sleep(1)
-        self.buy_power = buy_power
 
         # 取引規制チェック
         result, regulations_info = self.api.info.regulations(stock_code = config.STOCK_CODE)
@@ -155,6 +160,41 @@ class Trade(ServiceBase):
         else:
             self.log.error(response)
             return False
+
+    def get_symbol(self, stock_code, market_code, add_info = True, retry_count = 0):
+        '''
+        銘柄情報の取得を行う(銘柄登録上限のリカバリも)
+
+        Args:
+            stock_code(int or str): 証券コード
+            market_code(int or str): 市場コード
+                1: 東証、3: 名証、5: 福証、6: 札証、2: 日通し、23: 日中、24: 夜間
+            add_info(bool): 下記4項目の情報を併せて取得するか
+                「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
+
+        Returns:
+            result(bool): 実行結果
+            response(dict): 指定した銘柄の情報 or エラーメッセージ(str) or エラーコード(int)
+
+        '''
+        result, response = self.api.info.symbol(stock_code = stock_code,
+                                                market_code = market_code,
+                                                add_info = add_info)
+        if result == False:
+            # 登録数上限エラー
+            if response == 4002006:
+                self.log.warning(f'銘柄情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
+                # 全解除API呼び出し
+                result = self.api.register.unregister_all()
+                # 解除に成功したら再帰でもう一度銘柄情報の取得を行う
+                if response == True:
+                    result, response = self.get_symbol(stock_code, market_code, add_info, retry_count = 1)
+                # TODO まだ途中
+            # その他のエラー
+            else:
+                return False, response
+
+        return True, response
 
 
     def yutai_settlement(self, trade_password):
