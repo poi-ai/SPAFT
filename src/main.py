@@ -5,7 +5,7 @@ from base import Base
 class Main(Base):
     def __init__(self):
         # 初期設定
-        super().__init__(use_api = False)
+        super().__init__()
 
         # 取引関連の処理のサービスクラスをインスタンス変数に
         self.logic = self.service.trade

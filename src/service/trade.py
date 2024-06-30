@@ -9,6 +9,8 @@ class Trade(ServiceBase):
 
         # 余力
         self.buy_power = -1
+        # 証券コード
+        self.stock_code = -1
         # 市場コード
         self.market_code = -1
 
@@ -28,6 +30,9 @@ class Trade(ServiceBase):
         if result == False:
             return False
 
+        # インスタンス変数に証券コードを設定 パラメータチェックに入れるかも
+        self.stock_code = config.STOCK_CODE
+
         # 信用余力の取得
         buy_power = self.get_margin_buy_power()
         if buy_power == False:
@@ -39,9 +44,12 @@ class Trade(ServiceBase):
         time.sleep(1)
 
         # 銘柄の市場情報を取得
-        result, stock_info = self.api.info.primary_exchange(stock_code = config.STOCK_CODE)
+        result, stock_info = self.api.info.primary_exchange(stock_code = self.stock_code)
         if result == False:
-            self.log.error(stock_info)
+            if stock_info == 4002001:
+                self.log.error(f'優先市場情報取得処理で条件コード不正エラー\n証券コード: {self.stock_code}')
+            else:
+                self.log.error(stock_info)
             return False
 
         # 市場IDを抜き出してインスタンス変数へセット
@@ -50,7 +58,7 @@ class Trade(ServiceBase):
         time.sleep(1)
 
         # 銘柄情報を取得
-        result, stock_info = self.api.info.symbol(stock_code = config.STOCK_CODE,
+        result, stock_info = self.get_symbol(stock_code = self.stock_code,
                                                   market_code = self.market_code,
                                                   add_info = False)
         if result == False:
@@ -60,7 +68,8 @@ class Trade(ServiceBase):
         time.sleep(1)
 
         # 取引規制チェック
-        result, regulations_info = self.api.info.regulations(stock_code = config.STOCK_CODE)
+        result, regulations_info = self.api.info.regulations(stock_code = self.stock_code,
+                                                             market_code = self.market_code)
         if result == False:
             self.log.error(regulations_info)
 
@@ -84,7 +93,7 @@ class Trade(ServiceBase):
             return False
 
         # 信用のソフトリミットを取得
-        margin_soft_limit = result['Margin']
+        margin_soft_limit = response['Margin']
 
         return True
 
@@ -109,7 +118,7 @@ class Trade(ServiceBase):
         response = self.api.wallet.margin()
 
         # 取得成功した場合はdict型で返ってくる
-        if type(response) == 'dict':
+        if type(response) == type({}):
             try:
                 return response['MarginAccountWallet']
             except Exception as e:
@@ -183,13 +192,20 @@ class Trade(ServiceBase):
         if result == False:
             # 登録数上限エラー
             if response == 4002006:
+                # 再帰で同じエラーが出たら無限ループに入るのでこれ以上は進めない
+                if retry_count > 0:
+                    return False, f'銘柄情報取得処理で登録数上限エラー(再帰)\n証券コード: {stock_code}'
+
                 self.log.warning(f'銘柄情報取得処理で登録数上限エラー\n証券コード: {stock_code}')
-                # 全解除API呼び出し
+
+                # 登録銘柄を全解除するAPI呼び出し
                 result = self.api.register.unregister_all()
-                # 解除に成功したら再帰でもう一度銘柄情報の取得を行う
-                if response == True:
-                    result, response = self.get_symbol(stock_code, market_code, add_info, retry_count = 1)
-                # TODO まだ途中
+                if result != True:
+                    return False, result
+
+                # 登録銘柄の解除に成功したら再帰でもう一度銘柄情報の取得を行う
+                if result == True:
+                    return self.get_symbol(stock_code, market_code, add_info, retry_count = 1)
             # その他のエラー
             else:
                 return False, response

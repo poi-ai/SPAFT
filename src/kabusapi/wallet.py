@@ -65,7 +65,7 @@ class Wallet():
         if response.status_code != 200:
             return f'信用余力情報取得処理でエラ\nエラーコード{response.status_code}\n{json.loads(response.content)}'
 
-        return response.content
+        return json.loads(response.content)
 
     def future(self):
         '''先物の余力を取得する'''

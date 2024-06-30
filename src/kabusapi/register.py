@@ -17,13 +17,18 @@ class Register():
         pass
 
     def unregister_all(self):
-        '''全ての銘柄のPUSH配信を解除する'''
+        '''
+        全ての銘柄のPUSH配信を解除する
+
+        Returns:
+            bool or str: 実行結果 or エラーメッセージ
+        '''
         url = f'{self.api_url}/unregister/all'
 
         try:
            response = requests.put(url, headers = self.api_headers)
         except Exception as e:
-            return e
+            return f'PUSH配信登録全解除APIでエラー\n{e}'
 
         if response.status_code != 200:
             return f'PUSH配信登録全解除APIでエラー\nステータスコード: {response.status_code}\n{json.loads(response.content)}'

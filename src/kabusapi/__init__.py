@@ -34,7 +34,12 @@ class KabusApi():
             if token == -1:
                 log.error('KabuStationが起動していません')
             else:
-                log.error(f'トークン発行処理に失敗\n{token}')
+                if 'ログイン認証エラー' in token:
+                    log.error(f'トークン発行処理に失敗\n{token}\nKabuStaionの再起動が必要です')
+                elif 'トークン取得失敗' in token:
+                    log.error(f'トークン発行処理に失敗\n{token}\nIDかパスワードが間違っています')
+                else:
+                    log.error(f'トークン発行処理に失敗\n{token}')
             exit()
 
         # 認証ヘッダー
