@@ -13,6 +13,8 @@ class Trade(ServiceBase):
         self.stock_code = -1
         # 市場コード
         self.market_code = -1
+        # 銘柄情報
+        self.stock_info = {}
 
     def scalping_init(self, config):
         '''
@@ -30,7 +32,7 @@ class Trade(ServiceBase):
         if result == False:
             return False
 
-        # インスタンス変数に証券コードを設定 パラメータチェックに入れるかも
+        # インスタンス変数に証券コードを設定 TODO パラメータチェックに入れるかも
         self.stock_code = config.STOCK_CODE
 
         # 信用余力の取得
@@ -65,6 +67,19 @@ class Trade(ServiceBase):
             self.log.error(stock_info)
             return False
 
+        # デイトレ信用が取引可能か
+        if stock_info['KCMarginBuy'] != True:
+            self.log.warning(f'デイトレ信用の取引が行えない銘柄です\n証券コード: {self.stock_code}')
+            return False
+
+        # 売買単位
+        self.stock_info['unit_num'] = stock_info['TradingUnit']
+        # 値幅上限・下限
+        self.stock_info['upper_limit'] = stock_info['UpperLimit']
+        self.stock_info['upper_limit'] = stock_info['UpperLimit']
+        # 呼値グループ
+        self.yobine_group = stock_info['PriceRangeGroup']
+
         time.sleep(1)
 
         # 取引規制チェック
@@ -73,18 +88,13 @@ class Trade(ServiceBase):
         if result == False:
             self.log.error(regulations_info)
 
-
-
-
-
+        # TODO 規制情報チェック
 
         ### # プレミアム料の取得/チェック 現時点では空売りはやらないので一旦保留
         ### premium_info = self.get_premium_price(stock_code)
 
         # TODO 今日約定したデイトレ信用の注文から未決済のものを決済する リカバリ用
         # 要検討 決済しておかないと巻き込まれるが、initで処理するもの違う気が
-
-        # TODO 値幅チェック
 
         # ソフトリミットの値をチェック
         result, response =  self.api.info.soft_limit()
@@ -93,7 +103,9 @@ class Trade(ServiceBase):
             return False
 
         # 信用のソフトリミットを取得
-        margin_soft_limit = response['Margin']
+        self.soft_limit = response['Margin']
+
+        # TODO 上限価格で必要な購入金額とのチェック
 
         return True
 
@@ -204,8 +216,7 @@ class Trade(ServiceBase):
                     return False, result
 
                 # 登録銘柄の解除に成功したら再帰でもう一度銘柄情報の取得を行う
-                if result == True:
-                    return self.get_symbol(stock_code, market_code, add_info, retry_count = 1)
+                return self.get_symbol(stock_code, market_code, add_info, retry_count = 1)
             # その他のエラー
             else:
                 return False, response

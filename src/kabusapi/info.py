@@ -216,16 +216,16 @@ class Info():
                 # 板情報を取得した際に勝手に銘柄登録され、
                 # 登録数が50銘柄超えて新たに新規銘柄の板情報を指定しようとするとエラーが出るクソ仕様
                 # そのためこのエラーの場合はFalseではなく999を返す
-                if json.dump(response.content)['Code'] == 4002006:
+                if json.loada(response.content)['Code'] == 4002006:
                     return False, 4002006
 
                 # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
-                if json.dump(response.content)['Code'] == 4002001:
+                if json.loads(response.content)['Code'] == 4002001:
                     return False, f'銘柄情報取得処理でエラー\n証券コードが不正\n証券コード: {stock_code}\n'
 
             return False, f'銘柄情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{json.dump(response.content)}'
 
-        return True, response.content
+        return True, json.loads(response.content)
 
     def orders(self, search_filter = None):
         '''
@@ -377,12 +377,12 @@ class Info():
         if response.status_code != 200:
             if response.status_code == 400:
                 # 銘柄が見つからない場合は見つからない場合はそのエラーコードを返す
-                if json.load(response.content)['Code'] == 4002001:
+                if json.loads(response.content)['Code'] == 4002001:
                     return False, f'取引規制情報取得処理で銘柄未発見エラー\n証券コード: {stock_code}'
 
             return False, f'取引規制情報取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}'
 
-        return True, response.content
+        return True, json.loads(response.content)
 
     def primary_exchange(self, stock_code):
         '''
