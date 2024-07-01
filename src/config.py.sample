@@ -27,3 +27,6 @@ TRADE_PASSWORD = 'password'
 
 # 使用するAPI(本番: True、検証/テスト: False)
 API_PRODUCTION = True
+
+# システム起動時に未決済のデイトレ信用買いがあったら成行で決済するか
+RECOVERY_SETTLEMENT = True

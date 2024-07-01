@@ -10,7 +10,7 @@ class Info():
         self.api_url = api_url
         self.log = log
 
-    def board(self, stock_code, market_code = 1, add_info = True):
+    def board(self, stock_code, market_code = 1, addinfo = True):
         '''
         指定した銘柄の板・取引情報を取得する
 
@@ -18,7 +18,7 @@ class Info():
             stock_code(int or str): 証券コード
             market_code(int or str): 市場コード
                 1: 東証、3: 名証、5: 福証、6: 札証、2: 日通し、23: 日中、24: 夜間
-            add_info(bool): 下記4項目の情報を併せて取得するか
+            addinfo(bool): 下記4項目の情報を併せて取得するか
                 「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
 
         Returns:
@@ -118,7 +118,7 @@ class Info():
         '''
         url = f'{self.api_url}/board/{stock_code}@{market_code}'
 
-        if not add_info: url += '?add_info=false'
+        if not addinfo: url += '?addinfo=false'
 
         try:
             response = requests.get(url, headers = self.api_headers)
@@ -149,7 +149,7 @@ class Info():
 
         return True, response.content
 
-    def symbol(self, stock_code, market_code, add_info = True):
+    def symbol(self, stock_code, market_code, addinfo = True):
         '''
         指定した銘柄の情報を取得する
 
@@ -157,7 +157,7 @@ class Info():
             stock_code(int or str): 証券コード
             market_code(int or str): 市場コード
                 1: 東証、3: 名証、5: 福証、6: 札証、2: 日通し、23: 日中、24: 夜間
-            add_info(bool): 下記4項目の情報を併せて取得するか
+            addinfo(bool): 下記4項目の情報を併せて取得するか
                 「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
 
         Returns:
@@ -204,7 +204,7 @@ class Info():
         '''
         url = f'{self.api_url}/symbol/{stock_code}@{market_code}'
 
-        if not add_info: url += '?add_info=false'
+        if not addinfo: url += '?addinfo=false'
 
         try:
             response = requests.get(url, headers = self.api_headers)
@@ -231,6 +231,7 @@ class Info():
         '''
         約定状況を取得する
         引数指定なしで全ての状況を取得、引数指定で絞り込み可
+
         Args:
             search_filter(dict): 絞り込む検索条件[任意]
                 product(str): 商品区分
@@ -249,7 +250,8 @@ class Info():
                     2: 新規、3: 返済
 
         Returns:
-            response.content (list[dict{},dict{},...])
+            result(bool): 実行結果
+            response.content(list[dict{},dict{},...]) or エラーメッセージ(str)
                 ID(str): 注文番号
                 State(int): 状態 ※Order Stateと同値
                 OrderState(int): 注文状態 ※Stateと同値
@@ -309,16 +311,75 @@ class Info():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'約定情報取得処理でエラー', e, traceback.format_exc())
+            return False, f'約定情報取得処理でエラー\n{e}\n{traceback.format_exc()}'
 
         if response.status_code != 200:
-            self.log.error(f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
-        return response.content
+            return False, f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{json.loads(response.content)}'
 
-    def positions(self):
-        '''残高・評価額を取得する'''
-        pass
+        return True, json.loads(response.content)
+
+    def positions(self, search_filter):
+        '''
+        保有中銘柄の情報(残高・評価額)を取得する
+        引数指定なしで保有中銘柄を取得、引数指定で絞り込み可
+
+        Args:
+            search_filter(dict): 絞り込む検索条件[任意]
+                product(str): 商品区分
+                    '0': すべて、'1': 現物、'2': 信用、'3': 先物、'4': オプション
+                symbol(str): 証券コード
+                side(str): 売買区分
+                    '1': 売り注文、'2': 買い注文
+                addinfo(bool): 下記4項目の情報を併せて取得するか デフォルト: False
+                    「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
+
+        Returns:
+            result(bool): 実行結果
+            response.content(list[dict{},dict{},...]) or エラーメッセージ(str)
+                ExecutionID(str): 約定番号
+                AccountType(int): 口座種別
+                    2: 一般、4: 特定、12: 法人
+                Symbol(str): 証券コード
+                SymbolName(str): 銘柄名
+                Exchange(int): 市場コード
+                    1: 東証、3: 名証、5: 福証、6: 札証、9: SOR、2: 日通し、23: 日中、24: 夜間
+                ExchangeName(str): 市場名称
+                SecurityType(int): 銘柄種別 ※先物/オプションのみ
+                    0: 指数、1: 現物、101: 日経225先物、103: 日経225OP、107: TOPIX先物、121: JPX400先物、
+                    144: NYダウ、145: 日経平均VI、154: 東証マザーズ指数先物、155: TOPIX_REIT、
+                    171: TOPIX CORE30、901: 日経平均225ミニ先物、907: TOPIXミニ先物
+                ExecutionDay(int): 建玉約定日 ※信用/先物/オプションのみ
+                Price(float): 値段 TODO
+                LeavesQty(float): 保有数量
+                HoldQty(float): 拘束数量
+                Side(str): 売買区分
+                    '1': 売り注文、'2': 買い注文
+                Expenses(float): 諸経費 ※信用/先物/オプションのみ
+                Commission(bool): 手数料 ※信用/先物/オプションのみ
+                CommissionTax(bool): 手数料消費税 ※信用/先物/オプションのみ
+                ExpireDay(int): 返済期日 ※信用/先物/オプションのみ
+                MarginTradeType(int): 信用取引区分 ※信用のみ
+                    1: 制度信用、2: 一般信用（長期）、3: 一般信用（デイトレ）
+                CurrentPrice(float): 現在株価
+                Valuation(float): 評価金額
+                ProfitLoss(float): 評価損益額
+                ProfitLossRate(float): 評価損益率
+
+        '''
+        url = f'{self.api_url}/positions/'
+
+        if search_filter != None:
+            url = f'{url}?{urllib.parse.urlencode(search_filter)}'
+
+        try:
+            response = requests.get(url, headers = self.api_headers)
+        except Exception as e:
+            return False, f'保有中銘柄情報取得処理でエラー\n{e}\n{traceback.format_exc()}'
+
+        if response.status_code != 200:
+            return False, f'保有中銘柄情報取得処理でエラー\nエラーコード: {response.status_code}\n{json.loads(response.content)}'
+
+        return True, json.loads(response.content)
 
     def future_code(self):
         '''指定した先物の銘柄コードを取得する'''

@@ -49,7 +49,7 @@ class Trade(ServiceBase):
         result, stock_info = self.api.info.primary_exchange(stock_code = self.stock_code)
         if result == False:
             if stock_info == 4002001:
-                self.log.error(f'優先市場情報取得処理で条件コード不正エラー\n証券コード: {self.stock_code}')
+                self.log.error(f'優先市場情報取得処理で証券コード不正エラー\n証券コード: {self.stock_code}')
             else:
                 self.log.error(stock_info)
             return False
@@ -72,13 +72,43 @@ class Trade(ServiceBase):
             self.log.warning(f'デイトレ信用の取引が行えない銘柄です\n証券コード: {self.stock_code}')
             return False
 
-        # 売買単位
+        # 売買単位・値幅上限・下限・呼値グループ
         self.stock_info['unit_num'] = stock_info['TradingUnit']
-        # 値幅上限・下限
         self.stock_info['upper_limit'] = stock_info['UpperLimit']
-        self.stock_info['upper_limit'] = stock_info['UpperLimit']
-        # 呼値グループ
-        self.yobine_group = stock_info['PriceRangeGroup']
+        self.stock_info['lower_limit'] = stock_info['LowerLimit']
+        self.stock_info['yobine_group'] = stock_info['PriceRangeGroup']
+
+        '''よく考えたら独立した関数にした方がいいじゃん、大引け時の処理でも使えるし
+        # 未決済のデイトレ信用の注文を成行で決済する(エラー時のリカバリ用)
+        if config.RECOVERY_SETTLEMENT:
+            # 絞り込みのためのフィルターを作成
+            search_filter = {
+                'product': '2', # 信用区分 - 信用
+                'side': '2'     # 売買区分 - 買い
+            }
+
+            # 信用買いの保有株を取得
+            result, response = self.api.info.positions()
+            if result == False:
+                self.log.error(response)
+                return False
+
+            for stock in response:
+                # デイトレ信用チェック
+                if stock['MarginTradeType'] != 3:
+                    continue
+                # TODO 売り注文済みチェック
+                # TODO 売り注文発注
+        '''
+
+        # 余力 < ストップ高での単元価格
+        if self.buy_power < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
+            # 余力 < 前日終値の単元価格
+            if self.buy_power < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
+                self.log.error(f'余力が昨日の終値の単元価格を下回っているため取引を行いません\n余力: {self.buy_power}\n単元価格: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                return False
+            else:
+                self.log.warning(f'余力がストップ高の単元価格を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}\nストップ高単元価格: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
 
         time.sleep(1)
 
@@ -89,12 +119,10 @@ class Trade(ServiceBase):
             self.log.error(regulations_info)
 
         # TODO 規制情報チェック
+        # 単純に規制があるケース、増担、注意銘柄などがあるため全て網羅しなければいけない
 
         ### # プレミアム料の取得/チェック 現時点では空売りはやらないので一旦保留
         ### premium_info = self.get_premium_price(stock_code)
-
-        # TODO 今日約定したデイトレ信用の注文から未決済のものを決済する リカバリ用
-        # 要検討 決済しておかないと巻き込まれるが、initで処理するもの違う気が
 
         # ソフトリミットの値をチェック
         result, response =  self.api.info.soft_limit()
