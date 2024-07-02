@@ -78,37 +78,14 @@ class Trade(ServiceBase):
         self.stock_info['lower_limit'] = stock_info['LowerLimit']
         self.stock_info['yobine_group'] = stock_info['PriceRangeGroup']
 
-        '''よく考えたら独立した関数にした方がいいじゃん、大引け時の処理でも使えるし
-        # 未決済のデイトレ信用の注文を成行で決済する(エラー時のリカバリ用)
-        if config.RECOVERY_SETTLEMENT:
-            # 絞り込みのためのフィルターを作成
-            search_filter = {
-                'product': '2', # 信用区分 - 信用
-                'side': '2'     # 売買区分 - 買い
-            }
-
-            # 信用買いの保有株を取得
-            result, response = self.api.info.positions()
-            if result == False:
-                self.log.error(response)
-                return False
-
-            for stock in response:
-                # デイトレ信用チェック
-                if stock['MarginTradeType'] != 3:
-                    continue
-                # TODO 売り注文済みチェック
-                # TODO 売り注文発注
-        '''
-
-        # 余力 < ストップ高での単元価格
+        # 余力 < ストップ高での1単元必要額
         if self.buy_power < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
-            # 余力 < 前日終値の単元価格
+            # 余力 < 前日終値の1単元必要額
             if self.buy_power < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
-                self.log.error(f'余力が昨日の終値の単元価格を下回っているため取引を行いません\n余力: {self.buy_power}\n単元価格: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.error(f'余力が昨日の終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.buy_power}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
                 return False
             else:
-                self.log.warning(f'余力がストップ高の単元価格を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}\nストップ高単元価格: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.warning(f'余力がストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
 
         time.sleep(1)
 
@@ -133,7 +110,14 @@ class Trade(ServiceBase):
         # 信用のソフトリミットを取得
         self.soft_limit = response['Margin']
 
-        # TODO 上限価格で必要な購入金額とのチェック
+        # ソフトリミット < ストップ高での1単元必要額
+        if self.soft_limit < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
+            # ソフトリミット < 前日終値の1単元必要額
+            if self.soft_limit < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
+                self.log.error(f'ソフトリミットが昨日の終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.soft_limit}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                return False
+            else:
+                self.log.warning(f'ソフトリミットがストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.soft_limit}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
 
         return True
 
@@ -250,6 +234,52 @@ class Trade(ServiceBase):
                 return False, response
 
         return True, response
+
+    def enforce_settlement(self):
+        '''
+        保有中のデイトレ信用株の強制成行決済を行う
+
+        Returns:
+            result(bool): 実行結果
+        '''
+
+        # まず注文に出しているものを全てキャンセルする
+        # とりあえず注文発注しているのものを取得
+        search_filter = {
+            'product': '2', # 信用
+            'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の取引
+        }
+        result, response = self.api.info.orders(search_filter)
+        if result == False:
+            self.log.error(response)
+            return False
+
+        # 1注文ずつチェック
+        for order in response:
+            pass
+            # TODO 未約定があればキャンセル
+            # TODO 決済注文の場合は成り売りも
+
+        # 注文の出ていない信用の保有株から成売するものを決める
+        # 絞り込みのためのフィルター
+        search_filter = {
+            'product': '2', # 信用区分 - 信用
+            'side': '2'     # 売買区分 - 買い
+        }
+
+        # 信用の保有株を取得
+        result, response = self.api.info.positions(search_filter)
+        if result == False:
+            self.log.error(response)
+            return False
+
+        # 保有中の株を1つずつチェック
+        for stock in response:
+            # デイトレ信用チェック
+            if stock['MarginTradeType'] != 3:
+                continue
+            # TODO 売り注文済みチェック
+            # TODO 売り注文発注
 
 
     def yutai_settlement(self, trade_password):

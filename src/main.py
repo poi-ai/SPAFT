@@ -1,5 +1,4 @@
 import config
-import json
 from base import Base
 
 class Main(Base):
@@ -12,6 +11,11 @@ class Main(Base):
 
     def main(self):
         self.log.info('SPAFT起動')
+
+        # 成行強制決済のみを行う場合
+        if config.RECOVERY_SETTLEMENT:
+            result = self.logic.enforce_settlement()
+            return True
 
         # トレード開始前の事前準備/チェック
         result = self.logic.scalping_init(config)
