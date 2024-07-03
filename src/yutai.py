@@ -7,7 +7,7 @@ class Yutai(Base):
         super().__init__(use_db = False)
 
     def main(self):
-        # メイン処理
+        # メイン処理 TODO 引数にパスワードを入れろ
         self.service.trade.yutai_settlement()
 
         return

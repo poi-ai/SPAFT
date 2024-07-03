@@ -29,12 +29,12 @@ class Order():
         try:
             response = requests.post(url, headers = self.api_headers, json = order_info)
         except Exception as e:
-            return False, e
+            return False, f'日本株注文処理でエラー\n証券コード: {order_info['Symbol']}\n{e}'
 
         if response.status_code != 200:
-            return False, f'ステータスコード: {response.status_code}\n{json.loads(response.content)}'
+            return False, f'日本株注文処理でエラー\n証券コード: {order_info['Symbol']}\nステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
-        return response.content
+        return True, json.loads(response.content)
 
     def future(self):
         '''先物の注文を発注する'''
@@ -53,6 +53,7 @@ class Order():
             password(str): 注文パスワード
 
         Returns:
+            result(bool): 実行結果
             response.content(dict): 注文結果情報
                 Result(int): 結果コード
                     0: 成功、それ以外: 失敗
@@ -68,9 +69,12 @@ class Order():
         try:
             response = requests.put(url, json = data)
         except Exception as e:
-            self.log.error(f'注文キャンセル処理でエラー\n注文ID: {order_id}', e, traceback.format_exc())
-            return False
+            return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\n{e}\n{traceback.format_exc()}'
 
         if response.status_code != 200:
-            self.log.error(f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {response.status_code}\n{self.byte_to_dict(response.content)}')
-            return False
+            return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\nステータスコード: {response.status_code}\n{json.loads(response.content)}'
+
+        if json.loads(response.content)['Result'] != 0:
+            return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {json.loads(response.content)['Result']}'
+
+        return True, json.loads(response.content)

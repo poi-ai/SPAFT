@@ -32,6 +32,8 @@ class Trade(ServiceBase):
         if result == False:
             return False
 
+        self.config = config
+
         # インスタンス変数に証券コードを設定 TODO パラメータチェックに入れるかも
         self.stock_code = config.STOCK_CODE
 
@@ -256,7 +258,19 @@ class Trade(ServiceBase):
 
         # 1注文ずつチェック
         for order in response:
-            pass
+            # 未約定チェック
+            if order['State'] < 5:
+                # 新規/決済に関わらず注文キャンセル
+                result, response = self.api.order.cancel(order_id = order['ID'],
+                                                         password = self.config.TRADE_PASSWORD)
+                if result == False:
+                    self.log.error(response)
+                    continue # ここ要検討、このままだと少なくともこの後自動ではリカバリできない]
+
+                # 返済をキャンセルした場合は成行で再度返済処理を入れる
+                if order['CashMargin'] == 3:
+                    pass # TODO 注文フォーマットをutilで作って呼び出す
+
             # TODO 未約定があればキャンセル
             # TODO 決済注文の場合は成り売りも
 
