@@ -118,11 +118,11 @@ class Mold():
             margin_premium_unit(float): プレミアム料 [任意]
             fund_type(str): 資産区分 [任意] ※現物注文は必須
                 '  '(半ｽﾍﾟｰｽ2文字): 現物売の場合、02: 保護、AA: 信用代用、11: 信用取引
-            close_position_order(int): 決済順序 [任意] ※信用返済の場合必須
+            close_position_order(int): 決済順序 [任意] ※信用返済の場合close_positionsとどっちかが必須
                 0: 日付(古い順)、損益(高い順)、1: 日付(古い順)、損益(低い順)、2: 日付(新しい順)、損益(高い順)、
                 3: 日付(新しい順)、損益(低い順)、4: 損益(高い順)、日付(古い順)、5: 損益(高い順)、日付(新しい順)、
                 6: 損益(低い順)、日付(古い順)、7: 損益(低い順)、日付(新しい順)
-            close_positions(array[dict, dict] or dict): 信用返済 [任意] ※信用返済の場合必須
+            close_positions(array[dict, dict] or dict): 信用返済 [任意] ※信用返済の場合close_position_orderとどっちか必須
                 HoldID(str): 返済建玉ID [任意]
                 Qty(int): 返済建玉数量 [任意]
             reverse_limit_order(dict): 逆指値条件 [任意]
@@ -138,26 +138,29 @@ class Mold():
         '''
         # TODO お金にダイレクトに関わるところだから厳密なバリデーションチェック入れたい
 
-        data = {
-            'Password': password,
-            'Symbol': str(stock_code),
-            'Exchange': exchange,
-            'SecurityType': 1,
-            'Side': str(side),
-            'CashMargin': cash_margin,
-            'DelivType': deliv_type,
-            'AccountType': account_type,
-            'Qty': qty,
-            'FrontOrderType': front_order_type,
-            'Price': float(price),
-            'ExpireDay': expire_day
-        }
+        try:
+            data = {
+                'Password': password,
+                'Symbol': str(stock_code),
+                'Exchange': exchange,
+                'SecurityType': 1,
+                'Side': str(side),
+                'CashMargin': cash_margin,
+                'DelivType': deliv_type,
+                'AccountType': account_type,
+                'Qty': qty,
+                'FrontOrderType': front_order_type,
+                'Price': float(price),
+                'ExpireDay': expire_day
+            }
 
-        if margin_trade_type: data['MarginTradeType'] = margin_trade_type
-        if margin_premium_unit: data['MarginPremiumUnit'] = margin_premium_unit
-        if fund_type: data['FundType'] = fund_type
-        if close_position_order: data['ClosePositionOrder'] = close_position_order
-        if close_positions: data['ClosePositions'] = close_positions
-        if reverse_limit_order: data['ReverseLimitOrder'] = reverse_limit_order
+            if margin_trade_type: data['MarginTradeType'] = margin_trade_type
+            if margin_premium_unit: data['MarginPremiumUnit'] = margin_premium_unit
+            if fund_type: data['FundType'] = fund_type
+            if close_position_order: data['ClosePositionOrder'] = close_position_order
+            if close_positions: data['ClosePositions'] = close_positions
+            if reverse_limit_order: data['ReverseLimitOrder'] = reverse_limit_order
 
-        return data
+            return True, data
+        except Exception as e:
+            return False, f'注文APIリクエスト作成処理でエラー\n証券コード: {stock_code}\n{e}'

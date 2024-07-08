@@ -12,7 +12,8 @@ class CulcTime():
 
     def exchange_date(self):
         '''
-        現在の日付から営業日/非営業日の判定をする
+        現在の日付から営業日/非営業日(≠取引所の営業日)の判定をする
+        ※取引所の営業日判定はis_exchange_workday
 
         Returns:
             bool: 営業日/非営業日の判定結果
@@ -34,7 +35,7 @@ class CulcTime():
         Returns:
             time_type(int): 時間種別
                 1: 前場取引時間、2: 後場取引時間、
-                3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引後)
+                3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引け後)
         '''
         # NTPサーバーから現在の時刻を取得
         now = self.get_now()
@@ -415,3 +416,8 @@ class CulcTime():
             return True, datetime.fromtimestamp(response.tx_time)
         else:
             return False, f'LI: {response.leap}'
+
+c = CulcTime(0)
+hoge = c.get_now()
+print(type(hoge))
+print(hoge)

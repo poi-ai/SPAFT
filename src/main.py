@@ -1,4 +1,5 @@
 import config
+import time
 from base import Base
 
 class Main(Base):
@@ -14,7 +15,14 @@ class Main(Base):
 
         # 成行強制決済のみを行う場合
         if config.RECOVERY_SETTLEMENT:
-            result = self.logic.enforce_settlement()
+            result, order_flag = self.logic.enforce_settlement()
+            # 実行に失敗した注文が存在するか、注文/注文キャンセルを行った場合
+            if result == False or order_flag == True:
+                # 10秒待ってもう一度同じ関数の呼び出し,完了していることの確認
+                time.sleep(10)
+                result, order_flag = self.logic.enforce_settlement()
+                if result == False or order_flag == True:
+                    return False
             return True
 
         # トレード開始前の事前準備/チェック

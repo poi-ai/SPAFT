@@ -37,6 +37,23 @@ class Trade(ServiceBase):
         # インスタンス変数に証券コードを設定 TODO パラメータチェックに入れるかも
         self.stock_code = config.STOCK_CODE
 
+        # 営業日チェック
+        if self.util.culc_time.is_exchange_workday() == False:
+            self.log.info('本日は取引所の営業日でないため取引を行いません')
+            return False
+
+        # 営業時間チェック
+        if self.util.culc_time.exchange_date() == 5:
+            self.log.info('本日の取引時間を過ぎているため処理を行いません')
+            return False
+
+        # 設定時間と現在の時間のチェック
+        now = self.util.culc_time.get_now()
+        end = config.END_TIME
+        if now > now.replace(hour = end[:2], minute = end[3:]):
+            self.log.info('設定した終了時刻を過ぎているため処理を行いません')
+            return False
+
         # 信用余力の取得
         buy_power = self.get_margin_buy_power()
         if buy_power == False:
@@ -84,7 +101,7 @@ class Trade(ServiceBase):
         if self.buy_power < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # 余力 < 前日終値の1単元必要額
             if self.buy_power < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
-                self.log.error(f'余力が昨日の終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.buy_power}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.error(f'余力が前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.buy_power}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
                 return False
             else:
                 self.log.warning(f'余力がストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
@@ -116,7 +133,7 @@ class Trade(ServiceBase):
         if self.soft_limit < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # ソフトリミット < 前日終値の1単元必要額
             if self.soft_limit < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
-                self.log.error(f'ソフトリミットが昨日の終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.soft_limit}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.error(f'ソフトリミットが前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.soft_limit}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
                 return False
             else:
                 self.log.warning(f'ソフトリミットがストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.soft_limit}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
@@ -125,7 +142,8 @@ class Trade(ServiceBase):
 
     def scalping(self):
         '''スキャルピングを行う'''
-        pass
+        # 時間チェック
+        
 
     def param_check(self, config):
         '''設定ファイルで設定したパラメータのチェック'''
@@ -243,18 +261,23 @@ class Trade(ServiceBase):
 
         Returns:
             result(bool): 実行結果
+            order_flag(bool): 注文/注文キャンセルをしたか
         '''
+        # 何かしらの注文/注文キャンセルを行ったか
+        order_flag = False
 
         # まず注文に出しているものを全てキャンセルする
         # とりあえず注文発注しているのものを取得
         search_filter = {
             'product': '2', # 信用
-            'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の取引
+            'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59(=今日の取引)のみ抽出
         }
         result, response = self.api.info.orders(search_filter)
         if result == False:
             self.log.error(response)
-            return False
+            return False, order_flag
+
+        time.sleep(0.2)
 
         # 1注文ずつチェック
         for order in response:
@@ -263,18 +286,36 @@ class Trade(ServiceBase):
                 # 新規/決済に関わらず注文キャンセル
                 result, response = self.api.order.cancel(order_id = order['ID'],
                                                          password = self.config.TRADE_PASSWORD)
+                order_flag = True
                 if result == False:
                     self.log.error(response)
-                    continue # ここ要検討、このままだと少なくともこの後自動ではリカバリできない]
+                    continue # ここ要検討、このままだと少なくともこの後自動ではリカバリできない
 
-                # 返済をキャンセルした場合は成行で再度返済処理を入れる
+                time.sleep(0.2)
+
+                # キャンセルした注文が返済の場合は成行で再度返済処理を入れる
                 if order['CashMargin'] == 3:
-                    pass # TODO 注文フォーマットをutilで作って呼び出す
+                    result, response = self.util.mold.create_order_request(
+                        password = self.config.TRADE_PASSWORD,     # 取引パスワード
+                        stock_code = order['Symbol'],              # 証券コード
+                        exchange = order['Exchange'],              # 市場コード
+                        side = 1,                                  # 売買区分 1: 売り注文
+                        cash_margin = 3,                           # 信用区分 3: 返済
+                        deliv_type = 0,                            # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                        account_type = 4,                          # 口座種別 4: 特定口座
+                        qty = order['OrderQty'] - order['CumQty'], # 注文株数 (返済注文での注文株数-約定済株数)
+                        front_order_type = 10,                     # 執行条件 10: 成行
+                        price = 0,                                 # 執行価格 0: 成行
+                        expire_day = 0,                            # 注文有効期限 0: 当日中
+                        close_position_order = 0,                  # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
+                    )
 
-            # TODO 未約定があればキャンセル
-            # TODO 決済注文の場合は成り売りも
+                    time.sleep(0.2)
 
-        # 注文の出ていない信用の保有株から成売するものを決める
+                    if result == False:
+                        self.log.error(response)
+
+        # 保有株から成売するものを決める
         # 絞り込みのためのフィルター
         search_filter = {
             'product': '2', # 信用区分 - 信用
@@ -285,16 +326,44 @@ class Trade(ServiceBase):
         result, response = self.api.info.positions(search_filter)
         if result == False:
             self.log.error(response)
-            return False
+            return False, order_flag
+
+        time.sleep(0.2)
 
         # 保有中の株を1つずつチェック
         for stock in response:
-            # デイトレ信用チェック
+            # デイトレ信用の場合のみ対象とする
             if stock['MarginTradeType'] != 3:
-                continue
-            # TODO 売り注文済みチェック
-            # TODO 売り注文発注
+                order_flag = True
 
+                # 保有株数 - 注文中株数
+                qty = order['LeavesQty'] - order['HoldQty']
+
+                # 注文できる株数が0の場合はスキップ
+                if qty == 0: continue
+
+                # 成売の決済注文を入れる
+                result, response = self.util.mold.create_order_request(
+                    password = self.config.TRADE_PASSWORD, # 取引パスワード
+                    stock_code = stock['Symbol'],          # 証券コード
+                    exchange = order['Exchange'],          # 市場コード
+                    side = 1,                              # 売買区分 1: 売り注文
+                    cash_margin = 3,                       # 信用区分 3: 返済
+                    deliv_type = 0,                        # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                    account_type = 4,                      # 口座種別 4: 特定口座
+                    qty = qty,                             # 注文株数
+                    front_order_type = 10,                 # 執行条件 10: 成行
+                    price = 0,                             # 執行価格 0: 成行
+                    expire_day = 0,                        # 注文有効期限 0: 当日中
+                    close_position_order = 0,              # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
+                )
+
+                time.sleep(0.2)
+
+                if result == False:
+                    self.log.error(response)
+
+        return True, order_flag
 
     def yutai_settlement(self, trade_password):
         '''

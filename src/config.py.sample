@@ -1,6 +1,3 @@
-# スキャルピングを行う銘柄[必須]
-STOCK_CODE = 1570 #
-
 # 板を記録する銘柄コードリスト
 RECORD_STOCK_CODE_LIST = [
 1570,9432
@@ -22,11 +19,29 @@ LINE_TOKEN = ''
 # KabuStationアプリ > 設定 > API で設定したパスワード
 API_PASSWORD = 'production'
 
-# 取引用バスワード
+# 取引用パスワード
 TRADE_PASSWORD = 'password'
 
 # 使用するAPI(本番: True、検証/テスト: False)
 API_PRODUCTION = True
 
-# 未決済のデイトレ信用買いのみ処理するか
+# 保有中銘柄の強制成行決済のみ行うか
 RECOVERY_SETTLEMENT = False
+
+###############################################
+##         スキャルピング関連設定値            ##
+###############################################
+
+# スキャルピングを行う銘柄の証券コード[必須]
+STOCK_CODE = 1570 # 現時点では1銘柄のみ対応
+
+# スキャルピング開始/終了時刻
+START_TIME = '09:00'
+END_TIME = '14:45'
+
+# 買い注文時に現在値の何pip数下に買いを入れるか
+ORDER_LINE = 2
+
+# 利確/損切りpips数
+SECURING_BENEFIT_BORDER = 1
+LOSS_CUT_BORDER = 1
