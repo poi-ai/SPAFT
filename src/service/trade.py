@@ -7,6 +7,8 @@ class Trade(ServiceBase):
     def __init__(self, api_headers, api_url, conn):
         super().__init__(api_headers, api_url, conn)
 
+        # 取引パスワード
+        self.trade_password = ''
         # 余力
         self.buy_power = -1
         # 証券コード
@@ -15,13 +17,21 @@ class Trade(ServiceBase):
         self.market_code = -1
         # 銘柄情報
         self.stock_info = {}
+        # スキャルピングを行う時間
+        self.start_time = None
+        self.end_time = None
+        # 買い注文時に現在値の何pip数下に注文を入れるか
+        self.order_line = -1
+        # 利確/損切りのpips数
+        self.securing_benefit = -1
+        self.loss_cut = -1
 
     def scalping_init(self, config):
         '''
         スキャルピングトレードを行う場合の初期処理
 
         Args:
-            config(config): 設定ファイル
+            config(module): 設定ファイル
 
         Returns:
             result(bool): 実行結果
@@ -31,8 +41,6 @@ class Trade(ServiceBase):
         result = self.param_check(config)
         if result == False:
             return False
-
-        self.config = config
 
         # インスタンス変数に証券コードを設定 TODO パラメータチェックに入れるかも
         self.stock_code = config.STOCK_CODE
@@ -143,12 +151,68 @@ class Trade(ServiceBase):
     def scalping(self):
         '''スキャルピングを行う'''
         # 時間チェック
-        
+        now = self.util.culc_time.get_now()
+        diff_seconds = (now.replace(hour = self.start_time[:2], minute = self.start_time[3:]) - now).total_seconds()
+
+        # 開始まで時間がある場合待機する
+        if diff_seconds > 0:
+            time.sleep(diff_seconds)
+
+        while True:
+            # 時間チェック
+            now = self.util.culc_time.get_now()
+            diff_seconds = (now.replace(hour = self.start_time[:2], minute = self.start_time[3:]) - now).total_seconds()
+
+            # 終了時間を過ぎていたら強制成行決済を行って処理終了
+            result, order_flag = self.enforce_settlement()
+
+            # 処理にすべて成功したし注文や注文キャンセルを行っていない(=もうない)場合は処理終了
+            if result == True and order_flag == False:
+                self.log.info('強制成行決済処理終了 対象なし')
+                break
+            else:
+                # 10秒待機してから再チェック
+                time.sleep(10)
+                result, order_flag = self.enforce_settlement()
+                if result == True and order_flag == False:
+                    break
+                else:
+                    self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
+                    break
+
 
     def param_check(self, config):
-        '''設定ファイルで設定したパラメータのチェック'''
-        # TODO あとで
-        return True
+        '''
+        設定ファイルで設定したパラメータのチェック
+
+        Args:
+            config(module): 設定ファイル
+
+        Returns:
+            result(bool): 実行結果
+            error_message(str): エラーメッセージ
+
+        '''
+        # TODO バリデーションチェックを追加
+
+        # 取引パスワード
+        self.trade_password = config.TRADE_PASSWORD
+
+        # 証券コード
+        self.stock_code = config.STOCK_CODE
+
+        # スキャルピングを行う時間
+        self.start_time = config.START_TIME
+        self.end_time = config.END_TIME
+
+        # 買い注文時に現在値の何pip数下に注文を入れるか
+        self.order_line = config.ORDER_LINE
+
+        # 利確/損切りのpips数
+        self.securing_benefit = config.SECURING_BENEFIT_BORDER
+        self.loss_cut = config.LOSS_CUT_BORDER
+
+        return True, None
 
     def get_margin_buy_power(self):
         '''
@@ -285,7 +349,7 @@ class Trade(ServiceBase):
             if order['State'] < 5:
                 # 新規/決済に関わらず注文キャンセル
                 result, response = self.api.order.cancel(order_id = order['ID'],
-                                                         password = self.config.TRADE_PASSWORD)
+                                                         password = self.trade_password)
                 order_flag = True
                 if result == False:
                     self.log.error(response)
@@ -296,7 +360,7 @@ class Trade(ServiceBase):
                 # キャンセルした注文が返済の場合は成行で再度返済処理を入れる
                 if order['CashMargin'] == 3:
                     result, response = self.util.mold.create_order_request(
-                        password = self.config.TRADE_PASSWORD,     # 取引パスワード
+                        password = self.trade_password,     # 取引パスワード
                         stock_code = order['Symbol'],              # 証券コード
                         exchange = order['Exchange'],              # 市場コード
                         side = 1,                                  # 売買区分 1: 売り注文
@@ -344,18 +408,18 @@ class Trade(ServiceBase):
 
                 # 成売の決済注文を入れる
                 result, response = self.util.mold.create_order_request(
-                    password = self.config.TRADE_PASSWORD, # 取引パスワード
-                    stock_code = stock['Symbol'],          # 証券コード
-                    exchange = order['Exchange'],          # 市場コード
-                    side = 1,                              # 売買区分 1: 売り注文
-                    cash_margin = 3,                       # 信用区分 3: 返済
-                    deliv_type = 0,                        # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
-                    account_type = 4,                      # 口座種別 4: 特定口座
-                    qty = qty,                             # 注文株数
-                    front_order_type = 10,                 # 執行条件 10: 成行
-                    price = 0,                             # 執行価格 0: 成行
-                    expire_day = 0,                        # 注文有効期限 0: 当日中
-                    close_position_order = 0,              # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
+                    password = self.trade_password, # 取引パスワード
+                    stock_code = stock['Symbol'],   # 証券コード
+                    exchange = order['Exchange'],   # 市場コード
+                    side = 1,                       # 売買区分 1: 売り注文
+                    cash_margin = 3,                # 信用区分 3: 返済
+                    deliv_type = 0,                 # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                    account_type = 4,               # 口座種別 4: 特定口座
+                    qty = qty,                      # 注文株数
+                    front_order_type = 10,          # 執行条件 10: 成行
+                    price = 0,                      # 執行価格 0: 成行
+                    expire_day = 0,                 # 注文有効期限 0: 当日中
+                    close_position_order = 0,       # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
                 )
 
                 time.sleep(0.2)
@@ -390,7 +454,7 @@ class Trade(ServiceBase):
         self.log.info(f'信用空売り決済処理[優待用]のAPIリクエスト送信処理開始 証券コード: {stock_code}')
 
         order_info = {
-            'Password': trade_password,      # TODO ここはKabuStationではなくカブコムの取引パスワード
+            'Password': trade_password,    # TODO ここはKabuStationではなくカブコムの取引パスワード
             'Symbol': str(stock_code),     # 証券コード
             'Exchange': 1,                 # 証券所   1: 東証 (3: 名証、5: 福証、6: 札証)
             'SecurityType': 1,             # 商品種別 1: 株式 のみ指定可
@@ -433,3 +497,4 @@ class Trade(ServiceBase):
         '''
         result, response = self.api.order.stock(order_info = order_info)
         # TODO
+        return False, None

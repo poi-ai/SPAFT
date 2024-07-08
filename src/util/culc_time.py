@@ -416,8 +416,3 @@ class CulcTime():
             return True, datetime.fromtimestamp(response.tx_time)
         else:
             return False, f'LI: {response.leap}'
-
-c = CulcTime(0)
-hoge = c.get_now()
-print(type(hoge))
-print(hoge)
