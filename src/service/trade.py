@@ -161,25 +161,32 @@ class Trade(ServiceBase):
         while True:
             # 時間チェック
             now = self.util.culc_time.get_now()
+
+            # 設定したスキャ終了時間 - 現在時間
             diff_seconds = (now.replace(hour = self.start_time[:2], minute = self.start_time[3:]) - now).total_seconds()
 
-            # 終了時間を過ぎていたら強制成行決済を行って処理終了
-            result, order_flag = self.enforce_settlement()
-
-            # 処理にすべて成功したし注文や注文キャンセルを行っていない(=もうない)場合は処理終了
-            if result == True and order_flag == False:
-                self.log.info('強制成行決済処理終了 対象なし')
-                break
-            else:
-                # 10秒待機してから再チェック
-                time.sleep(10)
+            # 終了時間を過ぎているか14:55を過ぎたら強制成行決済を行って処理終了
+            if diff_seconds < 0 or (now.hour == 14 and now.minute >= 55):
+                # 強制決済
                 result, order_flag = self.enforce_settlement()
+
+                # 処理にすべて成功し、追加で注文や注文キャンセルを行っていない(=もうない)場合は処理終了
                 if result == True and order_flag == False:
+                    self.log.info('強制成行決済処理終了 対象なし')
                     break
                 else:
-                    self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
-                    break
+                    # 10秒待機してから再チェック
+                    time.sleep(10)
+                    result, order_flag = self.enforce_settlement()
+                    if result == True and order_flag == False:
+                        break
+                    else:
+                        self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
+                        break
 
+            # 買い注文チェック
+            result, response = self.get_today_order()
+            ## TODO
 
     def param_check(self, config):
         '''
@@ -332,11 +339,7 @@ class Trade(ServiceBase):
 
         # まず注文に出しているものを全てキャンセルする
         # とりあえず注文発注しているのものを取得
-        search_filter = {
-            'product': '2', # 信用
-            'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59(=今日の取引)のみ抽出
-        }
-        result, response = self.api.info.orders(search_filter)
+        result, response = self.get_today_order()
         if result == False:
             self.log.error(response)
             return False, order_flag
@@ -498,3 +501,18 @@ class Trade(ServiceBase):
         result, response = self.api.order.stock(order_info = order_info)
         # TODO
         return False, None
+
+    def get_today_order(self):
+        '''
+        今日の信用取引の一覧を取得する
+
+        Returns:
+            result(bool): 実行結果
+            error_message(str): エラーメッセージ
+
+        '''
+        search_filter = {
+            'product': '2', # 信用
+            'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59以降(=今日の取引)のみ抽出
+        }
+        return self.api.info.orders(search_filter)
