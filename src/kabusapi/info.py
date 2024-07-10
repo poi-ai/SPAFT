@@ -147,7 +147,7 @@ class Info():
             else:
                 return False, f'ステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
-        return True, response.content
+        return True, json.loads(response.content)
 
     def symbol(self, stock_code, market_code, addinfo = True):
         '''
@@ -251,7 +251,7 @@ class Info():
 
         Returns:
             result(bool): 実行結果
-            response.content(list[dict{},dict{},...]) or エラーメッセージ(str)
+            response.content(list[dict{},dict{},...]): 取得した注文情報 or エラーメッセージ(str)
                 ID(str): 注文番号
                 State(int): 状態 ※Order Stateと同値
                 OrderState(int): 注文状態 ※Stateと同値
@@ -540,4 +540,4 @@ class Info():
         if response.status_code != 200:
             return f'プレミアム手数料取得処理でエラー\n証券コード: {stock_code}\nエラーコード: {response.status_code}\n{json.loads(response.content)}'
 
-        return response.content
+        return json.loads(response.content)

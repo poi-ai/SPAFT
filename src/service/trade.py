@@ -25,6 +25,8 @@ class Trade(ServiceBase):
         # 利確/損切りのpips数
         self.securing_benefit = -1
         self.loss_cut = -1
+        # 直前の株価
+        self.before_price = -1
 
     def scalping_init(self, config):
         '''
@@ -105,6 +107,16 @@ class Trade(ServiceBase):
         self.stock_info['lower_limit'] = stock_info['LowerLimit']
         self.stock_info['yobine_group'] = stock_info['PriceRangeGroup']
 
+        # 今日の制限値幅で呼値が変わるか
+        upper_yobine = self.util.stock_price.get_price_range(self.stock_info['yobine_group'], self.stock_info['upper_limit'])
+        lower_yobine = self.util.stock_price.get_price_range(self.stock_info['yobine_group'], self.stock_info['lower_limit'])
+
+        # 変わらないなら取引ではそのまま呼値を使えるようにする
+        if upper_yobine == lower_yobine:
+            self.stock_info['yobine'] = upper_yobine
+        else:
+            self.stock_info['yobine'] = -1
+
         # 余力 < ストップ高での1単元必要額
         if self.buy_power < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # 余力 < 前日終値の1単元必要額
@@ -158,6 +170,9 @@ class Trade(ServiceBase):
         if diff_seconds > 0:
             time.sleep(diff_seconds)
 
+        # 初期注文のみ処理を変えるのでフラグを立てておく
+        init_order = True
+
         while True:
             # 時間チェック
             now = self.util.culc_time.get_now()
@@ -184,9 +199,71 @@ class Trade(ServiceBase):
                         self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
                         break
 
-            # 買い注文チェック
-            result, response = self.get_today_order()
-            ## TODO
+            # 板情報取得
+            result, board_info = self.api.info.board(stock_code = self.stock_code, market_code = self.market_code)
+            if result == False:
+                self.log.error(board_info)
+                time.sleep(5)
+                continue
+
+            # 取得した板情報を分類する
+            result = self.board_analysis()
+            now_price = board_info['CurrentPrice']
+
+            #
+
+            # 1周目の買い注文
+            if init_order:
+                # TODO 買い注文を入れる
+                init_order = False
+
+            # 保有株一覧取得
+            result, hold_stock_list = self.get_today_position()
+            if result == False:
+                self.log.error(hold_stock_list)
+                time.sleep(5)
+                continue
+
+            # 注文一覧取得
+            result, order_list = self.get_today_order()
+            if result == False:
+                self.log.error(order_list)
+                time.sleep(5)
+                continue
+
+            # 保有中銘柄を1つずつチェック
+            for hold_stock in hold_stock_list:
+                 # デイトレ信用の場合のみ対象とする
+                if hold_stock['MarginTradeType'] == 3:
+                    # 保有株数 - 注文中株数
+                    qty = hold_stock['LeavesQty'] - hold_stock['HoldQty']
+
+                    # 売り注文が出されていない場合は出す
+                    if qty > 0:
+                        pass # TODO
+
+            # 注文を1つずつチェック
+            for order in order_list:
+                # デイトレ信用の場合のみチェック対象
+                if order['MarginTradeType'] != 3:
+                    continue
+
+                # ステータスチェック 現時点で約定/取消されていいない注文のみチェック対象
+                if order['State'] == 5:
+                    continue
+
+                # 注文種別(新規買/決済売)をチェック
+                # 新規買の場合
+                if order['CashMargin'] == 2:
+                    pass # TODO
+
+                # 返済売の場合
+                else:
+                    pass # TODO
+
+
+
+
 
     def param_check(self, config):
         '''
@@ -383,14 +460,8 @@ class Trade(ServiceBase):
                         self.log.error(response)
 
         # 保有株から成売するものを決める
-        # 絞り込みのためのフィルター
-        search_filter = {
-            'product': '2', # 信用区分 - 信用
-            'side': '2'     # 売買区分 - 買い
-        }
-
         # 信用の保有株を取得
-        result, response = self.api.info.positions(search_filter)
+        result, response = self.get_today_position(side = '2')
         if result == False:
             self.log.error(response)
             return False, order_flag
@@ -502,17 +573,134 @@ class Trade(ServiceBase):
         # TODO
         return False, None
 
-    def get_today_order(self):
+    def get_today_order(self, side = None, cashmargin = None):
         '''
         今日の信用取引の一覧を取得する
 
+        Args:
+            side(str): 売買区分で絞り込み ※省略可
+                '1': 売注文、'2': 買注文
+            cashmargin(str): 信用区分で絞り込み ※省略可
+                '2': 新規注文、'3': 返済注文
+
         Returns:
             result(bool): 実行結果
-            error_message(str): エラーメッセージ
+            response.content(list[dict{},dict{},...]): 取得した注文情報 or エラーメッセージ(str)
+
+        Memo:
+            信用注文区分: デイトレ信用 での絞り込みはできない
+            受け取ったレスポンスのパラメータから判断する必要がある
 
         '''
+        # 絞り込みのためのフィルター
         search_filter = {
             'product': '2', # 信用
             'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59以降(=今日の取引)のみ抽出
         }
+
+        if side != None: search_filter['side'] = side
+        if cashmargin != None: search_filter['cashmargin'] = cashmargin
+
         return self.api.info.orders(search_filter)
+
+    def get_today_position(self, side = None):
+        '''
+        信用の保有株一覧を取得する
+
+        Args:
+            side(str): 売買区分で絞り込み ※省略可
+                '1': 売注文、'2': 買注文
+
+        Returns:
+            result(bool): 実行結果
+            response.content(list[dict{},dict{},...]): 取得した保有株情報 or エラーメッセージ(str)
+
+        Memo:
+            信用注文区分: デイトレ信用 での絞り込みはできない
+            受け取ったレスポンスのパラメータから判断する必要がある
+
+        '''
+        # 絞り込みのためのフィルター
+        search_filter = {
+            'product': '2', # 信用区分 - 信用
+        }
+
+        if side != None: search_filter['side'] = side
+
+        return self.api.info.positions(search_filter)
+
+    def board_analysis(self, board_info):
+        '''
+        板情報を分析する
+
+        Args:
+            board_info(dict): 板情報
+
+        Returns:
+            border_detail_info(dict): 分析した板情報
+                now_price(float): 現在株価
+                buy_price(float): 最良売値
+                sell_price(float): 最良買値
+                empty_board(float): 空いている板数
+                TODO そのうち別の項目も追加
+
+        '''
+        board_detail_info = {}
+
+        # 現在株価、最良[購入/売却]価格
+        now_price = board_detail_info['now_price'] = board_info['CurrentPrice']
+        buy_price = board_detail_info['buy_price'] = board_info['Buy1']['Price']
+        sell_price = board_detail_info['sell_price'] = board_info['Sell1']['Price']
+
+        # 抜けている板があるかを呼値から計算する
+        # まずは呼値がいくつかから
+        yobine_same = False
+
+        # 初期処理チェックで呼値が一意に決まっているか
+        if self.stock_info['yobine'] != -1:
+            yobine = self.stock_info['yobine']
+            yobine_same = True
+        else:
+            # 買値と売値の呼値を取得
+            buy_yobine = self.util.stock_price.get_price_range(self.stock_code, buy_price)
+            sell_yobine = self.util.stock_price.get_price_range(self.stock_code, sell_price)
+
+            # 一致していれば一意に決定できる
+            if buy_yobine == sell_yobine:
+                yobine = buy_yobine
+                yobine_same = True
+            else:
+                yobine = buy_yobine
+
+        # 価格差
+        diff = sell_price - buy_price
+
+        #買値~売値の価格差が呼値と一致するなら抜けている板はない
+        if diff == yobine:
+            board_detail_info['empty_board'] = 0
+        else:
+            # 買値~売値間の呼値が一意か
+            if yobine_same:
+                board_detail_info['empty_board'] = int(diff / yobine) - 1
+            else:
+                board_num = 0
+                # 呼値が一致
+                while True:
+                    buy_price += sell_yobine
+                    board_num += 1
+
+                    # 買値と売値が一致したら終了
+                    if buy_price == sell_price:
+                        break
+
+                    # 買値が売値を超えたらエラー 無限ループ防止
+                    if buy_price > sell_price:
+                        self.log.error(f'呼値チェック処理で無限ループ 買値: {buy_price}、売値: {sell_price}')
+                        break
+
+                    # 呼値の更新
+                    sell_yobine = self.util.stock_price.get_price_range(self.stock_code, buy_price)
+
+                board_detail_info['empty_board'] = board_num - 1
+
+        return board_detail_info

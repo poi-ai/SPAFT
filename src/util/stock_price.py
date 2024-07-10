@@ -7,7 +7,7 @@ class StockPrice():
 
     def get_price_range(self, stock_type, price):
         '''
-        指定した銘柄の呼値を取得する.
+        指定した銘柄の呼値を取得する
 
         Args:
             stock_type(int): 銘柄の種類(/symbol/{証券コード}エンドポイントから取得可)
@@ -50,3 +50,35 @@ class StockPrice():
                 return range_value
 
         return False
+
+    def get_empty_board(self, yobine_group, upper_price, lower_price):
+        '''
+        指定した価格間に板が何枚存在するか
+
+        Args:
+            stock_type(float): 銘柄の種類 ※呼値算出に使用
+            upper_price(float): 指定した最高価格、売り注文
+            lower_price(float): 指定した最低価格、買い注文
+
+        Returns:
+            board_num(int): 最良[売値/買値]価格間の間の板の枚数
+
+        '''
+        while True:
+            # 呼値の取得
+            sell_yobine = self.get_price_range(self.upper_price,) # TODO
+
+            buy_price += sell_yobine
+            board_num += 1
+
+            # 買値と売値が一致したら終了
+            if buy_price == sell_price:
+                break
+
+            # 買値が売値を超えたらエラー 無限ループ防止
+            if buy_price > sell_price:
+                self.log.error(f'呼値チェック処理で無限ループ 買値: {buy_price}、売値: {sell_price}')
+                break
+
+            # 呼値の更新
+            sell_yobine = self.util.stock_price.get_price_range(self.stock_code, buy_price)
