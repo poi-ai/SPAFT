@@ -208,13 +208,24 @@ class Trade(ServiceBase):
 
             # 取得した板情報を分類する
             result = self.board_analysis()
-            now_price = board_info['CurrentPrice']
 
-            #
-
-            # 1周目の買い注文
+            # 起動後1周目の場合買い注文を入れる
             if init_order:
-                # TODO 買い注文を入れる
+                result, response = self.util.mold.create_order_request(
+                        password = self.trade_password,     # 取引パスワード
+                        stock_code = self.stock_info,       # 証券コード
+                        exchange = self.market_code,        # 市場コード
+                        side = 2,                           # 売買区分 2: 買い注文
+                        cash_margin = 2,                    # 信用区分 2: 新規
+                        deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                        account_type = 4,                   # 口座種別 4: 特定口座
+                        qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
+                        front_order_type = 10,              # 執行条件 20: 指値
+                        price = -1,                       # 執行価格 TODO 呼値と設定pip数から算出できるように
+                        expire_day = 0,                     # 注文有効期限 0: 当日中
+                        margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
+                        fund_type = '11'                    # 資産区分 '11': 信用取引
+                    )
                 init_order = False
 
             # 保有株一覧取得
