@@ -10,7 +10,7 @@ class StockPrice():
         指定した銘柄の呼値を取得する
 
         Args:
-            stock_type(int): 銘柄の種類(/symbol/{証券コード}エンドポイントから取得可)
+            stock_type(int): 銘柄の種類 ※エンドポイント /symbol/{証券コード} から取得可
             price(float): 判定したい株価
 
             price_range(float)or False: 呼値
@@ -56,29 +56,100 @@ class StockPrice():
         指定した価格間に板が何枚存在するか
 
         Args:
-            stock_type(float): 銘柄の種類 ※呼値算出に使用
-            upper_price(float): 指定した最高価格、売り注文
-            lower_price(float): 指定した最低価格、買い注文
+            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
+            upper_price(float): 指定した最高価格 ※基本的には売り板の最低価格
+            lower_price(float): 指定した最低価格 ※基本的には買い板の最高価格
 
         Returns:
+            integrity(bool): 整合性が取れているか 呼値10円なのに価格差15円とかになってないか
             board_num(int): 最良[売値/買値]価格間の間の板の枚数
+                ※指定価格の板はカウントしない
 
         '''
+        # 間に挟まる板の数をカウント
+        board_num = -1
+
+        tmp_lower_price = lower_price
+
         while True:
             # 呼値の取得
-            sell_yobine = self.get_price_range(self.upper_price,) # TODO
+            sell_yobine = self.get_price_range(yobine_group, tmp_lower_price)
 
-            buy_price += sell_yobine
+            # 最低価格に呼値を足していく
+            tmp_lower_price += sell_yobine
             board_num += 1
 
-            # 買値と売値が一致したら終了
-            if buy_price == sell_price:
+            # 最高価格と加算された最低価格が一致したら終了
+            if upper_price == tmp_lower_price:
+                return True, board_num
+
+            # 加算された最低価格が最低価格を超えたら不整合
+            if upper_price > tmp_lower_price:
+                error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、最高価格: {upper_price}、最低価格: {lower_price}'
+                return False, error_message
+
+    def get_updown_price(self, yobine_group, stock_price, pips, updown):
+        '''
+        指定した価格のXpips上/下の価格を返す
+
+        Args:
+            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
+            stock_price(float): 基準価格
+            pips(int): 何pips上/下の価格を返すか
+            updown(int): 上を返すか下を返すか
+                1: 上、0: 下
+
+        Returns:
+            result(bool): 不整合がないか
+            stock_price: Xpips上/下の価格
+
+        MEMO:
+            思ったけどこれトレード開始前のinitに入れて値幅内全株価リストに持たせとくのもありだな
+        '''
+        # 計算用変数
+        culc_stock_price = stock_price
+
+        # 1pipごと上げ下げして計算する
+        for pip in range(pips):
+            # 呼値の取得
+            yobine = self.get_price_range(yobine_group, culc_stock_price)
+
+            # 1pips上/下の価格に書き換え
+            if updown == 1:
+                culc_stock_price += yobine
+            else:
+                culc_stock_price -= yobine
+
+        # 上の計算の場合はこのまま返せる
+        if updown == 1:
+            return culc_stock_price
+
+        # 下の場合は再計算が必要 ここでの呼値は上に何円空くか で下に何円空くかは判定できない
+        # 基本的には価格は高くなるほど呼値も広がるので、上の呼値のpips下げれば包含はできている
+        # また、呼値の上がり方は整数倍なのでありえない株価になることもない
+        price_list = [culc_stock_price]
+
+        while True:
+            # 呼値の取得
+            yobine = self.get_price_range(yobine_group, culc_stock_price)
+
+            # 呼値を足していき、リストに追加する
+            culc_stock_price += yobine
+            price_list.append(culc_stock_price)
+
+            # 基準価格を超えたら終了
+            if culc_stock_price > stock_price:
                 break
 
-            # 買値が売値を超えたらエラー 無限ループ防止
-            if buy_price > sell_price:
-                self.log.error(f'呼値チェック処理で無限ループ 買値: {buy_price}、売値: {sell_price}')
-                break
-
-            # 呼値の更新
-            sell_yobine = self.util.stock_price.get_price_range(self.stock_code, buy_price)
+        # 株価を列挙したリストから検索する
+        # リストの中に基準価格が存在するかチェック 存在しないことはないはずだが一応
+        if stock_price in price_list:
+            index = price_list.index(stock_price)
+            # リストの要素数が足りなくてpips個下の株価が取得できないかのチェック ここもありえないはず
+            if index >= pips:
+                return True, price_list[index - pips]
+            else:
+                return False, f'リストの要素数が足りません\n呼値グループ: {yobine_group}/基準価格: {stock_price}/pips {pips}/updown: {updown}'
+        # リストに基準価格がない場合
+        else:
+            return False, f'リストに基準価額が存在しません\n呼値グループ: {yobine_group}/基準価格: {stock_price}/pips {pips}/updown: {updown}'

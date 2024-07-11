@@ -203,49 +203,38 @@ class Trade(ServiceBase):
             result, board_info = self.api.info.board(stock_code = self.stock_code, market_code = self.market_code)
             if result == False:
                 self.log.error(board_info)
-                time.sleep(5)
+                time.sleep(3)
                 continue
 
             # 取得した板情報を分類する
-            result = self.board_analysis()
-
-            # 起動後1周目の場合買い注文を入れる
-            if init_order:
-                result, response = self.util.mold.create_order_request(
-                        password = self.trade_password,     # 取引パスワード
-                        stock_code = self.stock_info,       # 証券コード
-                        exchange = self.market_code,        # 市場コード
-                        side = 2,                           # 売買区分 2: 買い注文
-                        cash_margin = 2,                    # 信用区分 2: 新規
-                        deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
-                        account_type = 4,                   # 口座種別 4: 特定口座
-                        qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
-                        front_order_type = 10,              # 執行条件 20: 指値
-                        price = -1,                       # 執行価格 TODO 呼値と設定pip数から算出できるように
-                        expire_day = 0,                     # 注文有効期限 0: 当日中
-                        margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
-                        fund_type = '11'                    # 資産区分 '11': 信用取引
-                    )
-                init_order = False
+            board_detail_info = self.board_analysis()
+            if board_detail_info == False:
+                time.sleep(3)
+                continue
 
             # 保有株一覧取得
             result, hold_stock_list = self.get_today_position()
             if result == False:
                 self.log.error(hold_stock_list)
-                time.sleep(5)
+                time.sleep(3)
                 continue
 
             # 注文一覧取得
             result, order_list = self.get_today_order()
             if result == False:
                 self.log.error(order_list)
-                time.sleep(5)
+                time.sleep(3)
                 continue
+
+            # 保有中の株/注文中の株があるか
+            hold_flag = False
+            order_flag = False
 
             # 保有中銘柄を1つずつチェック
             for hold_stock in hold_stock_list:
                  # デイトレ信用の場合のみ対象とする
                 if hold_stock['MarginTradeType'] == 3:
+                    hold_flag = True
                     # 保有株数 - 注文中株数
                     qty = hold_stock['LeavesQty'] - hold_stock['HoldQty']
 
@@ -263,6 +252,8 @@ class Trade(ServiceBase):
                 if order['State'] == 5:
                     continue
 
+                order_flag = True
+
                 # 注文種別(新規買/決済売)をチェック
                 # 新規買の場合
                 if order['CashMargin'] == 2:
@@ -272,9 +263,24 @@ class Trade(ServiceBase):
                 else:
                     pass # TODO
 
-
-
-
+            # 保有株も注文もなく,1周目の場合は新規買い注文を入れる
+            if not hold_flag and not order_flag and init_order:
+                result, response = self.util.mold.create_order_request(
+                        password = self.trade_password,     # 取引パスワード
+                        stock_code = self.stock_info,       # 証券コード
+                        exchange = self.market_code,        # 市場コード
+                        side = 2,                           # 売買区分 2: 買い注文
+                        cash_margin = 2,                    # 信用区分 2: 新規
+                        deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                        account_type = 4,                   # 口座種別 4: 特定口座
+                        qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
+                        front_order_type = 10,              # 執行条件 20: 指値
+                        price = -1,                       # 執行価格 TODO 呼値と設定pip数から算出できるように
+                        expire_day = 0,                     # 注文有効期限 0: 当日中
+                        margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
+                        fund_type = '11'                    # 資産区分 '11': 信用取引
+                    )
+                init_order = False
 
     def param_check(self, config):
         '''
@@ -584,11 +590,12 @@ class Trade(ServiceBase):
         # TODO
         return False, None
 
-    def get_today_order(self, side = None, cashmargin = None):
+    def get_today_order(self, symbol = None, side = None, cashmargin = None):
         '''
         今日の信用取引の一覧を取得する
 
         Args:
+            symbol(str): 証券コードで絞り込み ※省略可
             side(str): 売買区分で絞り込み ※省略可
                 '1': 売注文、'2': 買注文
             cashmargin(str): 信用区分で絞り込み ※省略可
@@ -609,16 +616,18 @@ class Trade(ServiceBase):
             'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59以降(=今日の取引)のみ抽出
         }
 
+        if symbol != None: search_filter['symbol'] = symbol
         if side != None: search_filter['side'] = side
         if cashmargin != None: search_filter['cashmargin'] = cashmargin
 
         return self.api.info.orders(search_filter)
 
-    def get_today_position(self, side = None):
+    def get_today_position(self, symbol = None, side = None):
         '''
         信用の保有株一覧を取得する
 
         Args:
+            symbol(str): 証券コードで絞り込み ※省略可
             side(str): 売買区分で絞り込み ※省略可
                 '1': 売注文、'2': 買注文
 
@@ -636,6 +645,7 @@ class Trade(ServiceBase):
             'product': '2', # 信用区分 - 信用
         }
 
+        if symbol != None: search_filter['symbol'] = symbol
         if side != None: search_filter['side'] = side
 
         return self.api.info.positions(search_filter)
@@ -652,66 +662,30 @@ class Trade(ServiceBase):
                 now_price(float): 現在株価
                 buy_price(float): 最良売値
                 sell_price(float): 最良買値
-                empty_board(float): 空いている板数
+                empty_board_num(float): 空いている板数
                 TODO そのうち別の項目も追加
 
         '''
         board_detail_info = {}
 
-        # 現在株価、最良[購入/売却]価格
-        now_price = board_detail_info['now_price'] = board_info['CurrentPrice']
-        buy_price = board_detail_info['buy_price'] = board_info['Buy1']['Price']
-        sell_price = board_detail_info['sell_price'] = board_info['Sell1']['Price']
+        # 想定外の値が入ることも考えて念のためtry-except
+        try:
+            # 現在株価、最良[購入/売却]価格
+            board_detail_info['now_price'] = board_info['CurrentPrice']
+            board_detail_info['buy_price'] = board_info['Buy1']['Price']
+            board_detail_info['sell_price'] = board_info['Sell1']['Price']
 
-        # 抜けている板があるかを呼値から計算する
-        # まずは呼値がいくつかから
-        yobine_same = False
-
-        # 初期処理チェックで呼値が一意に決まっているか
-        if self.stock_info['yobine'] != -1:
-            yobine = self.stock_info['yobine']
-            yobine_same = True
-        else:
-            # 買値と売値の呼値を取得
-            buy_yobine = self.util.stock_price.get_price_range(self.stock_code, buy_price)
-            sell_yobine = self.util.stock_price.get_price_range(self.stock_code, sell_price)
-
-            # 一致していれば一意に決定できる
-            if buy_yobine == sell_yobine:
-                yobine = buy_yobine
-                yobine_same = True
+            # 買い板と売り板の間に何枚空板があるかチェック
+            result, board_num = self.util.stock_price.get_empty_board(yobine_group = self.stock_info['yobine_group'],
+                                                                      upper_price = board_detail_info['sell_price'],
+                                                                      lower_price = board_detail_info['buy_price'])
+            if result == True:
+                board_detail_info['empty_board_num'] = board_num
             else:
-                yobine = buy_yobine
+                self.log.error(board_num)
+                board_detail_info['empty_board_num'] = -1
 
-        # 価格差
-        diff = sell_price - buy_price
-
-        #買値~売値の価格差が呼値と一致するなら抜けている板はない
-        if diff == yobine:
-            board_detail_info['empty_board'] = 0
-        else:
-            # 買値~売値間の呼値が一意か
-            if yobine_same:
-                board_detail_info['empty_board'] = int(diff / yobine) - 1
-            else:
-                board_num = 0
-                # 呼値が一致
-                while True:
-                    buy_price += sell_yobine
-                    board_num += 1
-
-                    # 買値と売値が一致したら終了
-                    if buy_price == sell_price:
-                        break
-
-                    # 買値が売値を超えたらエラー 無限ループ防止
-                    if buy_price > sell_price:
-                        self.log.error(f'呼値チェック処理で無限ループ 買値: {buy_price}、売値: {sell_price}')
-                        break
-
-                    # 呼値の更新
-                    sell_yobine = self.util.stock_price.get_price_range(self.stock_code, buy_price)
-
-                board_detail_info['empty_board'] = board_num - 1
-
-        return board_detail_info
+            return board_detail_info
+        except Exception as e:
+            self.log.error(f'板情報分析処理でエラー\n{e}')
+            return False
