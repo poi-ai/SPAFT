@@ -135,6 +135,10 @@ class Mold():
                     1: 成行、2: 指値、3: 不成
                 AfterHitPrice(float): トリガー発動時注文価格 [必須]
                     ※成行の場合は0
+
+        Returns:
+            result(bool): 実行結果
+            data(dict): 加工注文データ 直接これを注文API(/orders)のPOSTパラメータとして設定できる
         '''
         # TODO お金にダイレクトに関わるところだから厳密なバリデーションチェック入れたい
 

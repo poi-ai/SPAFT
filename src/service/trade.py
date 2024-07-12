@@ -173,6 +173,9 @@ class Trade(ServiceBase):
         # 初期注文のみ処理を変えるのでフラグを立てておく
         init_order = True
 
+        # 注文非検知の時用のカウンター
+        none_operate = 0
+
         while True:
             # 時間チェック
             now = self.util.culc_time.get_now()
@@ -238,9 +241,10 @@ class Trade(ServiceBase):
                     # 保有株数 - 注文中株数
                     qty = hold_stock['LeavesQty'] - hold_stock['HoldQty']
 
-                    # 売り注文が出されていない場合は出す
+                    # 売り注文が出されていない株がある場合は注文を出す
                     if qty > 0:
-                        pass # TODO
+                        # 利確価格で注文
+                        result = self.sell_secure_order(qty = qty, stock_price = hold_stock['Price'])
 
             # 注文を1つずつチェック
             for order in order_list:
@@ -248,7 +252,7 @@ class Trade(ServiceBase):
                 if order['MarginTradeType'] != 3:
                     continue
 
-                # ステータスチェック 現時点で約定/取消されていいない注文のみチェック対象
+                # ステータスチェック 現時点で約定/取消されていない注文のみチェック対象
                 if order['State'] == 5:
                     continue
 
@@ -265,22 +269,26 @@ class Trade(ServiceBase):
 
             # 保有株も注文もなく,1周目の場合は新規買い注文を入れる
             if not hold_flag and not order_flag and init_order:
-                result, response = self.util.mold.create_order_request(
-                        password = self.trade_password,     # 取引パスワード
-                        stock_code = self.stock_info,       # 証券コード
-                        exchange = self.market_code,        # 市場コード
-                        side = 2,                           # 売買区分 2: 買い注文
-                        cash_margin = 2,                    # 信用区分 2: 新規
-                        deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
-                        account_type = 4,                   # 口座種別 4: 特定口座
-                        qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
-                        front_order_type = 10,              # 執行条件 20: 指値
-                        price = -1,                       # 執行価格 TODO 呼値と設定pip数から算出できるように
-                        expire_day = 0,                     # 注文有効期限 0: 当日中
-                        margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
-                        fund_type = '11'                    # 資産区分 '11': 信用取引
-                    )
-                init_order = False
+                # 現在価格でなく買い板の最高価格ベースを基準に買いを入れる
+                result = self.buy_order(board_detail_info['buy_price'])
+
+            # 注文も保有株もない場合
+            if not hold_flag or not order_flag:
+                none_operate += 1
+            else:
+                none_operate = 0
+
+            # 保有株情報取得と注文情報取得はコンマ秒リクエストにラグがあるため
+            # 実際はあるもののすり抜ける可能性がある
+            # 3周連続で存在しない場合はポジションなしとみなして新規注文を入れる
+            if none_operate >= 3:
+                result = self.buy_order(board_detail_info['buy_price'])
+                # 成功したらカウントリセット
+                if result == False:
+                    none_operate = 0
+
+            # 1周目終了でしたら初回注文に使うためのフラグは折る
+            init_order = False
 
     def param_check(self, config):
         '''
@@ -573,23 +581,6 @@ class Trade(ServiceBase):
         self.log.info(f'信用空売り決済処理[優待用]のAPIリクエスト送信処理成功 証券コード: {stock_code}')
         return True
 
-    def stock(self, order_info):
-        '''
-        日本株の注文を発注する
-
-        Args:
-            order_info(dict): 注文情報
-
-        Returns:
-            response.content(dict or bool): 注文結果情報 or False
-                Result(int): 結果コード
-                    0: 成功、それ以外: 失敗
-                OrderId(str): 受付注文番号
-        '''
-        result, response = self.api.order.stock(order_info = order_info)
-        # TODO
-        return False, None
-
     def get_today_order(self, symbol = None, side = None, cashmargin = None):
         '''
         今日の信用取引の一覧を取得する
@@ -689,3 +680,103 @@ class Trade(ServiceBase):
         except Exception as e:
             self.log.error(f'板情報分析処理でエラー\n{e}')
             return False
+
+    def buy_order(self, stock_price):
+        '''
+        Xpips下に買い注文を入れる
+
+        Args:
+            stock_price(float): 基準価格
+
+        Returns:
+            bool: 実行結果
+
+        '''
+        # Xpip下の価格を計算する
+        result, order_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
+                                                                    stock_price = stock_price,
+                                                                    pips = self.order_line,
+                                                                    updown = 0)
+        if result == False:
+            self.log.error(order_price)
+            return False
+
+        # 実際に投げる注文のフォーマット(POSTパラメータ)を作成する
+        result, order_info = self.util.mold.create_order_request(
+                password = self.trade_password,     # 取引パスワード
+                stock_code = self.stock_info,       # 証券コード
+                exchange = self.market_code,        # 市場コード
+                side = 2,                           # 売買区分 2: 買い注文
+                cash_margin = 2,                    # 信用区分 2: 新規
+                deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                account_type = 4,                   # 口座種別 4: 特定口座
+                qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
+                front_order_type = 10,              # 執行条件 20: 指値
+                price = order_price,                # 執行価格 買い板の最高価格-Xpips
+                expire_day = 0,                     # 注文有効期限 0: 当日中
+                margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
+                fund_type = '11'                    # 資産区分 '11': 信用取引
+        )
+
+        if result == False:
+            self.log.error(response)
+            return False
+
+        # 注文APIへリクエストを投げる
+        result, response = self.api.order.stock(order_info = order_info)
+
+        if result == False:
+            self.log.error(f'買い注文処理でエラー\n{response}')
+            return False
+
+        self.log.info(f'買い注文処理成功 注文価格: {order_info['order_price']}')
+        return True
+
+    def sell_secure_order(self, qty, stock_price):
+        '''
+        利確の売り注文を入れる
+
+        Args:
+            qty(int): 注文株数
+            stock_price(float): 利確価格
+
+        Returns:
+            bool: 実行結果
+
+        '''
+        # 利確価格(Xpips上)を計算する
+        result, order_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
+                                                                    stock_price = stock_price,
+                                                                    pips = self.securing_benefit,
+                                                                    updown = 1)
+
+
+        # 売り注文のフォーマットを作る
+        result, order_info = self.util.mold.create_order_request(
+                            password = self.trade_password,
+                            stock_code = self.stock_code,
+                            exchange = self.market_code,
+                            side = 1,                      # 売買区分 1: 売
+                            cash_margin = 3,               # 信用区分 3: 信用返済
+                            deliv_type = 0,                # 資金受渡区分 0: 指定なし
+                            account_type = 4,              # 口座種別 4: 特定口座
+                            qty = qty,                     # 注文株数
+                            front_order_type = 20,         # 執行条件 20: 指値
+                            price = order_price,           # 執行価格 利確価格
+                            expire_day = 0,                # 注文有効期限 0: 当日中
+                            close_position_order = 0,      # 決済順序 何選んでも変わらない
+        )
+
+        if result == False:
+            self.log.error(order_info)
+            return False
+
+        # 注文APIへリクエストを投げる
+        result, response = self.api.order.stock(order_info = order_info)
+
+        if result == False:
+            self.log.error(f'売り注文(利確)処理でエラー\n{response}')
+            return False
+
+        self.log.info(f'売り注文(利確)処理成功 注文価格: {order_price}')
+        return True
