@@ -158,7 +158,7 @@ class Trade(ServiceBase):
         '''スキャルピングを行う'''
         # 時間チェック
         now = self.util.culc_time.get_now()
-        diff_seconds = (now.replace(hour = self.start_time[:2], minute = self.start_time[3:]) - now).total_seconds()
+        diff_seconds = (now.replace(hour = int(self.start_time[:2]), minute = int(self.start_time[3:])) - now).total_seconds()
 
         # 開始まで時間がある場合待機する
         if diff_seconds > 0:
@@ -175,7 +175,7 @@ class Trade(ServiceBase):
             now = self.util.culc_time.get_now()
 
             # 設定したスキャ終了時間 - 現在時間
-            diff_seconds = (now.replace(hour = self.start_time[:2], minute = self.start_time[3:]) - now).total_seconds()
+            diff_seconds = (now.replace(hour = int(self.start_time[:2]), minute = int(self.start_time[3:])) - now).total_seconds()
 
             # 終了時間を過ぎているか14:55を過ぎたら強制成行決済を行って処理終了
             if diff_seconds < 0 or (now.hour == 14 and now.minute >= 55):
@@ -444,39 +444,48 @@ class Trade(ServiceBase):
 
         # 1注文ずつチェック
         for order in response:
-            # 未約定チェック
-            if order['State'] < 5:
-                # 新規/決済に関わらず注文キャンセル
-                result, response = self.api.order.cancel(order_id = order['ID'],
-                                                         password = self.trade_password)
-                order_flag = True
-                if result == False:
-                    self.log.error(response)
-                    continue # ここ要検討、このままだと少なくともこの後自動ではリカバリできない
+            # デイトレ信用の場合のみ対象とする
+            if 'MarginTradeType' in order:
+                if order['MarginTradeType'] == 3:
+                    # SOR市場(手動注文)は仕様上操作できないのでパスする
+                    if order['Exchange'] != 9:
+                        # 未約定チェック
+                        if order['State'] < 5:
 
-                time.sleep(0.2)
+                            import json
+                            print(json.dumps(order, indent=2))
 
-                # キャンセルした注文が返済の場合は成行で再度返済処理を入れる
-                if order['CashMargin'] == 3:
-                    result, response = self.util.mold.create_order_request(
-                        password = self.trade_password,     # 取引パスワード
-                        stock_code = order['Symbol'],              # 証券コード
-                        exchange = order['Exchange'],              # 市場コード
-                        side = 1,                                  # 売買区分 1: 売り注文
-                        cash_margin = 3,                           # 信用区分 3: 返済
-                        deliv_type = 0,                            # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
-                        account_type = 4,                          # 口座種別 4: 特定口座
-                        qty = order['OrderQty'] - order['CumQty'], # 注文株数 (返済注文での注文株数-約定済株数)
-                        front_order_type = 10,                     # 執行条件 10: 成行
-                        price = 0,                                 # 執行価格 0: 成行
-                        expire_day = 0,                            # 注文有効期限 0: 当日中
-                        close_position_order = 0,                  # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
-                    )
+                            # 新規/決済に関わらず注文キャンセル
+                            result, response = self.api.order.cancel(order_id = order['ID'],
+                                                                    password = self.trade_password)
+                            order_flag = True
+                            if result == False:
+                                self.log.error(response)
+                                continue # ここ要検討、このままだと少なくともこの後自動ではリカバリできない
 
-                    time.sleep(0.2)
+                            time.sleep(0.2)
 
-                    if result == False:
-                        self.log.error(response)
+                            # キャンセルした注文が返済の場合は成行で再度返済処理を入れる
+                            if order['CashMargin'] == 3:
+                                result, response = self.util.mold.create_order_request(
+                                    password = self.trade_password,     # 取引パスワード
+                                    stock_code = order['Symbol'],              # 証券コード
+                                    exchange = order['Exchange'],              # 市場コード
+                                    side = 1,                                  # 売買区分 1: 売り注文
+                                    cash_margin = 3,                           # 信用区分 3: 返済
+                                    deliv_type = 0,                            # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                                    account_type = 4,                          # 口座種別 4: 特定口座
+                                    qty = order['OrderQty'] - order['CumQty'], # 注文株数 (返済注文での注文株数-約定済株数)
+                                    front_order_type = 10,                     # 執行条件 10: 成行
+                                    price = 0,                                 # 執行価格 0: 成行
+                                    expire_day = 0,                            # 注文有効期限 0: 当日中
+                                    close_position_order = 0,                  # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
+                                )
+
+                                time.sleep(0.2)
+
+                                if result == False:
+                                    self.log.error(response)
 
         # 保有株から成売するものを決める
         # 信用の保有株を取得
@@ -598,7 +607,7 @@ class Trade(ServiceBase):
         # 絞り込みのためのフィルター
         search_filter = {
             'product': '2', # 信用
-            'uptime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59以降(=今日の取引)のみ抽出
+            'updtime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59以降(=今日の取引)のみ抽出
         }
 
         if symbol != None: search_filter['symbol'] = symbol

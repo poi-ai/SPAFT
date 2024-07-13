@@ -237,7 +237,7 @@ class Info():
                 product(str): 商品区分
                     0: すべて、1: 現物、2: 信用、3: 先物、4: オプション
                 id(str): 注文番号
-                uptime(string、yyyyMMddHHss): 更新日時 この日時以降の注文を取得
+                updtime(string、yyyyMMddHHss): 更新日時 この日時以降の注文を取得
                 details(str): 注文詳細取得
                     True: 取得する、False: 取得しない
                 symbol(str): 銘柄コード
@@ -303,7 +303,7 @@ class Info():
                     Commission(float): 手数料
                     CommissionTax(float): 手数料消費税
         '''
-        url = f'{self.api_url}/orders/'
+        url = f'{self.api_url}/orders'
 
         if search_filter != None:
             url = f'{url}?{urllib.parse.urlencode(search_filter)}'
@@ -312,6 +312,10 @@ class Info():
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
             return False, f'約定情報取得処理でエラー\n{e}\n{traceback.format_exc()}'
+
+        # 注文履歴が存在しない場合
+        if response.status_code == 404:
+            return True, []
 
         if response.status_code != 200:
             return False, f'約定情報取得処理でエラー\nエラーコード: {response.status_code}\n{json.loads(response.content)}'
@@ -375,6 +379,10 @@ class Info():
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
             return False, f'保有中銘柄情報取得処理でエラー\n{e}\n{traceback.format_exc()}'
+
+        # 保有中株が存在しない場合は404が返される
+        if response.status_code == 404:
+            return True, []
 
         if response.status_code != 200:
             return False, f'保有中銘柄情報取得処理でエラー\nエラーコード: {response.status_code}\n{json.loads(response.content)}'

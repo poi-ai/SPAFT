@@ -67,7 +67,7 @@ class Order():
         }
 
         try:
-            response = requests.put(url, json = data)
+            response = requests.put(url, headers = self.api_headers, json = data)
         except Exception as e:
             return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\n{e}\n{traceback.format_exc()}'
 

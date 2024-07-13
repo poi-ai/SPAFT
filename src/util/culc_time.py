@@ -12,12 +12,11 @@ class CulcTime():
 
     def exchange_date(self):
         '''
-        現在の日付から営業日/非営業日(≠取引所の営業日)の判定をする
-        ※取引所の営業日判定はis_exchange_workday
+        現在の日付が取引所の営業日かの判定をする
 
         Returns:
-            bool: 営業日/非営業日の判定結果
-                True: 営業日、False: 非営業日
+            bool: 取引所営業日/非営業日の判定結果
+                True: 取引所営業日、False: 取引所非営業日
         '''
         # NTPサーバーから現在の時刻を取得
         now = self.get_now()
