@@ -48,25 +48,24 @@ class Trade(ServiceBase):
         self.stock_code = config.STOCK_CODE
 
         # 営業日チェック
-        if self.util.culc_time.is_exchange_workday() == False:
+        if self.util.culc_time.exchange_date() == False:
             self.log.info('本日は取引所の営業日でないため取引を行いません')
-            return False
 
         # 営業時間チェック
-        if self.util.culc_time.exchange_date() == 5:
+        if self.util.culc_time.exchange_time() == 5:
             self.log.info('本日の取引時間を過ぎているため処理を行いません')
             return False
 
         # 設定時間と現在の時間のチェック
         now = self.util.culc_time.get_now()
         end = config.END_TIME
-        if now > now.replace(hour = end[:2], minute = end[3:]):
+        if now > now.replace(hour = int(end[:2]), minute = int(end[3:])):
             self.log.info('設定した終了時刻を過ぎているため処理を行いません')
             return False
 
         # 信用余力の取得
         buy_power = self.get_margin_buy_power()
-        if buy_power == False:
+        if buy_power is False:
             return False
 
         # インスタンス変数へ設定
@@ -87,11 +86,10 @@ class Trade(ServiceBase):
         self.market_code = stock_info['PrimaryExchange']
 
         time.sleep(1)
-
         # 銘柄情報を取得
         result, stock_info = self.get_symbol(stock_code = self.stock_code,
                                                   market_code = self.market_code,
-                                                  add_info = False)
+                                                  addinfo = False)
         if result == False:
             self.log.error(stock_info)
             return False
@@ -121,10 +119,9 @@ class Trade(ServiceBase):
         if self.buy_power < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # 余力 < 前日終値の1単元必要額
             if self.buy_power < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
-                self.log.error(f'余力が前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.buy_power}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
-                return False
+                self.log.error(f'余力が前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.buy_power}円 1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
             else:
-                self.log.warning(f'余力がストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.warning(f'余力がストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}円 ストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
 
         time.sleep(1)
 
@@ -137,9 +134,6 @@ class Trade(ServiceBase):
         # TODO 規制情報チェック
         # 単純に規制があるケース、増担、注意銘柄などがあるため全て網羅しなければいけない
 
-        ### # プレミアム料の取得/チェック 現時点では空売りはやらないので一旦保留
-        ### premium_info = self.get_premium_price(stock_code)
-
         # ソフトリミットの値をチェック
         result, response =  self.api.info.soft_limit()
         if result == False:
@@ -147,16 +141,16 @@ class Trade(ServiceBase):
             return False
 
         # 信用のソフトリミットを取得
-        self.soft_limit = response['Margin']
+        self.soft_limit = response['Margin'] * 10000
 
         # ソフトリミット < ストップ高での1単元必要額
         if self.soft_limit < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # ソフトリミット < 前日終値の1単元必要額
             if self.soft_limit < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
-                self.log.error(f'ソフトリミットが前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.soft_limit}\n1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.error(f'ソフトリミットが前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.soft_limit}円 1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
                 return False
             else:
-                self.log.warning(f'ソフトリミットがストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.soft_limit}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}')
+                self.log.warning(f'ソフトリミットがストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります円 余力: {self.soft_limit}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
 
         return True
 
@@ -387,7 +381,7 @@ class Trade(ServiceBase):
             self.log.error(response)
             return False
 
-    def get_symbol(self, stock_code, market_code, add_info = True, retry_count = 0):
+    def get_symbol(self, stock_code, market_code, addinfo = True, retry_count = 0):
         '''
         銘柄情報の取得を行う(銘柄登録上限のリカバリも)
 
@@ -395,7 +389,7 @@ class Trade(ServiceBase):
             stock_code(int or str): 証券コード
             market_code(int or str): 市場コード
                 1: 東証、3: 名証、5: 福証、6: 札証、2: 日通し、23: 日中、24: 夜間
-            add_info(bool): 下記4項目の情報を併せて取得するか
+            addinfo(bool): 下記4項目の情報を併せて取得するか
                 「時価総額」、「発行済み株式数」、「決算期日」、「清算値」
 
         Returns:
@@ -405,7 +399,7 @@ class Trade(ServiceBase):
         '''
         result, response = self.api.info.symbol(stock_code = stock_code,
                                                 market_code = market_code,
-                                                add_info = add_info)
+                                                addinfo = addinfo)
         if result == False:
             # 登録数上限エラー
             if response == 4002006:
@@ -421,7 +415,7 @@ class Trade(ServiceBase):
                     return False, result
 
                 # 登録銘柄の解除に成功したら再帰でもう一度銘柄情報の取得を行う
-                return self.get_symbol(stock_code, market_code, add_info, retry_count = 1)
+                return self.get_symbol(stock_code, market_code, addinfo, retry_count = 1)
             # その他のエラー
             else:
                 return False, response
@@ -729,7 +723,7 @@ class Trade(ServiceBase):
             self.log.error(f'買い注文処理でエラー\n{response}')
             return False
 
-        self.log.info(f'買い注文処理成功 注文価格: {order_info['order_price']}')
+        self.log.info(f'買い注文処理成功 注文価格: {order_info["order_price"]}')
         return True
 
     def sell_secure_order(self, qty, stock_price):

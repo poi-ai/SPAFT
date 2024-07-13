@@ -29,10 +29,10 @@ class Order():
         try:
             response = requests.post(url, headers = self.api_headers, json = order_info)
         except Exception as e:
-            return False, f'日本株注文処理でエラー\n証券コード: {order_info['Symbol']}\n{e}'
+            return False, f'日本株注文処理でエラー\n証券コード: {order_info["Symbol"]}\n{e}'
 
         if response.status_code != 200:
-            return False, f'日本株注文処理でエラー\n証券コード: {order_info['Symbol']}\nステータスコード: {response.status_code}\n{json.loads(response.content)}'
+            return False, f'日本株注文処理でエラー\n証券コード: {order_info["Symbol"]}\nステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
         return True, json.loads(response.content)
 
@@ -75,6 +75,6 @@ class Order():
             return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\nステータスコード: {response.status_code}\n{json.loads(response.content)}'
 
         if json.loads(response.content)['Result'] != 0:
-            return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {json.loads(response.content)['Result']}'
+            return False, f'注文キャンセル処理でエラー\n注文ID: {order_id}\nエラーコード: {json.loads(response.content)["Result"]}'
 
         return True, json.loads(response.content)
