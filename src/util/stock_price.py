@@ -10,11 +10,14 @@ class StockPrice():
         指定した銘柄の呼値を取得する
 
         Args:
-            stock_type(int): 銘柄の種類 ※エンドポイント /symbol/{証券コード} から取得可
+            stock_type(int or str): 銘柄の種類 ※エンドポイント /symbol/{証券コード} から取得可
             price(float): 判定したい株価
 
             price_range(float)or False: 呼値
         '''
+        # エンドポイントの返り値をそのまま引数に充てるとstrなのでintに変換する
+        stock_type = int(stock_type)
+
         price_ranges = {
             10000: [
                 (3000, 1), (5000, 5), (30000, 10), (50000, 50), (300000, 100),
@@ -77,6 +80,14 @@ class StockPrice():
 
             # 最低価格に呼値を足していく
             tmp_lower_price += sell_yobine
+
+            # 丸め誤差修正
+            # 呼値が小数の場合は小数点下2桁で四捨五入
+            if sell_yobine < 1:
+                tmp_lower_price = round(tmp_lower_price, 1)
+            else:
+                tmp_lower_price = round(tmp_lower_price, 0)
+
             board_num += 1
 
             # 最高価格と加算された最低価格が一致したら終了
@@ -84,8 +95,8 @@ class StockPrice():
                 return True, board_num
 
             # 加算された最低価格が最低価格を超えたら不整合
-            if upper_price > tmp_lower_price:
-                error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、最高価格: {upper_price}、最低価格: {lower_price}'
+            if upper_price < tmp_lower_price:
+                error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、呼値: {sell_yobine}円、最高価格: {upper_price}円、最低価格: {lower_price}円'
                 return False, error_message
 
     def get_updown_price(self, yobine_group, stock_price, pips, updown):

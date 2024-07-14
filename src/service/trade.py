@@ -175,7 +175,7 @@ class Trade(ServiceBase):
             now = self.util.culc_time.get_now()
 
             # 設定したスキャ終了時間 - 現在時間
-            diff_seconds = (now.replace(hour = int(self.start_time[:2]), minute = int(self.start_time[3:])) - now).total_seconds()
+            diff_seconds = (now.replace(hour = int(self.end_time[:2]), minute = int(self.end_time[3:])) - now).total_seconds()
 
             # 終了時間を過ぎているか14:55を過ぎたら強制成行決済を行って処理終了
             if diff_seconds < 0 or (now.hour == 14 and now.minute >= 55):
@@ -204,7 +204,7 @@ class Trade(ServiceBase):
                 continue
 
             # 取得した板情報を分類する
-            board_detail_info = self.board_analysis()
+            board_detail_info = self.board_analysis(board_info)
             if board_detail_info == False:
                 time.sleep(3)
                 continue
@@ -422,14 +422,21 @@ class Trade(ServiceBase):
 
         return True, response
 
-    def enforce_settlement(self):
+    def enforce_settlement(self, trade_password = None):
         '''
         保有中のデイトレ信用株の強制成行決済を行う
+
+        Args:
+            trade_password(str): 取引パスワード
 
         Returns:
             result(bool): 実行結果
             order_flag(bool): 注文/注文キャンセルをしたか
         '''
+        # 直接このメソッドを呼び出す場合は取引パスワードを持ってないのでインスタンス変数に設定する
+        if trade_password:
+            self.trade_password = trade_password
+
         # 何かしらの注文/注文キャンセルを行ったか
         order_flag = False
 
@@ -452,12 +459,9 @@ class Trade(ServiceBase):
                         # 未約定チェック
                         if order['State'] < 5:
 
-                            import json
-                            print(json.dumps(order, indent=2))
-
                             # 新規/決済に関わらず注文キャンセル
                             result, response = self.api.order.cancel(order_id = order['ID'],
-                                                                    password = self.trade_password)
+                                                                     password = self.trade_password)
                             order_flag = True
                             if result == False:
                                 self.log.error(response)
@@ -707,14 +711,14 @@ class Trade(ServiceBase):
         # 実際に投げる注文のフォーマット(POSTパラメータ)を作成する
         result, order_info = self.util.mold.create_order_request(
                 password = self.trade_password,     # 取引パスワード
-                stock_code = self.stock_info,       # 証券コード
+                stock_code = self.stock_code,       # 証券コード
                 exchange = self.market_code,        # 市場コード
                 side = 2,                           # 売買区分 2: 買い注文
                 cash_margin = 2,                    # 信用区分 2: 新規
                 deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
                 account_type = 4,                   # 口座種別 4: 特定口座
                 qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
-                front_order_type = 10,              # 執行条件 20: 指値
+                front_order_type = 20,              # 執行条件 20: 指値
                 price = order_price,                # 執行価格 買い板の最高価格-Xpips
                 expire_day = 0,                     # 注文有効期限 0: 当日中
                 margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
@@ -732,7 +736,7 @@ class Trade(ServiceBase):
             self.log.error(f'買い注文処理でエラー\n{response}')
             return False
 
-        self.log.info(f'買い注文処理成功 注文価格: {order_info["order_price"]}')
+        self.log.info(f'買い注文処理成功 注文価格: {order_info["Price"]}')
         return True
 
     def sell_secure_order(self, qty, stock_price):
