@@ -39,6 +39,7 @@ class Trade(ServiceBase):
             result(bool): 実行結果
 
         '''
+        self.log.info('スキャルピング初期処理取得処理開始')
         # 設定ファイルのパラメータチェック
         result = self.param_check(config)
         if result == False:
@@ -50,11 +51,14 @@ class Trade(ServiceBase):
         # 営業日チェック
         if self.util.culc_time.exchange_date() == False:
             self.log.info('本日は取引所の営業日でないため取引を行いません')
+            return False
+        self.log.info('営業日チェックOK')
 
         # 営業時間チェック
         if self.util.culc_time.exchange_time() == 5:
             self.log.info('本日の取引時間を過ぎているため処理を行いません')
             return False
+        self.log.info('取引時間チェックOK')
 
         # 設定時間と現在の時間のチェック
         now = self.util.culc_time.get_now()
@@ -62,11 +66,13 @@ class Trade(ServiceBase):
         if now > now.replace(hour = int(end[:2]), minute = int(end[3:])):
             self.log.info('設定した終了時刻を過ぎているため処理を行いません')
             return False
+        self.log.info('設定時間チェックOK')
 
         # 信用余力の取得
         buy_power = self.get_margin_buy_power()
         if buy_power is False:
             return False
+        self.log.info('余力情報取得OK')
 
         # インスタンス変数へ設定
         self.buy_power = buy_power
@@ -74,25 +80,30 @@ class Trade(ServiceBase):
         time.sleep(1)
 
         # 銘柄の市場情報を取得
+        self.log.info('銘柄の優先市場情報取得処理開始')
         result, stock_info = self.api.info.primary_exchange(stock_code = self.stock_code)
         if result == False:
             if stock_info == 4002001:
-                self.log.error(f'優先市場情報取得処理で証券コード不正エラー\n証券コード: {self.stock_code}')
+                self.log.error(f'銘柄の優先市場情報取得処理で証券コード不正エラー\n証券コード: {self.stock_code}')
             else:
                 self.log.error(stock_info)
             return False
+        self.log.info('銘柄の優先市場情報取得処理終了')
 
         # 市場IDを抜き出してインスタンス変数へセット
         self.market_code = stock_info['PrimaryExchange']
 
         time.sleep(1)
+
         # 銘柄情報を取得
+        self.log.info('銘柄情報取得処理開始')
         result, stock_info = self.get_symbol(stock_code = self.stock_code,
                                                   market_code = self.market_code,
                                                   addinfo = False)
         if result == False:
             self.log.error(stock_info)
             return False
+        self.log.info('銘柄情報取得処理終了')
 
         # デイトレ信用が取引可能か
         if stock_info['KCMarginBuy'] != True:
@@ -116,34 +127,43 @@ class Trade(ServiceBase):
             self.stock_info['yobine'] = -1
 
         # 余力 < ストップ高での1単元必要額
+        self.log.info('余力チェック開始')
         if self.buy_power < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # 余力 < 前日終値の1単元必要額
             if self.buy_power < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
                 self.log.error(f'余力が前営業日終値の1単元購入に必要な金額を下回っているため取引を行いません\n余力: {self.buy_power}円 1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
+                return False
             else:
                 self.log.warning(f'余力がストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります\n余力: {self.buy_power}円 ストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
+        self.log.info('余力チェックOK')
 
         time.sleep(1)
 
         # 取引規制チェック
+        self.log.info('取引規制情報取得処理開始')
         result, regulations_info = self.api.info.regulations(stock_code = self.stock_code,
                                                              market_code = self.market_code)
         if result == False:
             self.log.error(regulations_info)
+            return False
+        self.log.info('取引規制情報取得処理終了')
 
         # TODO 規制情報チェック
         # 単純に規制があるケース、増担、注意銘柄などがあるため全て網羅しなければいけない
 
         # ソフトリミットの値をチェック
+        self.log.info('ソフトリミット情報取得処理開始')
         result, response =  self.api.info.soft_limit()
         if result == False:
             self.log.error(response)
             return False
+        self.log.info('ソフトリミット情報取得処理終了')
 
         # 信用のソフトリミットを取得
         self.soft_limit = response['Margin'] * 10000
 
         # ソフトリミット < ストップ高での1単元必要額
+        self.log.info('ソフトリミットチェック処理開始')
         if self.soft_limit < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
             # ソフトリミット < 前日終値の1単元必要額
             if self.soft_limit < (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2:
@@ -151,18 +171,27 @@ class Trade(ServiceBase):
                 return False
             else:
                 self.log.warning(f'ソフトリミットがストップ高の1単元購入に必要な金額を下回っているため途中から取引が行われなくなる可能性があります円 余力: {self.soft_limit}\nストップ高1単元必要金額: {(self.stock_info["upper_limit"] + self.stock_info["lower_limit"]) * self.stock_info["unit_num"] / 2}円')
+        self.log.info('ソフトリミット情報取得処理終了')
+
+        self.log.info('スキャルピング初期処理取得処理終了')
 
         return True
 
     def scalping(self):
         '''スキャルピングを行う'''
-        # 時間チェック
+        self.log.info('スキャルピング主処理開始')
+
+        # 開始時間チェック
+        self.log.info('スキャルピング開始時間チェック')
         now = self.util.culc_time.get_now()
         diff_seconds = (now.replace(hour = int(self.start_time[:2]), minute = int(self.start_time[3:])) - now).total_seconds()
 
         # 開始まで時間がある場合待機する
         if diff_seconds > 0:
+            self.log.info(f'スキャルピング開始まで{diff_seconds}秒待機')
             time.sleep(diff_seconds)
+        else:
+            self.log.info('スキャルピング開始時間超過のため待機なし')
 
         # 初期注文のみ処理を変えるのでフラグを立てておく
         init_order = True
@@ -170,6 +199,7 @@ class Trade(ServiceBase):
         # 注文非検知の時用のカウンター
         none_operate = 0
 
+        self.log.info('トレードスタート')
         while True:
             # 時間チェック
             now = self.util.culc_time.get_now()
@@ -180,7 +210,9 @@ class Trade(ServiceBase):
             # 終了時間を過ぎているか14:55を過ぎたら強制成行決済を行って処理終了
             if diff_seconds < 0 or (now.hour == 14 and now.minute >= 55):
                 # 強制決済
+                self.log.info('取引時間過ぎのため強制成行決済処理開始')
                 result, order_flag = self.enforce_settlement()
+                self.log.info('取引時間過ぎのため強制成行決済処理仮終了')
 
                 # 処理にすべて成功し、追加で注文や注文キャンセルを行っていない(=もうない)場合は処理終了
                 if result == True and order_flag == False:
@@ -189,8 +221,11 @@ class Trade(ServiceBase):
                 else:
                     # 10秒待機してから再チェック
                     time.sleep(10)
+                    self.log.info('取引時間過ぎのため強制成行決済処理最終チェック開始')
                     result, order_flag = self.enforce_settlement()
+                    self.log.info('取引時間過ぎのため強制成行決済処理最終チェック開始')
                     if result == True and order_flag == False:
+                        self.log.info('全強制決済処理正常終了')
                         break
                     else:
                         self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
@@ -267,7 +302,7 @@ class Trade(ServiceBase):
                 result = self.buy_order(board_detail_info['buy_price'])
 
             # 注文も保有株もない場合
-            if not hold_flag or not order_flag:
+            if not hold_flag and not order_flag:
                 none_operate += 1
             else:
                 none_operate = 0
@@ -276,6 +311,7 @@ class Trade(ServiceBase):
             # 実際はあるもののすり抜ける可能性がある
             # 3周連続で存在しない場合はポジションなしとみなして新規注文を入れる
             if none_operate >= 3:
+                print(765433)
                 result = self.buy_order(board_detail_info['buy_price'])
                 # 成功したらカウントリセット
                 if result == False:
@@ -283,6 +319,9 @@ class Trade(ServiceBase):
 
             # 1周目終了でしたら初回注文に使うためのフラグは折る
             init_order = False
+
+        self.log.info('トレード終了')
+        self.log.info('スキャルピング主処理終了')
 
     def param_check(self, config):
         '''
@@ -433,6 +472,7 @@ class Trade(ServiceBase):
             result(bool): 実行結果
             order_flag(bool): 注文/注文キャンセルをしたか
         '''
+        self.log.info('強制成行決済処理開始')
         # 直接このメソッドを呼び出す場合は取引パスワードを持ってないのでインスタンス変数に設定する
         if trade_password:
             self.trade_password = trade_password
@@ -442,14 +482,17 @@ class Trade(ServiceBase):
 
         # まず注文に出しているものを全てキャンセルする
         # とりあえず注文発注しているのものを取得
+        self.log.info('注文情報取得処理開始')
         result, response = self.get_today_order()
         if result == False:
             self.log.error(response)
             return False, order_flag
+        self.log.info('注文情報取得処理終了')
 
-        time.sleep(0.2)
+        time.sleep(0.3)
 
         # 1注文ずつチェック
+        self.log.info('注文情報取得チェック処理開始')
         for order in response:
             # デイトレ信用の場合のみ対象とする
             if 'MarginTradeType' in order:
@@ -460,19 +503,22 @@ class Trade(ServiceBase):
                         if order['State'] < 5:
 
                             # 新規/決済に関わらず注文キャンセル
+                            self.log.info(f'注文キャンセル処理開始 ID: {order["ID"]}')
                             result, response = self.api.order.cancel(order_id = order['ID'],
                                                                      password = self.trade_password)
+                            self.log.info(f'注文キャンセル処理終了 ID: {order["ID"]}')
                             order_flag = True
                             if result == False:
                                 self.log.error(response)
                                 continue # ここ要検討、このままだと少なくともこの後自動ではリカバリできない
 
-                            time.sleep(0.2)
+                            time.sleep(0.3)
 
                             # キャンセルした注文が返済の場合は成行で再度返済処理を入れる
                             if order['CashMargin'] == 3:
-                                result, response = self.util.mold.create_order_request(
-                                    password = self.trade_password,     # 取引パスワード
+                                self.log.info('再返済注文処理開始')
+                                result, order_info = self.util.mold.create_order_request(
+                                    password = self.trade_password,            # 取引パスワード
                                     stock_code = order['Symbol'],              # 証券コード
                                     exchange = order['Exchange'],              # 市場コード
                                     side = 1,                                  # 売買区分 1: 売り注文
@@ -486,21 +532,38 @@ class Trade(ServiceBase):
                                     close_position_order = 0,                  # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
                                 )
 
-                                time.sleep(0.2)
+                                if result == False:
+                                    self.log.error(order_info)
+                                    continue
+
+                                time.sleep(0.3)
+
+                                # 返済注文リクエスト送信
+                                result, response = self.api.order.stock(order_info = order_info)
 
                                 if result == False:
                                     self.log.error(response)
+                                    continue
+
+                                time.sleep(0.3)
+
+                                self.log.info('再返済注文処理終了')
+
+        self.log.info('注文情報取得チェック処理終了')
 
         # 保有株から成売するものを決める
         # 信用の保有株を取得
+        self.log.info('保有株情報取得処理開始')
         result, response = self.get_today_position(side = '2')
         if result == False:
             self.log.error(response)
             return False, order_flag
+        self.log.info('保有株情報取得処理終了')
 
         time.sleep(0.2)
 
         # 保有中の株を1つずつチェック
+        self.log.info('保有株情報チェック処理開始')
         for stock in response:
             # デイトレ信用の場合のみ対象とする
             if stock['MarginTradeType'] != 3:
@@ -513,7 +576,8 @@ class Trade(ServiceBase):
                 if qty == 0: continue
 
                 # 成売の決済注文を入れる
-                result, response = self.util.mold.create_order_request(
+                self.log.info('保有株成行注文処理開始')
+                result, order_info = self.util.mold.create_order_request(
                     password = self.trade_password, # 取引パスワード
                     stock_code = stock['Symbol'],   # 証券コード
                     exchange = order['Exchange'],   # 市場コード
@@ -528,10 +592,25 @@ class Trade(ServiceBase):
                     close_position_order = 0,       # 決済順序 0: 古く利益の高い順(ぶっちゃけなんでもいい)
                 )
 
-                time.sleep(0.2)
+                time.sleep(0.3)
 
                 if result == False:
                     self.log.error(response)
+                    continue
+
+                # 返済注文リクエスト送信
+                result, response = self.api.order.stock(order_info = order_info)
+
+                if result == False:
+                    self.log.error(response)
+                    continue
+
+                time.sleep(0.3)
+
+                self.log.info('保有株成行注文処理終了')
+
+        self.log.info('保有株情報チェック処理終了')
+        self.log.info('強制成行決済処理終了')
 
         return True, order_flag
 
@@ -611,7 +690,7 @@ class Trade(ServiceBase):
         # 絞り込みのためのフィルター
         search_filter = {
             'product': '2', # 信用
-            'updtime': self.util.culc_time.get_now().strftime('%Y%m%d085959') # 今日の08:59:59以降(=今日の取引)のみ抽出
+            'updtime': self.util.culc_time.get_now().strftime('%Y%m%d000000') # 今日の00:00:00以降(=今日の取引)のみ抽出
         }
 
         if symbol != None: search_filter['symbol'] = symbol
@@ -736,7 +815,7 @@ class Trade(ServiceBase):
             self.log.error(f'買い注文処理でエラー\n{response}')
             return False
 
-        self.log.info(f'買い注文処理成功 注文価格: {order_info["Price"]}')
+        self.log.info(f'買い注文処理成功 注文価格: {order_info["Price"]}円 株数: {self.stock_info["unit_num"]}')
         return True
 
     def sell_secure_order(self, qty, stock_price):
