@@ -131,9 +131,16 @@ class StockPrice():
             else:
                 culc_stock_price -= yobine
 
+            # 丸め誤差修正
+            # 呼値が小数の場合は小数点下2桁で四捨五入
+            if yobine < 1:
+                culc_stock_price = round(culc_stock_price, 1)
+            else:
+                culc_stock_price = round(culc_stock_price, 0)
+
         # 上の計算の場合はこのまま返せる
         if updown == 1:
-            return culc_stock_price
+            return True, culc_stock_price
 
         # 下の場合は再計算が必要 ここでの呼値は上に何円空くか で下に何円空くかは判定できない
         # 基本的には価格は高くなるほど呼値も広がるので、上の呼値のpips下げれば包含はできている
@@ -146,6 +153,14 @@ class StockPrice():
 
             # 呼値を足していき、リストに追加する
             culc_stock_price += yobine
+
+            # 丸め誤差修正
+            # 呼値が小数の場合は小数点下2桁で四捨五入
+            if yobine < 1:
+                culc_stock_price = round(culc_stock_price, 1)
+            else:
+                culc_stock_price = round(culc_stock_price, 0)
+
             price_list.append(culc_stock_price)
 
             # 基準価格を超えたら終了

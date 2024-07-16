@@ -370,7 +370,7 @@ class Info():
                 ProfitLossRate(float): 評価損益率
 
         '''
-        url = f'{self.api_url}/positions/'
+        url = f'{self.api_url}/positions'
 
         if search_filter != None:
             url = f'{url}?{urllib.parse.urlencode(search_filter)}'

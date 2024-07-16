@@ -199,10 +199,24 @@ class Trade(ServiceBase):
         # 注文非検知の時用のカウンター
         none_operate = 0
 
+        # 購入価格
+        ordered_buy_price = -1
+
+        # 利確/損切り判定用
+        secure_flag = False
+
         self.log.info('トレードスタート')
         while True:
             # 時間チェック
             now = self.util.culc_time.get_now()
+
+            # お昼休みなら後場開始まで待機
+            if self.util.culc_time.exchange_time() == 4:
+                diff_seconds = (now.replace(hour = 12, minute = 30) - now).total_seconds()
+
+                if diff_seconds > 0:
+                    self.log.info(f'お昼休み突入~スキャルピング再開まで{diff_seconds}秒待機')
+                    time.sleep(diff_seconds)
 
             # 設定したスキャ終了時間 - 現在時間
             diff_seconds = (now.replace(hour = int(self.end_time[:2]), minute = int(self.end_time[3:])) - now).total_seconds()
@@ -238,6 +252,8 @@ class Trade(ServiceBase):
                 time.sleep(3)
                 continue
 
+            time.sleep(0.2)
+
             # 取得した板情報を分類する
             board_detail_info = self.board_analysis(board_info)
             if board_detail_info == False:
@@ -245,18 +261,22 @@ class Trade(ServiceBase):
                 continue
 
             # 保有株一覧取得
-            result, hold_stock_list = self.get_today_position()
+            result, hold_stock_list = self.get_today_position(symbol = self.stock_code)
             if result == False:
                 self.log.error(hold_stock_list)
                 time.sleep(3)
                 continue
 
+            time.sleep(0.2)
+
             # 注文一覧取得
-            result, order_list = self.get_today_order()
+            result, order_list = self.get_today_order(symbol = self.stock_code)
             if result == False:
                 self.log.error(order_list)
                 time.sleep(3)
                 continue
+
+            time.sleep(0.2)
 
             # 保有中の株/注文中の株があるか
             hold_flag = False
@@ -266,14 +286,39 @@ class Trade(ServiceBase):
             for hold_stock in hold_stock_list:
                  # デイトレ信用の場合のみ対象とする
                 if hold_stock['MarginTradeType'] == 3:
-                    hold_flag = True
-                    # 保有株数 - 注文中株数
-                    qty = hold_stock['LeavesQty'] - hold_stock['HoldQty']
+                    # 既に返済が済んでいるものも保有扱いされるので除外する
+                    # 保有中株数も注文数株数も0のものは除外
+                    if hold_stock['LeavesQty'] != 0 or hold_stock['HoldQty'] != 0:
+                        hold_flag = True
+                        # 保有株数 - 注文中株数
+                        qty = hold_stock['LeavesQty'] - hold_stock['HoldQty']
 
-                    # 売り注文が出されていない株がある場合は注文を出す
-                    if qty > 0:
-                        # 利確価格で注文
-                        result = self.sell_secure_order(qty = qty, stock_price = hold_stock['Price'])
+                        # 売り注文が出されていない株がある場合は注文を出す
+                        if qty > 0:
+                            # 利確価格で注文
+                            result = self.sell_secure_order(qty = qty, stock_price = hold_stock['Price'])
+                            time.sleep(0.3)
+                            if result == False:
+                                continue
+                            secure_flag = True
+
+            # 板情報からいくら未満の買注文の場合訂正対象になるか
+            result, decent_buy_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
+                                                                              stock_price = board_detail_info['buy_price'],
+                                                                              pips = self.order_line,
+                                                                              updown = 0)
+            if result == False:
+                self.log.error(decent_buy_price)
+                continue
+
+            # 板情報より購入価格がいくら以上だと損切りにするか TODO 呼値が変わると狂うのでそのうち直す
+            result, decent_cut_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
+                                                                                 stock_price = board_detail_info['sell_price'],
+                                                                                 pips = self.loss_cut,
+                                                                                 updown = 1)
+            if result == False:
+                self.log.error(decent_cut_price)
+                continue
 
             # 注文を1つずつチェック
             for order in order_list:
@@ -290,16 +335,95 @@ class Trade(ServiceBase):
                 # 注文種別(新規買/決済売)をチェック
                 # 新規買の場合
                 if order['CashMargin'] == 2:
-                    pass # TODO
+                    # 注文価格よりさらに上に行っていたら指値を変更して再注文
+                    if decent_buy_price > order['Price']:
+                        self.log.info(f'新規買注文指しなおし処理開始 購入価格: {order["Price"]}円 → {decent_buy_price}円')
+
+                        self.log.info(f'注文キャンセル処理開始 ID: {order["ID"]}')
+                        result, response = self.api.order.cancel(order_id = order['ID'],
+                                                               password = self.trade_password)
+                        time.sleep(0.1)
+                        if result == False:
+                            self.log.error(response)
+                            continue
+                        self.log.info(f'注文キャンセル処理終了 ID: {order["ID"]}')
+
+                        result, buy_price = self.buy_order(stock_price = board_detail_info['buy_price'])
+                        time.sleep(0.2)
+                        if result == False:
+                            continue
+                        ordered_buy_price = ordered_buy_price
+
+                        self.log.info(f'新規買注文指しなおし処理終了')
 
                 # 返済売の場合
                 else:
-                    pass # TODO
+                    # 利確売の場合
+                    if secure_flag == True:
+                        # 現在価格が購入した額の損切り価格を下回っているかチェック
+                        # いくら以上の購入価格の場合損切りラインを割ったか <= 購入価格
+                        if decent_cut_price <= ordered_buy_price:
+                            self.log.info(f'利確から損切りに差し替え処理開始 {order["Price"]}円 → {board_detail_info["sell_price"]}円')
+
+                            self.log.info(f'注文キャンセル処理開始 ID: {order["ID"]}')
+                            result, response = self.api.order.cancel(order_id = order['ID'],
+                                                                password = self.trade_password)
+                            if result == False:
+                                self.log.error(response)
+                                continue
+                            self.log.info(f'注文キャンセル処理終了 ID: {order["ID"]}')
+
+                            time.sleep(0.5)
+
+                            # 売り板の1枚目で損切りを注文
+                            result = self.sell_cut_order(qty = qty, order_price = board_detail_info['sell_price'])
+                            if result == False:
+                                continue
+
+                            # 利確フラグを折る
+                            secure_flag = False
+
+                            self.log.info(f'利確から損切りに差し替え処理終了')
+
+                            time.sleep(0.3)
+
+                    # 損切りの場合
+                    else:
+                        # 板の売りの1枚目が損切りの売り注文価格よりさらに下がっているか
+                        if board_detail_info["sell_price"] < order['Price']:
+                            self.log.info(f'損切り価格引き下げ処理開始 {order["Price"]}円 → {board_detail_info["sell_price"]}円')
+
+                            self.log.info(f'注文キャンセル処理開始 ID: {order["ID"]}')
+                            result, response = self.api.order.cancel(order_id = order['ID'],
+                                                                password = self.trade_password)
+                            if result == False:
+                                self.log.error(response)
+                                continue
+                            self.log.info(f'注文キャンセル処理終了 ID: {order["ID"]}')
+
+                            time.sleep(0.5)
+
+                            # 売り板の1枚目で損切りを再注文
+                            result = self.sell_cut_order(qty = qty, order_price = board_detail_info['sell_price'])
+                            if result == False:
+                                continue
+
+                            # 利確フラグを折る
+                            secure_flag = False
+
+                            self.log.info(f'損切り価格引き下げ処理終了')
+
+                            time.sleep(0.3)
+
 
             # 保有株も注文もなく,1周目の場合は新規買い注文を入れる
             if not hold_flag and not order_flag and init_order:
                 # 現在価格でなく買い板の最高価格ベースを基準に買いを入れる
-                result = self.buy_order(board_detail_info['buy_price'])
+                result, buy_price = self.buy_order(stock_price = board_detail_info['buy_price'])
+                time.sleep(0.3)
+                if result == False:
+                    continue
+                ordered_buy_price = buy_price
 
             # 注文も保有株もない場合
             if not hold_flag and not order_flag:
@@ -311,11 +435,13 @@ class Trade(ServiceBase):
             # 実際はあるもののすり抜ける可能性がある
             # 3周連続で存在しない場合はポジションなしとみなして新規注文を入れる
             if none_operate >= 3:
-                print(765433)
-                result = self.buy_order(board_detail_info['buy_price'])
-                # 成功したらカウントリセット
+                result, buy_price = self.buy_order(stock_price = board_detail_info['buy_price'])
+                time.sleep(0.3)
                 if result == False:
-                    none_operate = 0
+                    continue
+                # 成功したらカウントリセット
+                none_operate = 0
+                ordered_buy_price = buy_price
 
             # 1周目終了でしたら初回注文に使うためのフラグは折る
             init_order = False
@@ -483,13 +609,12 @@ class Trade(ServiceBase):
         # まず注文に出しているものを全てキャンセルする
         # とりあえず注文発注しているのものを取得
         self.log.info('注文情報取得処理開始')
-        result, response = self.get_today_order()
+        result, response = self.get_today_order(symbol = self.stock_code)
+        time.sleep(0.3)
         if result == False:
             self.log.error(response)
             return False, order_flag
         self.log.info('注文情報取得処理終了')
-
-        time.sleep(0.3)
 
         # 1注文ずつチェック
         self.log.info('注文情報取得チェック処理開始')
@@ -673,6 +798,7 @@ class Trade(ServiceBase):
 
         Args:
             symbol(str): 証券コードで絞り込み ※省略可
+                ※証券コード@市場コード の形式で指定必要
             side(str): 売買区分で絞り込み ※省略可
                 '1': 売注文、'2': 買注文
             cashmargin(str): 信用区分で絞り込み ※省略可
@@ -689,11 +815,12 @@ class Trade(ServiceBase):
         '''
         # 絞り込みのためのフィルター
         search_filter = {
+            #'detail': False, # 注文の詳細を表示しない
             'product': '2', # 信用
             'updtime': self.util.culc_time.get_now().strftime('%Y%m%d000000') # 今日の00:00:00以降(=今日の取引)のみ抽出
         }
 
-        if symbol != None: search_filter['symbol'] = symbol
+        if symbol != None: search_filter['symbol'] = str(symbol)
         if side != None: search_filter['side'] = side
         if cashmargin != None: search_filter['cashmargin'] = cashmargin
 
@@ -776,16 +903,21 @@ class Trade(ServiceBase):
 
         Returns:
             bool: 実行結果
+            order_price(float): 購入価格
 
         '''
+        self.log.info(f'買い注文処理開始 基準価格: {stock_price}円')
+
         # Xpip下の価格を計算する
         result, order_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                    stock_price = stock_price,
-                                                                    pips = self.order_line,
-                                                                    updown = 0)
+                                                                     stock_price = stock_price,
+                                                                     pips = self.order_line,
+                                                                     updown = 0)
         if result == False:
             self.log.error(order_price)
-            return False
+            return False, None
+
+        self.log.info(f'注文価格: {order_price}')
 
         # 実際に投げる注文のフォーマット(POSTパラメータ)を作成する
         result, order_info = self.util.mold.create_order_request(
@@ -794,29 +926,29 @@ class Trade(ServiceBase):
                 exchange = self.market_code,        # 市場コード
                 side = 2,                           # 売買区分 2: 買い注文
                 cash_margin = 2,                    # 信用区分 2: 新規
-                deliv_type = 0,                     # 受渡区分 0: 指定なし(2: お預かり金でもいいかも)
+                margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
+                deliv_type = 0,                     # 受渡区分 0: 指定なし
                 account_type = 4,                   # 口座種別 4: 特定口座
                 qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
                 front_order_type = 20,              # 執行条件 20: 指値
                 price = order_price,                # 執行価格 買い板の最高価格-Xpips
                 expire_day = 0,                     # 注文有効期限 0: 当日中
-                margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
                 fund_type = '11'                    # 資産区分 '11': 信用取引
         )
 
         if result == False:
             self.log.error(response)
-            return False
+            return False, None
 
         # 注文APIへリクエストを投げる
         result, response = self.api.order.stock(order_info = order_info)
 
         if result == False:
             self.log.error(f'買い注文処理でエラー\n{response}')
-            return False
+            return False, None
 
-        self.log.info(f'買い注文処理成功 注文価格: {order_info["Price"]}円 株数: {self.stock_info["unit_num"]}')
-        return True
+        self.log.info(f'買い注文処理成功 注文価格: {order_info["Price"]}円 株数: {self.stock_info["unit_num"]}株')
+        return True, order_price
 
     def sell_secure_order(self, qty, stock_price):
         '''
@@ -824,18 +956,25 @@ class Trade(ServiceBase):
 
         Args:
             qty(int): 注文株数
-            stock_price(float): 利確価格
+            stock_price(float): 基準価格
 
         Returns:
             bool: 実行結果
 
         '''
+        self.log.info(f'利確売り注文処理開始 基準価格: {stock_price}円')
+
         # 利確価格(Xpips上)を計算する
         result, order_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                    stock_price = stock_price,
-                                                                    pips = self.securing_benefit,
-                                                                    updown = 1)
+                                                                     stock_price = stock_price,
+                                                                     pips = self.securing_benefit,
+                                                                     updown = 1)
 
+        if result == False:
+            self.log.error(order_price)
+            return False
+
+        self.log.info(f'利確価格: {order_price}')
 
         # 売り注文のフォーマットを作る
         result, order_info = self.util.mold.create_order_request(
@@ -844,13 +983,14 @@ class Trade(ServiceBase):
                             exchange = self.market_code,
                             side = 1,                      # 売買区分 1: 売
                             cash_margin = 3,               # 信用区分 3: 信用返済
-                            deliv_type = 0,                # 資金受渡区分 0: 指定なし
+                            margin_trade_type = 3,         # 信用取引区分 3: 一般信用(デイトレ)
+                            deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
                             account_type = 4,              # 口座種別 4: 特定口座
                             qty = qty,                     # 注文株数
                             front_order_type = 20,         # 執行条件 20: 指値
                             price = order_price,           # 執行価格 利確価格
                             expire_day = 0,                # 注文有効期限 0: 当日中
-                            close_position_order = 0,      # 決済順序 何選んでも変わらない
+                            close_position_order = 0      # 決済順序 何選んでも変わらない
         )
 
         if result == False:
@@ -861,8 +1001,53 @@ class Trade(ServiceBase):
         result, response = self.api.order.stock(order_info = order_info)
 
         if result == False:
-            self.log.error(f'売り注文(利確)処理でエラー\n{response}')
+            self.log.error(f'利確売り注文処理でエラー\n{response}')
             return False
 
-        self.log.info(f'売り注文(利確)処理成功 注文価格: {order_price}')
+        self.log.info(f'利確売り注文処理成功 注文価格: {order_price}')
+        return True
+
+    def sell_cut_order(self, qty, order_price):
+        '''
+        損切りの売り注文を入れる
+
+        Args:
+            qty(int): 注文株数
+            order_price(float): 損切り価格
+
+        Returns:
+            bool: 実行結果
+
+        '''
+        self.log.info(f'損切り売り注文処理開始 損切り価格: {order_price}')
+
+        # 売り注文のフォーマットを作る
+        result, order_info = self.util.mold.create_order_request(
+                            password = self.trade_password,
+                            stock_code = self.stock_code,
+                            exchange = self.market_code,
+                            side = 1,                      # 売買区分 1: 売
+                            cash_margin = 3,               # 信用区分 3: 信用返済
+                            margin_trade_type = 3,
+                            deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
+                            account_type = 4,              # 口座種別 4: 特定口座
+                            qty = qty,                     # 注文株数
+                            front_order_type = 20,         # 執行条件 20: 指値
+                            price = order_price,           # 執行価格 利確価格
+                            expire_day = 0,                # 注文有効期限 0: 当日中
+                            close_position_order = 0       # 決済順序 何選んでも変わらない
+        )
+
+        if result == False:
+            self.log.error(order_info)
+            return False
+
+        # 注文APIへリクエストを投げる
+        result, response = self.api.order.stock(order_info = order_info)
+
+        if result == False:
+            self.log.error(f'損切り売り注文処理でエラー\n{response}')
+            return False
+
+        self.log.info(f'損切り売り注文処理成功 注文価格: {order_price}')
         return True

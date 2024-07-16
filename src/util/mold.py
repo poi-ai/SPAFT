@@ -158,12 +158,12 @@ class Mold():
                 'ExpireDay': expire_day
             }
 
-            if margin_trade_type: data['MarginTradeType'] = margin_trade_type
-            if margin_premium_unit: data['MarginPremiumUnit'] = margin_premium_unit
-            if fund_type: data['FundType'] = fund_type
-            if close_position_order: data['ClosePositionOrder'] = close_position_order
-            if close_positions: data['ClosePositions'] = close_positions
-            if reverse_limit_order: data['ReverseLimitOrder'] = reverse_limit_order
+            if margin_trade_type != None: data['MarginTradeType'] = margin_trade_type
+            if margin_premium_unit != None: data['MarginPremiumUnit'] = margin_premium_unit
+            if fund_type != None: data['FundType'] = fund_type
+            if close_position_order != None: data['ClosePositionOrder'] = close_position_order
+            if close_positions != None: data['ClosePositions'] = close_positions
+            if reverse_limit_order != None: data['ReverseLimitOrder'] = reverse_limit_order
 
             return True, data
         except Exception as e:
