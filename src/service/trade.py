@@ -376,7 +376,7 @@ class Trade(ServiceBase):
                             time.sleep(0.5)
 
                             # 売り板の1枚目で損切りを注文
-                            result = self.sell_cut_order(qty = qty, order_price = board_detail_info['sell_price'])
+                            result = self.sell_cut_order(qty = order['OrderQty'], order_price = board_detail_info['sell_price'])
                             if result == False:
                                 continue
 
@@ -404,7 +404,7 @@ class Trade(ServiceBase):
                             time.sleep(0.5)
 
                             # 売り板の1枚目で損切りを再注文
-                            result = self.sell_cut_order(qty = qty, order_price = board_detail_info['sell_price'])
+                            result = self.sell_cut_order(qty = order['OrderQty'], order_price = board_detail_info['sell_price'])
                             if result == False:
                                 continue
 
