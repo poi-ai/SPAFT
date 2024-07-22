@@ -19,7 +19,7 @@ class CulcTime():
                 True: 取引所営業日、False: 取引所非営業日
         '''
         # NTPサーバーから現在の時刻を取得
-        now = self.get_now()
+        now = self.get_now(accurate = False)
 
         # 営業日判定
         if self.is_exchange_workday(now):
@@ -27,17 +27,21 @@ class CulcTime():
 
         return False
 
-    def exchange_time(self):
+    def exchange_time(self, now = None):
         '''
-        現在の時間から取引時間の種別を判定する
+        現在の時間か指定した時間から取引時間の種別を判定する
+
+        Args:
+            now(datetime): 判定対象の時間 省略可
 
         Returns:
             time_type(int): 時間種別
                 1: 前場取引時間、2: 後場取引時間、
                 3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引け後)
         '''
-        # NTPサーバーから現在の時刻を取得
-        now = self.get_now()
+        # 時間が指定されていない場合はNTPサーバーから現在の時刻を取得
+        if now == None:
+            now = self.get_now()
 
         # 前場
         if 9 <= now.hour < 11 or (now.hour == 11 and now.minute < 30):
@@ -326,19 +330,31 @@ class CulcTime():
 
         return False
 
-    def get_now(self):
-        '''現在の正確な時刻を取得する'''
-        result, now = self.ntp(server_id = 1)
-        if result == True:
-            return now
-        self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+    def get_now(self, accurate = True):
+        '''
+        現在の時刻を取得する
 
-        result, now = self.ntp(server_id = 2)
-        if result == True:
-            return now
-        self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+        Args:
+            accurate(bool): 正確な時刻が欲しいか デフォルト: True
+                True: NTPサーバーから取得、False: datetimeから取得
 
-        # どちらからも取れなかった場合はdatetimeから取得
+        Returns:
+            now(datetime): 現在時刻
+        '''
+
+        # 正確な時刻が欲しい場合のみ
+        if accurate:
+            result, now = self.ntp(server_id = 1)
+            if result == True:
+                return now
+            self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+
+            result, now = self.ntp(server_id = 2)
+            if result == True:
+                return now
+            self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+
+        # どちらからも取れなかった場合か正確な時刻が要求されていない場合はdatetimeから取得
         return datetime.now()
 
     def wait_time(self, hour, minute, second = None):
@@ -391,7 +407,6 @@ class CulcTime():
         time.sleep(wait_seconds)
         self.log.info('待機終了')
         return True
-
 
     def ntp(self, server_id = 1):
         '''NTPサーバーから現在の時刻を取得する'''

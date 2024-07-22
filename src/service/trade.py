@@ -211,7 +211,7 @@ class Trade(ServiceBase):
             now = self.util.culc_time.get_now()
 
             # 前場の取引時間中かつ、設定した前場取引終了時間を過ぎている場合はお昼休みまで待機
-            if self.util.culc_time.exchange_time() == 1:
+            if self.util.culc_time.exchange_time(now) == 1:
                 diff_seconds = (now.replace(hour = int(self.pm_end[:2]), minute = int(self.pm_end[3:])) - now).total_seconds()
 
                 # 設定した時間を過ぎた場合(終了予定時刻 - 現在時刻)か11:28を超えたら強制成行決済
@@ -219,21 +219,16 @@ class Trade(ServiceBase):
                     self.enforce_management(trade_type = '前場取引終了設定時間越え')
 
                     # お昼休み1分後まで待機
-                    wait_seconds = (now.replace(hour = 11, minute = 3) - now).total_seconds()
-                    if wait_seconds > 0:
-                        self.log.info(f'前場取引終了~お昼休みまで{wait_seconds}秒待機')
-                        time.sleep(wait_seconds)
+                    self.log.info('お昼休みまで待機します')
+                    self.util.culc_time.wait_time(hour = 11, minute = 31)
 
                     # チェック対象の時間を取り直し
                     now = self.util.culc_time.get_now()
 
             # お昼休みなら後場開始まで待機
-            if self.util.culc_time.exchange_time() == 4:
-                diff_seconds = (now.replace(hour = 12, minute = 30) - now).total_seconds()
-
-                if diff_seconds > 0:
-                    self.log.info(f'お昼休み突入~スキャルピング再開まで{diff_seconds}秒待機')
-                    time.sleep(diff_seconds)
+            if self.util.culc_time.exchange_time(now) == 4:
+                self.log.info(f'お昼休み突入~後場開始まで待機します')
+                self.util.culc_time.wait_time(hour = 12, minute = 30)
 
             # 設定したスキャ終了時間 - 現在時間
             diff_seconds = (now.replace(hour = int(self.end_time[:2]), minute = int(self.end_time[3:])) - now).total_seconds()
@@ -847,7 +842,7 @@ class Trade(ServiceBase):
         search_filter = {
             #'detail': False, # 注文の詳細を表示しない
             'product': '2', # 信用
-            'updtime': self.util.culc_time.get_now().strftime('%Y%m%d000000') # 今日の00:00:00以降(=今日の取引)のみ抽出
+            'updtime': self.util.culc_time.get_now(accurate = False).strftime('%Y%m%d000000') # 今日の00:00:00以降(=今日の取引)のみ抽出
         }
 
         if symbol != None: search_filter['symbol'] = str(symbol)
