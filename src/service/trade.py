@@ -221,7 +221,7 @@ class Trade(ServiceBase):
                     # お昼休み1分後まで待機
                     wait_seconds = (now.replace(hour = 11, minute = 3) - now).total_seconds()
                     if wait_seconds > 0:
-                        self.log.info(f'前場取引終了~お昼休みまで{diff_seconds}秒待機')
+                        self.log.info(f'前場取引終了~お昼休みまで{wait_seconds}秒待機')
                         time.sleep(wait_seconds)
 
                     # チェック対象の時間を取り直し
