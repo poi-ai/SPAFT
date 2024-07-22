@@ -210,6 +210,23 @@ class Trade(ServiceBase):
             # 時間チェック
             now = self.util.culc_time.get_now()
 
+            # 前場の取引時間中かつ、設定した前場取引終了時間を過ぎている場合はお昼休みまで待機
+            if self.util.culc_time.exchange_time() == 1:
+                diff_seconds = (now.replace(hour = int(self.pm_end[:2]), minute = int(self.pm_end[3:])) - now).total_seconds()
+
+                # 設定した時間を過ぎた場合(終了予定時刻 - 現在時刻)か11:28を超えたら強制成行決済
+                if diff_seconds <= 0 or (now.hour == 11 and now.minute >= 28) or now.hour >= 12:
+                    self.enforce_management(trade_type = '前場取引終了設定時間越え')
+
+                    # お昼休み1分後まで待機
+                    wait_seconds = (now.replace(hour = 11, minute = 3) - now).total_seconds()
+                    if wait_seconds > 0:
+                        self.log.info(f'前場取引終了~お昼休みまで{diff_seconds}秒待機')
+                        time.sleep(wait_seconds)
+
+                    # チェック対象の時間を取り直し
+                    now = self.util.culc_time.get_now()
+
             # お昼休みなら後場開始まで待機
             if self.util.culc_time.exchange_time() == 4:
                 diff_seconds = (now.replace(hour = 12, minute = 30) - now).total_seconds()
@@ -223,27 +240,8 @@ class Trade(ServiceBase):
 
             # 終了時間を過ぎているか14:55を過ぎたら強制成行決済を行って処理終了
             if diff_seconds < 0 or (now.hour == 14 and now.minute >= 55):
-                # 強制決済
-                self.log.info('取引時間過ぎのため強制成行決済処理開始')
-                result, order_flag = self.enforce_settlement()
-                self.log.info('取引時間過ぎのため強制成行決済処理仮終了')
-
-                # 処理にすべて成功し、追加で注文や注文キャンセルを行っていない(=もうない)場合は処理終了
-                if result == True and order_flag == False:
-                    self.log.info('強制成行決済処理終了 対象なし')
-                    break
-                else:
-                    # 10秒待機してから再チェック
-                    time.sleep(10)
-                    self.log.info('取引時間過ぎのため強制成行決済処理最終チェック開始')
-                    result, order_flag = self.enforce_settlement()
-                    self.log.info('取引時間過ぎのため強制成行決済処理最終チェック開始')
-                    if result == True and order_flag == False:
-                        self.log.info('全強制決済処理正常終了')
-                        break
-                    else:
-                        self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
-                        break
+                self.enforce_management(trade_type = '取引全体終了設定時間越え')
+                break
 
             # 板情報取得
             result, board_info = self.api.info.board(stock_code = self.stock_code, market_code = self.market_code)
@@ -471,6 +469,7 @@ class Trade(ServiceBase):
 
         # スキャルピングを行う時間
         self.start_time = config.START_TIME
+        self.pm_end = config.AM_END_TIME
         self.end_time = config.END_TIME
 
         # 買い注文時に現在値の何pip数下に注文を入れるか
@@ -738,6 +737,37 @@ class Trade(ServiceBase):
         self.log.info('強制成行決済処理終了')
 
         return True, order_flag
+
+    def enforce_management(self, trade_type, trade_password = None):
+        '''
+        強制成行決済処理の呼び出しや結果に応じた再呼び出し/ログ出力を行う
+
+        Args:
+            trade_type(str): どこ経由の強制決済か ログ出力に使用
+            trade_password(str): 取引パスワード
+
+        '''
+        # 強制決済
+        self.log.info(f'{trade_type}強制成行決済処理開始')
+        result, order_flag = self.enforce_settlement(trade_password)
+        self.log.info(f'{trade_type}強制成行決済処理仮終了')
+
+        # 処理にすべて成功し、追加で注文や注文キャンセルを行っていない(=もうない)場合は処理終了
+        if result == True and order_flag == False:
+            self.log.info(f'{trade_type}強制成行決済処理終了 対象なし')
+            return
+        else:
+            # 5秒待機してから再チェック
+            time.sleep(5)
+            self.log.info(f'{trade_type}強制成行決済処理最終チェック開始')
+            result, order_flag = self.enforce_settlement(trade_password)
+            self.log.info(f'{trade_type}強制成行決済処理最終チェック開始')
+            if result == True and order_flag == False:
+                self.log.info(f'{trade_type}全強制決済処理正常終了')
+                return
+            else:
+                self.log.error('一部決済処理がエラー/すり抜けで残ったままになっている可能性があります')
+                return
 
     def yutai_settlement(self, trade_password):
         '''
