@@ -49,7 +49,7 @@ class StockPrice():
             return False
 
         for limit, range_value in price_ranges[stock_type]:
-            if price <= limit:
+            if price + 0.1 <= limit:
                 return range_value
 
         return False
@@ -66,9 +66,13 @@ class StockPrice():
         Returns:
             integrity(bool): 整合性が取れているか 呼値10円なのに価格差15円とかになってないか
             board_num(int): 最良[売値/買値]価格間の間の板の枚数
-                ※指定価格の板はカウントしない
+                ※指定価格の板はカウントしない 同一価格が指定された場合は-1を返す
 
         '''
+        # 同価格チェック
+        if upper_price == lower_price:
+            return True, -1
+
         # 間に挟まる板の数をカウント
         board_num = -1
 
