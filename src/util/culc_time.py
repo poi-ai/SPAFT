@@ -9,6 +9,7 @@ class CulcTime():
 
     def __init__(self, log):
         self.log = log
+        self.ntp_server = 1
 
     def exchange_date(self):
         '''
@@ -344,18 +345,36 @@ class CulcTime():
 
         # 正確な時刻が欲しい場合のみ
         if accurate:
-            result, now = self.ntp(server_id = 1)
+            result, now = self.ntp(server_id = self.ntp_server)
+            self.server_id_management()
             if result == True:
                 return now
             self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
 
-            result, now = self.ntp(server_id = 2)
+            result, now = self.ntp(server_id = self.ntp_server)
+            self.server_id_management()
             if result == True:
                 return now
             self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
 
-        # どちらからも取れなかった場合か正確な時刻が要求されていない場合はdatetimeから取得
+            result, now = self.ntp(server_id = self.ntp_server)
+            self.server_id_management()
+            if result == True:
+                return now
+            self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+
+        # どのNTPサーバーからも取れなかった場合か正確な時刻が要求されていない場合はdatetimeから取得
         return datetime.now()
+
+    def server_id_management(self):
+        '''インスタンス変数のサーバーIDの管理を行う'''
+        if self.ntp_server == 1:
+            self.ntp_server = 2
+        elif self.ntp_server == 2:
+            self.ntp_server = 3
+        elif self.ntp_server == 3:
+            self.ntp_server = 1
+        return
 
     def wait_time(self, hour, minute, second = None):
         '''
@@ -414,6 +433,8 @@ class CulcTime():
             server = 'ntp.jst.mfeed.ad.jp' # stratum2
         elif server_id == 2:
             server = 'time.cloudflare.com' # stratum3
+        elif server_id == 3:
+            server = 'time.aws.com' # stratum4
         else:
             return False, 'サーバーID不正'
 
