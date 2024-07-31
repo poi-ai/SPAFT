@@ -7,6 +7,7 @@ from .api_process import Api_Process
 from .board import Board
 from .buying_power import Buying_Power
 from .errors import Errors
+from .holds import Holds
 from .listed import Listed
 from .orders import Orders
 
@@ -38,6 +39,7 @@ class Db():
         self.board = Board(log, conn, dict_return)
         self.buying_power = Buying_Power(log, conn, dict_return)
         self.errors = Errors(log, conn, dict_return)
+        self.holds = Holds(log, conn, dict_return)
         self.listed = Listed(log, conn, dict_return)
         self.orders = Orders(log, conn, dict_return)
 
