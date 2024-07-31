@@ -642,6 +642,7 @@ class Trade(ServiceBase):
                                     exchange = order['Exchange'],              # 市場コード
                                     side = 1,                                  # 売買区分 1: 売り注文
                                     cash_margin = 3,                           # 信用区分 3: 返済
+                                    margin_trade_type = 3,                     # 信用取引区分 3: 一般信用(デイトレ)
                                     deliv_type = 2,                            # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
                                     account_type = 4,                          # 口座種別 4: 特定口座
                                     qty = order['OrderQty'] - order['CumQty'], # 注文株数 (返済注文での注文株数-約定済株数)
@@ -702,6 +703,7 @@ class Trade(ServiceBase):
                     exchange = order['Exchange'],   # 市場コード
                     side = 1,                       # 売買区分 1: 売り注文
                     cash_margin = 3,                # 信用区分 3: 返済
+                    margin_trade_type = 3,          # 信用取引区分 3: 一般信用(デイトレ)
                     deliv_type = 2,                 # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
                     account_type = 4,               # 口座種別 4: 特定口座
                     qty = qty,                      # 注文株数
@@ -1053,7 +1055,7 @@ class Trade(ServiceBase):
                             exchange = self.market_code,
                             side = 1,                      # 売買区分 1: 売
                             cash_margin = 3,               # 信用区分 3: 信用返済
-                            margin_trade_type = 3,
+                            margin_trade_type = 3,         # 信用取引区分 3: 一般信用(デイトレ)
                             deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
                             account_type = 4,              # 口座種別 4: 特定口座
                             qty = qty,                     # 注文株数
