@@ -689,6 +689,11 @@ class Trade(ServiceBase):
             if stock['MarginTradeType'] != 3:
                 order_flag = True
 
+                # 保有株数チェック
+                # 未約定時に保有株として取得される可能性があるがその場合はカラムが存在しないので弾く
+                if 'LeavesQty' not in order or 'HoldQty' not in order:
+                    continue
+
                 # 保有株数 - 注文中株数
                 qty = order['LeavesQty'] - order['HoldQty']
 
