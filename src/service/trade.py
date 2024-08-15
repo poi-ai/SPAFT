@@ -687,8 +687,6 @@ class Trade(ServiceBase):
         for stock in response:
             # デイトレ信用の場合のみ対象とする
             if stock['MarginTradeType'] != 3:
-                order_flag = True
-
                 # 保有株数チェック
                 # 未約定時に保有株として取得される可能性があるがその場合はカラムが存在しないので弾く
                 if 'LeavesQty' not in order or 'HoldQty' not in order:
@@ -699,6 +697,8 @@ class Trade(ServiceBase):
 
                 # 注文できる株数が0の場合はスキップ
                 if qty == 0: continue
+
+                order_flag = True
 
                 # 成売の決済注文を入れる
                 self.log.info('保有株成行注文処理開始')
