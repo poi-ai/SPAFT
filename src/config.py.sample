@@ -46,3 +46,6 @@ ORDER_LINE = 2
 # 利確/損切りpips数
 SECURING_BENEFIT_BORDER = 1
 LOSS_CUT_BORDER = 1
+
+# トレール幅(pip数)
+TRAIL = 3
