@@ -636,21 +636,25 @@ class Trade(ServiceBase):
 
         return True, response
 
-    def enforce_settlement(self, trade_password = None):
+    def enforce_settlement(self, trade_password = None, stock_code = None):
         '''
         保有中のデイトレ信用株の強制成行決済を行う
 
         Args:
-            trade_password(str): 取引パスワード
+            trade_password(str): 取引パスワード ※決済処理のみの場合必須
+            stock_code(str): 証券コード ※決済処理のみの場合必須
 
         Returns:
             result(bool): 実行結果
             order_flag(bool): 注文/注文キャンセルをしたか
         '''
         self.log.info('強制成行決済処理開始')
-        # 直接このメソッドを呼び出す場合は取引パスワードを持ってないのでインスタンス変数に設定する
+        # 直接このメソッドを呼び出す場合は取引パスワードと証券コードをインスタンス変数に持っていないので設定する
         if trade_password:
             self.trade_password = trade_password
+
+        if stock_code:
+            self.stock_code = stock_code
 
         # 何かしらの注文/注文キャンセルを行ったか
         order_flag = False
@@ -795,18 +799,19 @@ class Trade(ServiceBase):
 
         return True, order_flag
 
-    def enforce_management(self, trade_type, trade_password = None):
+    def enforce_management(self, trade_type, trade_password = None, stock_code = None):
         '''
         強制成行決済処理の呼び出しや結果に応じた再呼び出し/ログ出力を行う
 
         Args:
             trade_type(str): どこ経由の強制決済か ログ出力に使用
-            trade_password(str): 取引パスワード
+            trade_password(str): 取引パスワード ※決済処理のみの場合必須
+            stock_code(str): 証券コード ※決済処理の場合のみ必須
 
         '''
         # 強制決済
         self.log.info(f'{trade_type}強制成行決済処理開始')
-        result, order_flag = self.enforce_settlement(trade_password)
+        result, order_flag = self.enforce_settlement(trade_password = trade_password, stock_code = stock_code)
         self.log.info(f'{trade_type}強制成行決済処理仮終了')
 
         # 処理にすべて成功し、追加で注文や注文キャンセルを行っていない(=もうない)場合は処理終了
@@ -817,7 +822,7 @@ class Trade(ServiceBase):
             # 5秒待機してから再チェック
             time.sleep(5)
             self.log.info(f'{trade_type}強制成行決済処理最終チェック開始')
-            result, order_flag = self.enforce_settlement(trade_password)
+            result, order_flag = self.enforce_settlement(trade_password = trade_password, stock_code = stock_code)
             self.log.info(f'{trade_type}強制成行決済処理最終チェック開始')
             if result == True and order_flag == False:
                 self.log.info(f'{trade_type}全強制決済処理正常終了')
