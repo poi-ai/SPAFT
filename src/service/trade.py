@@ -1141,3 +1141,26 @@ class Trade(ServiceBase):
 
         self.log.info(f'損切り売り注文処理成功 注文価格: {order_price}')
         return True
+
+    def direct_order(self, order_info):
+        '''
+        既に設定済の注文情報パラメータから注文リクエストを送信する
+
+        Args:
+            order_info(dict): 注文情報
+
+        Returns:
+            bool: 実行結果
+            response(dict): レスポンス
+
+        '''
+
+        # 注文APIへリクエストを投げる
+        result, response = self.api.order.stock(order_info = order_info)
+
+        if result == False:
+            self.log.error(f'直接注文処理でエラー\n{response}')
+            return False, response
+
+        self.log.info('直接注文処理成功')
+        return True, response
