@@ -1,4 +1,4 @@
-import sys
+import config
 from base import Base
 
 class Yutai(Base):
@@ -8,7 +8,7 @@ class Yutai(Base):
 
     def main(self):
         # メイン処理 TODO 引数にパスワードを入れろ
-        self.service.trade.yutai_settlement()
+        self.service.trade.yutai_settlement(config.TRADE_PASSWORD)
 
         return
 

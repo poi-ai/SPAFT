@@ -118,15 +118,16 @@ class Trade(ServiceBase):
         self.stock_info['lower_limit'] = stock_info['LowerLimit']
         self.stock_info['yobine_group'] = stock_info['PriceRangeGroup']
 
-        # 今日の制限値幅で呼値が変わるか
-        upper_yobine = self.util.stock_price.get_price_range(self.stock_info['yobine_group'], self.stock_info['upper_limit'])
-        lower_yobine = self.util.stock_price.get_price_range(self.stock_info['yobine_group'], self.stock_info['lower_limit'])
+        # 株価計算用クラスのインスタンス変数にも呼値グループを設定
+        self.util.stock_price.set_yobine_group(stock_info['PriceRangeGroup'])
 
-        # 変わらないなら取引ではそのまま呼値を使えるようにする
-        if upper_yobine == lower_yobine:
-            self.stock_info['yobine'] = upper_yobine
-        else:
-            self.stock_info['yobine'] = -1
+        # 注文可能な株価をリスト化
+        result, error_message = self.util.stock_price.set_yobine_list(stock_info['lower_limit'], stock_info['upper_limit'], stock_info['PriceRangeGroup'])
+        if result == False:
+            self.log.error(f'注文可能な株価リスト作成処理でエラー\n{error_message}')
+            return False
+
+        # TODO 注文可能株価リストのインスタンス変数から取得するように変更
 
         # 余力 < ストップ高での1単元必要額
         self.log.info('余力チェック開始')
@@ -835,6 +836,9 @@ class Trade(ServiceBase):
         '''
         優待銘柄売却用に信用空売りの成行決済注文を行う
 
+        Args:
+            trade_password(str): 取引パスワード(≠APIパスワード)
+
         コマンドライン引数:
             sys.argv[2]: 必須。決済対象の証券コード
             sys.argv[3]: 任意。決済株数 ※デフォルト 100
@@ -856,7 +860,7 @@ class Trade(ServiceBase):
         self.log.info(f'信用空売り決済処理[優待用]のAPIリクエスト送信処理開始 証券コード: {stock_code}')
 
         order_info = {
-            'Password': trade_password,    # TODO ここはKabuStationではなくカブコムの取引パスワード
+            'Password': trade_password,    # ここはKabuStationではなくカブコムの取引パスワード
             'Symbol': str(stock_code),     # 証券コード
             'Exchange': 1,                 # 証券所   1: 東証 (3: 名証、5: 福証、6: 札証)
             'SecurityType': 1,             # 商品種別 1: 株式 のみ指定可
