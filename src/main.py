@@ -16,7 +16,8 @@ class Main(Base):
         # 成行強制決済のみを行う場合
         if config.RECOVERY_SETTLEMENT:
             self.logic.enforce_management(trade_type = '単一',
-                                          trade_password = config.TRADE_PASSWORD)
+                                          trade_password = config.TRADE_PASSWORD,
+                                          stock_code = config.STOCK_CODE)
             return True
 
         # トレード開始前の事前準備/チェック
