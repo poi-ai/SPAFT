@@ -278,11 +278,10 @@ class Trade(ServiceBase):
             hold_flag = False
             order_flag = False
 
-            # 板情報より購入価格がいくら以下だと損切りにするか TODO 呼値が変わると狂うのでそのうち直す
-            result, decent_cut_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                                 stock_price = board_detail_info['sell_price'],
-                                                                                 pips = self.loss_cut,
-                                                                                 updown = 1)
+            # 板情報より購入価格がいくら以下だと損切りにするか
+            result, decent_cut_price = self.util.stock_price.get_updown_price(stock_price = board_detail_info['sell_price'],
+                                                                              pips = self.loss_cut,
+                                                                              updown = 1)
 
             if result == False:
                 self.log.error(decent_cut_price)
@@ -317,31 +316,27 @@ class Trade(ServiceBase):
 
 
                             # 利確価格を計算する
-                            result, securing_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                                        stock_price = hold_stock['Price'], # 購入価格
-                                                                                        pips = self.securing_benefit, # 利確pips
-                                                                                        updown = 1)
+                            result, securing_price = self.util.stock_price.get_updown_price(stock_price = hold_stock['Price'], # 購入価格
+                                                                                            pips = self.securing_benefit, # 利確pips
+                                                                                            updown = 1)
                             # 利確価格+1pipを計算する
-                            result, over_securing_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                                        stock_price = hold_stock['Price'], # 購入価格
-                                                                                        pips = self.securing_benefit + 1, # 利確pips+ 1
-                                                                                        updown = 1)
+                            result, over_securing_price = self.util.stock_price.get_updown_price(stock_price = hold_stock['Price'], # 購入価格
+                                                                                                 pips = self.securing_benefit + 1, # 利確pips+ 1
+                                                                                                 updown = 1)
 
                             # 利確価格+1pipsを超えていたら逆指値価格更新
                             if board_detail_info['buy_price'] > over_securing_price:
                                 # 利確価格+トレール幅の価格の取得
-                                result, over_trail_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                                        stock_price = securing_price, # 利確価格
-                                                                                        pips = self.trail, # トレールpips
-                                                                                        updown = 1)
+                                result, over_trail_price = self.util.stock_price.get_updown_price(stock_price = securing_price, # 利確価格
+                                                                                                  pips = self.trail, # トレールpips
+                                                                                                  updown = 1)
 
                                 # 利確価格+トレール幅を超えているか
                                 if board_detail_info['buy_price'] >= over_trail_price:
                                     # 現在価格からトレール幅の下の価格を計算
-                                    result, trail_down_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                                        stock_price = board_detail_info['buy_price'], # 現在の最良購入価格
-                                                                                        pips = self.trail, # トレールpips
-                                                                                        updown = 0)
+                                    result, trail_down_price = self.util.stock_price.get_updown_price(stock_price = board_detail_info['buy_price'], # 現在の最良購入価格
+                                                                                                      pips = self.trail, # トレールpips
+                                                                                                      updown = 0)
 
                                     # 現在の利確ラインを超えていたら更新
                                     if self.securing < trail_down_price:
@@ -355,8 +350,7 @@ class Trade(ServiceBase):
                                         self.securing = securing_price
 
             # 板情報からいくら未満の買注文の場合訂正対象になるか
-            result, decent_buy_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                              stock_price = board_detail_info['buy_price'],
+            result, decent_buy_price = self.util.stock_price.get_updown_price(stock_price = board_detail_info['buy_price'],
                                                                               pips = self.order_line,
                                                                               updown = 0)
             if result == False:
@@ -1005,8 +999,7 @@ class Trade(ServiceBase):
         self.log.info(f'買い注文処理開始 基準価格: {stock_price}円')
 
         # Xpip下の価格を計算する
-        result, order_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                     stock_price = stock_price,
+        result, order_price = self.util.stock_price.get_updown_price(stock_price = stock_price,
                                                                      pips = self.order_line,
                                                                      updown = 0)
         if result == False:
@@ -1016,21 +1009,20 @@ class Trade(ServiceBase):
         self.log.info(f'注文価格: {order_price}')
 
         # 実際に投げる注文のフォーマット(POSTパラメータ)を作成する
-        result, order_info = self.util.mold.create_order_request(
-                password = self.trade_password,     # 取引パスワード
-                stock_code = self.stock_code,       # 証券コード
-                exchange = self.market_code,        # 市場コード
-                side = 2,                           # 売買区分 2: 買い注文
-                cash_margin = 2,                    # 信用区分 2: 新規
-                margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
-                deliv_type = 0,                     # 受渡区分 0: 指定なし
-                account_type = 4,                   # 口座種別 4: 特定口座
-                qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
-                front_order_type = 20,              # 執行条件 20: 指値
-                price = order_price,                # 執行価格 買い板の最高価格-Xpips
-                expire_day = 0,                     # 注文有効期限 0: 当日中
-                fund_type = '11'                    # 資産区分 '11': 信用取引
-        )
+        result, order_info = self.util.mold.create_order_request(password = self.trade_password,     # 取引パスワード
+                                                                 stock_code = self.stock_code,       # 証券コード
+                                                                 exchange = self.market_code,        # 市場コード
+                                                                 side = 2,                           # 売買区分 2: 買い注文
+                                                                 cash_margin = 2,                    # 信用区分 2: 新規
+                                                                 margin_trade_type = 3,              # 信用取引区分 3: 一般信用(デイトレ)
+                                                                 deliv_type = 0,                     # 受渡区分 0: 指定なし
+                                                                 account_type = 4,                   # 口座種別 4: 特定口座
+                                                                 qty = self.stock_info['unit_num'],  # 注文株数 1単元の株数
+                                                                 front_order_type = 20,              # 執行条件 20: 指値
+                                                                 price = order_price,                # 執行価格 買い板の最高価格-Xpips
+                                                                 expire_day = 0,                     # 注文有効期限 0: 当日中
+                                                                 fund_type = '11'                    # 資産区分 '11': 信用取引
+                                                                )
 
         if result == False:
             self.log.error(response)
@@ -1062,10 +1054,9 @@ class Trade(ServiceBase):
 
         if asis == False:
             # 利確価格(Xpips上)を計算する
-            result, order_price = self.util.stock_price.get_updown_price(yobine_group = self.stock_info['yobine_group'], # 呼値グループ
-                                                                        stock_price = stock_price,
-                                                                        pips = self.securing_benefit,
-                                                                        updown = 1)
+            result, order_price = self.util.stock_price.get_updown_price(stock_price = stock_price,
+                                                                         pips = self.securing_benefit,
+                                                                         updown = 1)
         else:
             result, order_price = True, stock_price
 
@@ -1076,21 +1067,20 @@ class Trade(ServiceBase):
         self.log.info(f'利確価格: {order_price}')
 
         # 売り注文のフォーマットを作る
-        result, order_info = self.util.mold.create_order_request(
-                            password = self.trade_password,
-                            stock_code = self.stock_code,
-                            exchange = self.market_code,
-                            side = 1,                      # 売買区分 1: 売
-                            cash_margin = 3,               # 信用区分 3: 信用返済
-                            margin_trade_type = 3,         # 信用取引区分 3: 一般信用(デイトレ)
-                            deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
-                            account_type = 4,              # 口座種別 4: 特定口座
-                            qty = qty,                     # 注文株数
-                            front_order_type = 20,         # 執行条件 20: 指値
-                            price = order_price,           # 執行価格 利確価格
-                            expire_day = 0,                # 注文有効期限 0: 当日中
-                            close_position_order = 0      # 決済順序 何選んでも変わらない
-        )
+        result, order_info = self.util.mold.create_order_request(password = self.trade_password,
+                                                                 stock_code = self.stock_code,
+                                                                 exchange = self.market_code,
+                                                                 side = 1,                      # 売買区分 1: 売
+                                                                 cash_margin = 3,               # 信用区分 3: 信用返済
+                                                                 margin_trade_type = 3,         # 信用取引区分 3: 一般信用(デイトレ)
+                                                                 deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
+                                                                 account_type = 4,              # 口座種別 4: 特定口座
+                                                                 qty = qty,                     # 注文株数
+                                                                 front_order_type = 20,         # 執行条件 20: 指値
+                                                                 price = order_price,           # 執行価格 利確価格
+                                                                 expire_day = 0,                # 注文有効期限 0: 当日中
+                                                                 close_position_order = 0       # 決済順序 何選んでも変わらない
+                                                                )
 
         if result == False:
             self.log.error(order_info)
@@ -1121,21 +1111,20 @@ class Trade(ServiceBase):
         self.log.info(f'損切り売り注文処理開始 損切り価格: {order_price}')
 
         # 売り注文のフォーマットを作る
-        result, order_info = self.util.mold.create_order_request(
-                            password = self.trade_password,
-                            stock_code = self.stock_code,
-                            exchange = self.market_code,
-                            side = 1,                      # 売買区分 1: 売
-                            cash_margin = 3,               # 信用区分 3: 信用返済
-                            margin_trade_type = 3,         # 信用取引区分 3: 一般信用(デイトレ)
-                            deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
-                            account_type = 4,              # 口座種別 4: 特定口座
-                            qty = qty,                     # 注文株数
-                            front_order_type = 20,         # 執行条件 20: 指値
-                            price = order_price,           # 執行価格 利確価格
-                            expire_day = 0,                # 注文有効期限 0: 当日中
-                            close_position_order = 0       # 決済順序 何選んでも変わらない
-        )
+        result, order_info = self.util.mold.create_order_request(password = self.trade_password,
+                                                                 stock_code = self.stock_code,
+                                                                 exchange = self.market_code,
+                                                                 side = 1,                      # 売買区分 1: 売
+                                                                 cash_margin = 3,               # 信用区分 3: 信用返済
+                                                                 margin_trade_type = 3,         # 信用取引区分 3: 一般信用(デイトレ)
+                                                                 deliv_type = 2,                # 資金受渡区分 2: お預かり金(0: 指定なし だとエラー)
+                                                                 account_type = 4,              # 口座種別 4: 特定口座
+                                                                 qty = qty,                     # 注文株数
+                                                                 front_order_type = 20,         # 執行条件 20: 指値
+                                                                 price = order_price,           # 執行価格 利確価格
+                                                                 expire_day = 0,                # 注文有効期限 0: 当日中
+                                                                 close_position_order = 0       # 決済順序 何選んでも変わらない
+                                                                )
 
         if result == False:
             self.log.error(order_info)

@@ -156,82 +156,45 @@ class StockPrice():
                 error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、呼値: {sell_yobine}円、最高価格: {upper_price}円、最低価格: {lower_price}円'
                 return False, error_message
 
-    def get_updown_price(self, yobine_group, stock_price, pips, updown):
+    def get_updown_price(self, stock_price, pips, updown, yobine_group = None):
         '''
         指定した価格のXpips上/下の価格を返す
 
         Args:
-            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
             stock_price(float): 基準価格
             pips(int): 何pips上/下の価格を返すか
             updown(int): 上を返すか下を返すか
                 1: 上、0: 下
+            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
 
         Returns:
             result(bool): 不整合がないか
             stock_price: Xpips上/下の価格
-
-        MEMO:
-            思ったけどこれトレード開始前のinitに入れて値幅内全株価リストに持たせとくのもありだな
         '''
-        # 計算用変数
-        culc_stock_price = stock_price
+        # 引数に指定がなければインスタンス変数から取得
+        if yobine_group == None:
+            yobine_group = self.yobine_group
 
-        # 1pipごと上げ下げして計算する
-        for pip in range(pips):
-            # 呼値の取得
-            yobine = self.get_price_range(yobine_group, culc_stock_price)
+        # 注文可能価格のリストから一致する要素番号を取得
+        try:
+            index = yobine_group.index(stock_price)
+        except ValueError:
+            return False, f'基準価格が注文可能価格内に見つかりません。基準価格: {stock_price}、注文可能価格: {yobine_group}'
 
-            # 1pips上/下の価格に書き換え
-            if updown == 1:
-                culc_stock_price += yobine
-            else:
-                culc_stock_price -= yobine
-
-            # 丸め誤差修正
-            # 呼値が小数の場合は小数点下2桁で四捨五入
-            if yobine < 1:
-                culc_stock_price = round(culc_stock_price, 1)
-            else:
-                culc_stock_price = round(culc_stock_price, 0)
-
-        # 上の計算の場合はこのまま返せる
         if updown == 1:
-            return True, culc_stock_price
-
-        # 下の場合は再計算が必要 ここでの呼値は上に何円空くか で下に何円空くかは判定できない
-        # 基本的には価格は高くなるほど呼値も広がるので、上の呼値のpips下げれば包含はできている
-        # また、呼値の上がり方は整数倍なのでありえない株価になることもない
-        price_list = [culc_stock_price]
-
-        while True:
-            # 呼値の取得
-            yobine = self.get_price_range(yobine_group, culc_stock_price)
-
-            # 呼値を足していき、リストに追加する
-            culc_stock_price += yobine
-
-            # 丸め誤差修正
-            culc_stock_price = self.polish_price(culc_stock_price, yobine)
-
-            price_list.append(culc_stock_price)
-
-            # 基準価格を超えたら終了
-            if culc_stock_price > stock_price:
-                break
-
-        # 株価を列挙したリストから検索する
-        # リストの中に基準価格が存在するかチェック 存在しないことはないはずだが一応
-        if stock_price in price_list:
-            index = price_list.index(stock_price)
-            # リストの要素数が足りなくてpips個下の株価が取得できないかのチェック ここもありえないはず
-            if index >= pips:
-                return True, price_list[index - pips]
-            else:
-                return False, f'リストの要素数が足りません\n呼値グループ: {yobine_group}/基準価格: {stock_price}/pips {pips}/updown: {updown}'
-        # リストに基準価格がない場合
+            new_index = index + pips
         else:
-            return False, f'リストに基準価額が存在しません\n呼値グループ: {yobine_group}/基準価格: {stock_price}/pips {pips}/updown: {updown}'
+            new_index = index - pips
+
+        # 気配の上限を超える場合は上限を返す TODO 引数で制御できるように
+        if new_index >= len(yobine_group):
+            return True, yobine_group[-1]
+
+        # 気配の下限を下回る場合は下限を返すように TODO 引数で制御できるように
+        if new_index < 0:
+            return True, yobine_group[0]
+
+        return True, yobine_group[new_index]
 
     def polish_price(self, price, yobine):
         '''
