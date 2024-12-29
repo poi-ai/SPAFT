@@ -7,7 +7,7 @@ class Main(Base):
         # 初期設定
         super().__init__()
 
-        # 取引関連の処理のサービスクラスをインスタンス変数に
+        # 取引関連の処理のサービスクラス
         self.logic = self.service.trade
 
     def main(self):
