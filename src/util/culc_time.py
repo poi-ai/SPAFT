@@ -408,18 +408,43 @@ class CulcTime():
         self.log.info('待機終了')
         return True
 
-    def wait_time_next_second(self):
+    def wait_time_next_second(self, accurate = True):
         '''
         次の秒まで待機する
 
+        Args:
+            accurate(bool): 正確な時刻が欲しいか
+
         '''
         # 現在の時刻を取得する
-        now = self.get_now()
+        now = self.get_now(accurate)
 
         # 次の秒の00(≒1秒後)
         next_minute = (now + timedelta(seconds = 1)).replace(microsecond = 0)
 
-        # 待機する時間(マイクロ秒)を計る
+        # 待機する時間(マイクロ秒単位)を計る
+        wait_seconds = (next_minute - now).total_seconds()
+
+        self.log.info(f'{wait_seconds}秒待機します')
+        time.sleep(wait_seconds)
+        self.log.info('待機終了')
+        return True
+
+    def wait_time_next_minute(self, accurate = True):
+        '''
+        次の分まで待機する
+
+        Args:
+            accurate(bool): 正確な時刻が欲しいか
+
+        '''
+        # 現在の時刻を取得する
+        now = self.get_now(accurate)
+
+        # 次の分の00秒(≒1分後)
+        next_minute = (now + timedelta(minutes = 1)).replace(second = 0, microsecond = 0)
+
+        # 待機する時間(マイクロ秒単位)を計る
         wait_seconds = (next_minute - now).total_seconds()
 
         self.log.info(f'{wait_seconds}秒待機します')
