@@ -41,7 +41,7 @@ class FileManager:
             result(bool): 実行結果
             error_message(str): エラーメッセージ
         '''
-        self.log.info(f'CSVファイル書き込み処理開始 ファイルパス: {file_path}')
+        self.log.info(f'CSVファイル書き込み処理開始')
 
         try:
             with open(file_path, 'a' if add_mode == True else 'w', newline = '', encoding = 'utf-8') as f:
@@ -56,5 +56,5 @@ class FileManager:
             self.log.error(f'CSVファイル書き込みでエラー\nファイルパス: {file_path}\n{e}')
             return False, e
 
-        self.log.info(f'CSVファイル書き込み処理終了 ファイルパス: {file_path}')
+        self.log.info(f'CSVファイル書き込み処理終了')
         return True, None

@@ -61,6 +61,9 @@ class Main(Base):
                 if result == False:
                     continue
 
+                # 取得した年月日時分を設定
+                board_info['get_time'] = self.util.culc_time.get_now(accurate = False)
+
                 # DB記録モードの場合
                 if config.BOARD_RECORD_DB == 1:
                     # 板情報テーブルに合わせたフォーマットに変換
@@ -72,13 +75,18 @@ class Main(Base):
                             continue
                 # CSV記録モードの場合
                 else:
+                    # 板情報を成形する
+                    board_info_dict = self.util.mold.response_to_csv(board_info)
+                    if board_info_dict == False:
+                        continue
+
                     # 板情報をCSVに記録
-                    result = self.service.record.record_board_csv(board_info)
+                    result = self.service.record.record_board_csv(board_info_dict)
                     if result == False:
                         continue
 
-                # レート制限回避のため0.05秒待機 MEMO レート制限は最大10件/秒 API接続で0.05秒はかかるのでこれ以上の間隔を空ける必要はない
-                time.sleep(0.05)
+                # レート制限回避のため0.1秒待機 MEMO レート制限は最大10件/秒
+                time.sleep(0.1)
 
             # 大引け後やデバッグモード終了時刻を過ぎていたら処理終了
             if finish_flag: break
