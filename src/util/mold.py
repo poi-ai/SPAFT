@@ -1,4 +1,5 @@
 import traceback
+from datetime import datetime
 
 class Mold():
     '''DBやAPIに使うためのデータ整形を行う'''
@@ -79,9 +80,95 @@ class Mold():
                 board_table_info['latest_transaction_time'] = current_price_time.replace('+09:00', '')
         except Exception as e:
             self.log.error(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
-            self.log.info(board_info)
+            self.log.error(board_info)
             return False
         return board_table_info
+
+    def response_to_csv(self, board_info):
+        '''
+        板情報取得APIで受け取ったレスポンスをCSVに記録する形に変換する
+
+        Args:
+            board_info(dict): 板情報
+
+        Returns:
+            board_info_dict(dict): 変換後の板情報
+            ※エラー時はFalseを返す
+        '''
+
+        try:
+            board_info_dict = {
+                'stock_code': board_info['Symbol'], # 証券コード
+                'current_price': board_info['CurrentPrice'], # 現在株価
+                'current_price_change_status': board_info['CurrentPriceChangeStatus'], # 前の歩み値からの変化
+                'current_price_status': board_info['CurrentPriceStatus'], # 現在株価のステータス
+                'previous_close': board_info['PreviousClose'], # 前日終値
+                'change_previous_close': board_info['ChangePreviousClose'], # 前日比
+                'change_previous_close_per': board_info['ChangePreviousClosePer'], # 前日比(%)
+                'opening_price': board_info['OpeningPrice'], # 始値
+                'high_price': board_info['HighPrice'], # 高値
+                'high_price_time': self.format_datetime(board_info['HighPriceTime']), # 高値時刻
+                'low_price': board_info['LowPrice'], # 安値
+                'low_price_time': self.format_datetime(board_info['LowPriceTime']), # 安値時刻
+                'trading_volume': board_info['TradingVolume'], # 出来高
+                'VWAP': board_info['VWAP'], # VWAP(売買高加重平均価格)
+                'bid_sign': board_info['Sell1']['Sign'], # 売気配フラグ
+                'market_order_sell_qty': board_info['MarketOrderSellQty'], # 売成行数量
+                'bid_price_1': board_info['Sell1']['Price'], # 売気配価格1(最良気配)
+                'bid_qty_1': board_info['Sell1']['Qty'], # 売気配数量1(最良気配)
+                'bid_price_2': board_info['Sell2']['Price'], # 売気配価格2(2番目に安い価格)
+                'bid_qty_2': board_info['Sell2']['Qty'], # 売気配数量2(2番目に安い価格)
+                'bid_price_3': board_info['Sell3']['Price'], # 売気配価格3(3番目に安い価格)
+                'bid_qty_3': board_info['Sell3']['Qty'], # 売気配数量3(3番目に安い価格)
+                'bid_price_4': board_info['Sell4']['Price'], # 売気配価格4(4番目に安い価格)
+                'bid_qty_4': board_info['Sell4']['Qty'], # 売気配数量4(4番目に安い価格)
+                'bid_price_5': board_info['Sell5']['Price'], # 売気配価格5(5番目に安い価格)
+                'bid_qty_5': board_info['Sell5']['Qty'], # 売気配数量5(5番目に安い価格)
+                'bid_price_6': board_info['Sell6']['Price'], # 売気配価格6(6番目に安い価格)
+                'bid_qty_6': board_info['Sell6']['Qty'], # 売気配数量6(6番目に安い価格)
+                'bid_price_7': board_info['Sell7']['Price'], # 売気配価格7(7番目に安い価格)
+                'bid_qty_7': board_info['Sell7']['Qty'], # 売気配数量7(7番目に安い価格)
+                'bid_price_8': board_info['Sell8']['Price'], # 売気配価格8(8番目に安い価格)
+                'bid_qty_8': board_info['Sell8']['Qty'], # 売気配数量8(8番目に安い価格)
+                'bid_price_9': board_info['Sell9']['Price'], # 売気配価格9(9番目に安い価格)
+                'bid_qty_9': board_info['Sell9']['Qty'], # 売気配数量9(9番目に安い価格)
+                'bid_price_10': board_info['Sell10']['Price'], # 売気配価格10(10番目に安い価格)
+                'bid_qty_10': board_info['Sell10']['Qty'], # 売気配数量10(10番目に安い価格)
+                'orver_sell_qty': board_info['OverSellQty'], # OVER売気配数量
+                'ask_sign': board_info['Buy1']['Sign'], # 買気配フラグ
+                'market_order_buy_qty': board_info['MarketOrderBuyQty'], # 買成行数量
+                'ask_price_1': board_info['Buy1']['Price'], # 買気配価格1(最良気配)
+                'ask_qty_1': board_info['Buy1']['Qty'], # 買気配数量1(最良気配)
+                'ask_price_2': board_info['Buy2']['Price'], # 買気配価格2(2番目に安い価格)
+                'ask_qty_2': board_info['Buy2']['Qty'], # 買気配数量2(2番目に安い価格)
+                'ask_price_3': board_info['Buy3']['Price'], # 買気配価格3(3番目に安い価格)
+                'ask_qty_3': board_info['Buy3']['Qty'], # 買気配数量3(3番目に安い価格)
+                'ask_price_4': board_info['Buy4']['Price'], # 買気配価格4(4番目に安い価格)
+                'ask_qty_4': board_info['Buy4']['Qty'], # 買気配数量4(4番目に安い価格)
+                'ask_price_5': board_info['Buy5']['Price'], # 買気配価格5(5番目に安い価格)
+                'ask_qty_5': board_info['Buy5']['Qty'], # 買気配数量5(5番目に安い価格)
+                'ask_price_6': board_info['Buy6']['Price'], # 買気配価格6(6番目に安い価格)
+                'ask_qty_6': board_info['Buy6']['Qty'], # 買気配数量6(6番目に安い価格)
+                'ask_price_7': board_info['Buy7']['Price'], # 買気配価格7(7番目に安い価格)
+                'ask_qty_7': board_info['Buy7']['Qty'], # 買気配数量7(7番目に安い価格)
+                'ask_price_8': board_info['Buy8']['Price'], # 買気配価格8(8番目に安い価格)
+                'ask_qty_8': board_info['Buy8']['Qty'], # 買気配数量8(8番目に安い価格)
+                'ask_price_9': board_info['Buy9']['Price'], # 買気配価格9(9番目に安い価格)
+                'ask_qty_9': board_info['Buy9']['Qty'], # 買気配数量9(9番目に安い価格)
+                'ask_price_10': board_info['Buy10']['Price'], # 買気配価格10(10番目に安い価格)
+                'ask_qty_10': board_info['Buy10']['Qty'], # 買気配数量10(10番目に安い価格)
+                'under_buy_qty': board_info['UnderBuyQty'], # UNDER売気配数量
+                'get_year': board_info['get_time'].year, # 取得年
+                'get_month': board_info['get_time'].month, # 取得月
+                'get_day': board_info['get_time'].day, # 取得日
+                'get_hour': board_info['get_time'].hour, # 取得時
+                'get_minute': board_info['get_time'].minute # 取得分
+            }
+        except Exception as e:
+            self.log.error(f'板情報取得APIからCSV記録用フォーマット変換処理でエラー', e, traceback.format_exc())
+            self.log.error(board_info)
+            return False
+        return board_info_dict
 
     def create_order_request(self, password, stock_code, exchange, side, cash_margin,
             deliv_type, account_type, qty, front_order_type, price,
@@ -168,3 +255,16 @@ class Mold():
             return True, data
         except Exception as e:
             return False, f'注文APIリクエスト作成処理でエラー\n証券コード: {stock_code}\n{e}'
+
+    def format_datetime(self, datetime_str):
+        '''
+        日時文字列を整形する
+
+        Args:
+            datetime_str(str): 日時文字列
+
+        Returns:
+            str: 整形後の日時文字列
+        '''
+        dt = datetime.fromisoformat(datetime_str)
+        return dt.strftime('%Y-%m-%d %H:%M:%S')

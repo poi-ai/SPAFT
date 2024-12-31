@@ -5,6 +5,7 @@ from .common import Common
 from .mold import Mold
 from .culc_time import CulcTime
 from .stock_price import StockPrice
+from .file_manager import FileManager
 
 class Util():
     def __init__(self, log):
@@ -28,3 +29,6 @@ class Util():
 
         # 株価の計算や判定を行うクラス
         self.stock_price = StockPrice(self.log)
+
+        # ファイルの入出力を行うクラス
+        self.file_manager = FileManager(self.log)

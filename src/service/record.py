@@ -1,5 +1,5 @@
 import json
-import time
+import os
 from service_base import ServiceBase
 
 class Record(ServiceBase):
@@ -7,20 +7,31 @@ class Record(ServiceBase):
     def __init__(self, api_headers, api_url, conn):
         super().__init__(api_headers, api_url, conn)
 
-    def record_init(self):
+        # 今日の年月をyyyymm形式で取得
+        self.today_month = self.util.culc_time.get_now(accurate = False).strftime('%Y%m')
+
+    def record_init(self, target_code_list, debug = False):
         '''
         データ取得系処理を行うときの初期処理
 
+        Args:
+            target_code_list(list): 取得対象の銘柄リスト
+            debug(bool): デバッグモードか
+
         Return:
-            True: 営業日、False: 非営業日
+            bool: 判定結果(T: 営業日、F: 非営業日)
+            target_code_list(list): 取得不可能な銘柄を除いた取得対象の銘柄リスト
 
         '''
-        self.log.info('営業日判定処理開始')
-        result = self.util.culc_time.exchange_time()
-        if result == False:
-            self.log.warning('非営業日のため取得処理を行いません')
-            return False
-        self.log.info('営業日判定処理終了')
+        if debug == True:
+            self.log.info('デバッグモードのため営業日判定処理をスキップします')
+        else:
+            self.log.info('営業日判定処理開始')
+            result = self.util.culc_time.exchange_time()
+            if result == False:
+                self.log.warning('非営業日のため取得処理を行いません')
+                return False, None
+            self.log.info('営業日判定処理終了')
 
         # 51銘柄以上取得処理を行うとエラーが出るのを回避するために、取得系のロジックでは最初に全銘柄登録解除しておく
         # 参考: https://github.com/kabucom/kabusapi/issues/135
@@ -30,7 +41,15 @@ class Record(ServiceBase):
         self.unregister_all()
         self.log.info('登録済銘柄解約処理終了')
 
-        return True
+        # 取得対象の銘柄の初回データ取得は時間がかかるので先に板情報の空取得を行う
+        self.log.info('初回板情報空取得処理開始')
+        for stock_code in target_code_list[:]:
+            result, error_code = self.info_board(stock_code, market_code = 1, add_info = False)
+            if result == False and error_code == 402001:
+                target_code_list.remove(stock_code)
+        self.log.info('初回板情報空取得処理終了')
+
+        return True, target_code_list
 
     def insert_board(self, board_info):
         '''
@@ -59,7 +78,8 @@ class Record(ServiceBase):
             retry_count(int): リトライ回数
 
         Returns:
-            board_info(dict) or False: APIから取得した板情報(エラー時はFalse)
+            bool: 処理結果
+            board_info(dict) or error_code(int): APIから取得した板情報 or エラーコード
         '''
         self.log.info(f'板情報取得APIリクエスト送信処理開始 証券コード: {stock_code}')
         # APIでリクエスト送信
@@ -79,29 +99,26 @@ class Record(ServiceBase):
                     # 回帰で二度同じところに来るのはおかしいのでFalseとして返す(無限ループ回避)
                     if retry_count == 1:
                         self.log.error('無限ループに陥る可能性のあるエラーが発生しています')
-                        return False
+                        return False, -1
 
                     # 成功したら回帰で再度リクエスト送信
-                    board_info = self.info_board(self, stock_code, market_code = market_code, add_info = add_info, retry_count = 1)
+                    result, board_info = self.info_board(self, stock_code, market_code = market_code, add_info = add_info, retry_count = 1)
                     if board_info == False:
-                        return False
+                        return False, board_info
                 else:
                     return False
 
             # 指定コードの銘柄が存在しないエラー
             elif board_info == 402001:
                 self.log.error(f'指定した証券コードの板情報が存在しません 証券コード: {stock_code}')
-                return False
+                return False, 402001
             # その他のエラー
             else:
                 self.log.error(f'板情報取得APIでエラーが発生しました 証券コード: {stock_code}\n{board_info}')
-                return False
-
-        # byte型のレスポンス(板情報)をdictに変換
-        board_info = json.loads(board_info)
+                return False, board_info
 
         self.log.info(f'板情報取得APIリクエスト送信処理終了 証券コード: {stock_code}')
-        return board_info
+        return True, board_info
 
     def unregister_all(self):
         '''
@@ -118,4 +135,24 @@ class Record(ServiceBase):
             return False
 
         self.log.info('全銘柄登録解除APIへのリクエスト送信処理終了')
+        return True
+
+    def record_board_csv(self, board_info):
+        '''
+        板情報をCSVに記録する
+
+        Args:
+            board_info(dict): 板情報データ
+
+        Returns:
+            bool: 処理結果
+        '''
+        # 板情報をCSVに記録
+        self.log.info('板情報CSV出力処理開始')
+        csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'csv', f'{self.today_month}_{board_info["stock_code"]}.csv')
+        result, error_message = self.util.file_manager.write_csv(csv_path, board_info, add_mode = True)
+        if result != True:
+            self.log.error(f'板情報CSV出力処理でエラー\n{error_message}')
+            return False
+        self.log.info('板情報CSV出力処理終了')
         return True
