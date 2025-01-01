@@ -26,7 +26,9 @@ class BoardMold(ServiceBase):
                 continue
 
             # 板情報からパラメータを生成する
-            new_board_df = self.create_param(board_df)
+            result, new_board_df = self.create_param(board_df)
+            if result == False:
+                continue
 
             # CSV出力を行う
             self.write_csv(csv_path, new_board_df)
@@ -115,7 +117,8 @@ class BoardMold(ServiceBase):
             board_df(pandas.DataFrame): 板情報のリスト
 
         Returns:
-            new_board_list(pandas.DataFrame) or False: パラメータを追加した板情報のリスト
+            result(bool): 処理結果
+            new_board_list(pandas.DataFrame): パラメータを追加した板情報のリスト
         '''
         # 何分足で計算するか
         minute_list = [1, 5, 10, 15, 30]
@@ -131,15 +134,38 @@ class BoardMold(ServiceBase):
                     continue
 
                 # 単純移動平均線(SMA)を計算・追加する
-                board_df = self.util.indicator.get_sma(board_df, f'sma_{minute}minute_{num_ma}piece', num_ma, minute)
+                result, board_df = self.util.indicator.get_sma(df = board_df,
+                                                               column_name = f'sma_{minute}min_{num_ma}piece',
+                                                               window_size = num_ma,
+                                                               interval = minute)
+                if result == False:
+                    return False, None
 
                 # 指数移動平均線(EMA)を計算・追加する
-                board_df = self.util.indicator.get_ema(board_df, f'ema_{minute}_{num_ma}', num_ma, minute)
+                result, board_df = self.util.indicator.get_ema(df = board_df,
+                                                               column_name = f'ema_{minute}min_{num_ma}piece',
+                                                               window_size = num_ma,
+                                                               interval = minute)
+                if result == False:
+                    return False, None
 
                 # 加重移動平均線(WMA)を計算・追加する
-                board_df = self.util.indicator.get_wma(board_df, f'wma_{minute}_{num_ma}', num_ma, minute)
+                result, board_df = self.util.indicator.get_wma(df = board_df,
+                                                               column_name = f'wma_{minute}min_{num_ma}piece',
+                                                               window_size = num_ma,
+                                                               interval = minute)
+                if result == False:
+                    return False, None
 
-        return board_df
+                # ボリンジャーバンドを計算・追加する
+                result, board_df = self.util.indicator.get_bollinger_bands(df = board_df,
+                                                                           column_name = f'bb_{minute}min_{num_ma}piece',
+                                                                           window_size = num_ma,
+                                                                           interval = minute)
+                if result == False:
+                    return False, None
+
+        return True, board_df
 
 if __name__ == '__main__':
     bm = BoardMold()
