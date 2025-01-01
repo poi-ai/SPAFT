@@ -3,7 +3,7 @@ import json
 import time
 from base import Base
 
-class Main(Base):
+class BoardRecord(Base):
     '''板情報をDBに保存するための処理のテストコード'''
     def __init__(self):
         # 初期設定(親クラスのinit実行と、記録先に応じてDB接続を行う)
@@ -14,11 +14,13 @@ class Main(Base):
 
         # 板情報取得対象の銘柄リスト
         self.target_code_list = config.RECORD_STOCK_CODE_LIST
+
         # デバッグモードか
         self.debug = config.BOARD_RECORD_DEBUG
 
         # 営業日判定/登録済銘柄の解除/取得対象銘柄の登録
         result, self.target_code_list = self.service.record.record_init(self.target_code_list, self.debug)
+
         # 非営業日の場合
         if result == False:
             return True
@@ -88,8 +90,8 @@ class Main(Base):
                 # レート制限回避のため0.1秒待機 MEMO レート制限は最大10件/秒
                 time.sleep(0.1)
 
-            # 大引け後やデバッグモード終了時刻を過ぎていたら処理終了
-            if finish_flag: break
+            # 大引け後やデバッグモード終了時刻を過ぎ、1回のみ取得モードの場合は処理終了
+            if finish_flag or config.BOARD_RECORD_MODE == 3: break
 
             # 取得モードによって待機時間を変える
             if config.BOARD_RECORD_MODE == 1:
@@ -98,10 +100,14 @@ class Main(Base):
             elif config.BOARD_RECORD_MODE == 2:
                 # 1分ごと取得モードの場合は次の分まで待機
                 self.util.culc_time.wait_time_next_minute(False)
-            else:
-                # 1回のみ取得モードの場合は処理終了
-                return True
+
+        # CSVの成形を行う
+        result = self.service.board_mold.main()
+        if result == False:
+            return False
+
+        return True
 
 if __name__ == '__main__':
-    m = Main()
+    m = BoardRecord()
     m.main()

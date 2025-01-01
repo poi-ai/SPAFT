@@ -34,6 +34,11 @@ class ServiceBase():
         Utilクラス、Dbクラス、Apiクラスのインスタンスを生成する
         Serviceクラスから呼び出す初期処理
 
+        Args:
+            api_headers(dict) or False: APIのヘッダー情報 ※APIを使わない場合はFalse
+            api_url(str) or False: APIのURL ※APIを使わない場合はFalse
+            conn(pymysql.connections.Connection) or False: DB接続情報 ※DBを使わない場合はFalse
+
         '''
         self.log = Log()
 

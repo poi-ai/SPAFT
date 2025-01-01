@@ -8,7 +8,7 @@ class Record(ServiceBase):
         super().__init__(api_headers, api_url, conn)
 
         # 今日の年月をyyyymm形式で取得
-        self.today_month = self.util.culc_time.get_now(accurate = False).strftime('%Y%m')
+        self.today = self.util.culc_time.get_now(accurate = False).strftime('%Y%m%d')
 
     def record_init(self, target_code_list, debug = False):
         '''
@@ -149,7 +149,7 @@ class Record(ServiceBase):
         '''
         # 板情報をCSVに記録
         self.log.info('板情報CSV出力処理開始')
-        csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'csv', f'{self.today_month}_{board_info["stock_code"]}.csv')
+        csv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'csv', f'{self.today}_{board_info["stock_code"]}.csv')
         result, error_message = self.util.file_manager.write_csv(csv_path, board_info, add_mode = True)
         if result != True:
             self.log.error(f'板情報CSV出力処理でエラー\n{error_message}')

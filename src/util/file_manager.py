@@ -1,6 +1,6 @@
 import csv
 
-class FileManager:
+class FileManager():
     '''ファイルの入力・出力を行うクラス'''
     def __init__(self, log):
         self.log = log

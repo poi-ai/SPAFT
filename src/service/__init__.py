@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from .trade import Trade
 from .record import Record
 from .simulation import Simulation
+from .board_mold import BoardMold
 
 class Service():
     def __init__(self, api_headers, api_url, conn):
@@ -24,4 +25,7 @@ class Service():
 
         # DBに保存された板情報から取引のシミュレーションを行うクラス
         self.simulation = Simulation(api_headers, api_url, conn)
+
+        # 板情報CSVを成形するクラス
+        self.board_mold = BoardMold()
 
