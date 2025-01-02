@@ -39,7 +39,7 @@ class Indicator():
             # SMAの計算・カラムを追加
             df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).mean().round(1)
 
-            # 初めの方の要素はNaNになるので-1で埋める
+            # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
@@ -80,7 +80,7 @@ class Indicator():
             # EMAの計算・カラムを追加
             df_resampled[column_name] = df['current_price'].ewm(span = window_size).mean().round(1)
 
-            # 初めの方の要素はNaNになるので-1で埋める
+            # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
@@ -122,7 +122,7 @@ class Indicator():
             weights = np.arange(1, window_size + 1)
             df_resampled[column_name] = df_resampled['current_price'].rolling(window = window_size).apply(lambda x: np.dot(x, weights) / weights.sum(), raw = True).round(1)
 
-            # 初めの方の要素はNaNになるので-1で埋める
+            # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
@@ -177,12 +177,74 @@ class Indicator():
                 df[f'{column_name}_upper_{sigma}_alpha'].fillna(method='ffill', inplace=True)
                 df[f'{column_name}_lower_{sigma}_alpha'].fillna(method='ffill', inplace=True)
 
-                # データ不足でNaNになっている行は-1で埋める
+                # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
                 df[f'{column_name}_upper_{sigma}_alpha'].fillna(-1, inplace=True)
                 df[f'{column_name}_lower_{sigma}_alpha'].fillna(-1, inplace=True)
 
         except Exception as e:
             self.log.error(f'ボリンジャーバンド計算でエラー\n{str(e)}\n{traceback.format_exc()}')
+            return False, None
+
+        return True, df
+
+    def get_rsi(self, df, column_name,  window_size, interval):
+        '''
+        相対力指数(RSI)を取得する
+
+        Args:
+            df(DataFrame): 板情報のデータ
+                ※current_priceカラムが存在かつデータが時系列で連続していること
+            column_name(str): RSIを設定するカラム名
+            window_size(int): RSIを計算する際のウィンドウ幅
+            interval(int): 何分足として計算するか
+
+        Returns:
+            bool: 実行結果
+            df(DataFrame): RSIを追加したDataFrame
+
+        '''
+        try:
+            # インターバルに応じてデータをリサンプリング
+            if interval > 1:
+                df_resampled = df.iloc[::interval, :].copy()
+            else:
+                df_resampled = df.copy()
+
+            # 前日との差分を計算
+            df_resampled['diff'] = df_resampled['current_price'].diff()
+
+            # 前日との差分がプラスならその値、マイナスなら0を設定
+            df_resampled['up'] = df_resampled['diff'].apply(lambda x: x if x > 0 else 0)
+
+            # 前日との差分がマイナスならその値、プラスなら0を設定
+            df_resampled['down'] = df_resampled['diff'].apply(lambda x: abs(x) if x < 0 else 0)
+
+            # 平均上昇幅と平均下降幅を計算
+            df_resampled['up_mean'] = df_resampled['up'].rolling(window = window_size).mean()
+            df_resampled['down_mean'] = df_resampled['down'].rolling(window = window_size).mean()
+
+            # RSIを計算
+            if df_resampled['down_mean'].isna().all() or df_resampled['up_mean'].isna().all():
+                df_resampled[column_name] = -999
+            elif df_resampled['down_mean'].sum() == 0:
+                if df_resampled['up_mean'].sum() == 0:
+                    df_resampled[column_name] = 50
+                else:
+                    df_resampled[column_name] = 100
+            else:
+                df_resampled[column_name] = (100 - 100 / (1 + df_resampled['up_mean'] / df_resampled['down_mean'])).round(2)
+
+            # 先頭の要素を-999で埋める
+            df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
+
+            # 元のデータフレームにリサンプリングされたデータをマージ
+            df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
+
+            # window_size - 1番目のデータでは計算ができずNaNになるので-999で埋める かつ 間の要素は直近の要素で埋める
+            df[column_name].fillna(method='ffill', inplace=True)
+
+        except Exception as e:
+            self.log.error(f'RSI計算でエラー\n{str(e)}\n{traceback.format_exc()}')
             return False, None
 
         return True, df

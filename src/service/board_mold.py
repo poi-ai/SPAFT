@@ -125,43 +125,57 @@ class BoardMold(ServiceBase):
 
         # 直近何個のデータから算出するか
         num_list = [3, 5, 10, 15]
+        num_list2 = [9, 14, 22]
 
         # 移動平均線を研鑽してカラムとして追加する
         for minute in minute_list:
-            for num_ma in num_list:
+            for num in num_list:
                 # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                if minute * num_ma > 150:
+                if minute * num > 150:
                     continue
 
                 # 単純移動平均線(SMA)を計算・追加する
                 result, board_df = self.util.indicator.get_sma(df = board_df,
-                                                               column_name = f'sma_{minute}min_{num_ma}piece',
-                                                               window_size = num_ma,
+                                                               column_name = f'sma_{minute}min_{num}piece',
+                                                               window_size = num,
                                                                interval = minute)
                 if result == False:
                     return False, None
 
                 # 指数移動平均線(EMA)を計算・追加する
                 result, board_df = self.util.indicator.get_ema(df = board_df,
-                                                               column_name = f'ema_{minute}min_{num_ma}piece',
-                                                               window_size = num_ma,
+                                                               column_name = f'ema_{minute}min_{num}piece',
+                                                               window_size = num,
                                                                interval = minute)
                 if result == False:
                     return False, None
 
                 # 加重移動平均線(WMA)を計算・追加する
                 result, board_df = self.util.indicator.get_wma(df = board_df,
-                                                               column_name = f'wma_{minute}min_{num_ma}piece',
-                                                               window_size = num_ma,
+                                                               column_name = f'wma_{minute}min_{num}piece',
+                                                               window_size = num,
                                                                interval = minute)
                 if result == False:
                     return False, None
 
                 # ボリンジャーバンドを計算・追加する
                 result, board_df = self.util.indicator.get_bollinger_bands(df = board_df,
-                                                                           column_name = f'bb_{minute}min_{num_ma}piece',
-                                                                           window_size = num_ma,
+                                                                           column_name = f'bb_{minute}min_{num}piece',
+                                                                           window_size = num,
                                                                            interval = minute)
+                if result == False:
+                    return False, None
+
+            for num in num_list2:
+                # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
+                if minute * num > 150:
+                    continue
+
+                # RSIを計算・追加する
+                result, board_df = self.util.indicator.get_rsi(df = board_df,
+                                                            column_name = f'rsi_{minute}min_{num}piece',
+                                                            window_size = num,
+                                                            interval = minute)
                 if result == False:
                     return False, None
 
