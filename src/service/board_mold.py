@@ -125,7 +125,8 @@ class BoardMold(ServiceBase):
 
         # 直近何個のデータから算出するか
         num_list = [3, 5, 10, 15]
-        num_list2 = [9, 14, 22]
+        num_list2 = [9, 14, 22, 26, 52]
+        num_list3 = [10, 12, 15]
 
         # 移動平均線を研鑽してカラムとして追加する
         for minute in minute_list:
@@ -166,6 +167,7 @@ class BoardMold(ServiceBase):
                 if result == False:
                     return False, None
 
+
             for num in num_list2:
                 # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
                 if minute * num > 150:
@@ -176,6 +178,38 @@ class BoardMold(ServiceBase):
                                                             column_name = f'rsi_{minute}min_{num}piece',
                                                             window_size = num,
                                                             interval = minute)
+                if result == False:
+                    return False, None
+
+                # RCIを計算・追加する
+                result, board_df = self.util.indicator.get_rci(df = board_df,
+                                                               column_name = f'rci_{minute}min_{num}piece',
+                                                               window_size = num,
+                                                               interval = minute)
+                if result == False:
+                    return False, None
+
+
+            # MACDを計算・追加する
+            result, board_df = self.util.indicator.get_macd(df = board_df,
+                                                            column_name = f'macd_{minute}min',
+                                                            short_window_size = 12,
+                                                            long_window_size = 26,
+                                                            signal_window_size = 9,
+                                                            interval = minute)
+            if result == False:
+                return False, None
+
+            for num in num_list3:
+                # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
+                if minute * num > 150:
+                    continue
+
+                # サイコロジカルラインを計算・追加する
+                result, board_df = self.util.indicator.get_psy(df = board_df,
+                                                               column_name = f'psy_{minute}min_{num}piece',
+                                                               window_size = num,
+                                                               interval = minute)
                 if result == False:
                     return False, None
 
