@@ -403,3 +403,128 @@ class Indicator():
             return False, None
 
         return True, df
+
+    def get_parabolic(self, df, column_name, af, interval):
+        '''
+        パラボリック(SAR)を計算してカラムに追加する
+
+        Args:
+            df(DataFrame): 板情報のデータ
+                ※current_priceカラムが存在かつデータが時系列で連続していること
+            column_name(str): SARを設定するカラム名
+            af(float): 加速因数
+            interval(int): 何分足として計算するか
+
+        Returns:
+            bool: 実行結果
+            df(DataFrame): SARを追加したDataFrame
+
+        '''
+        try:
+            # 何分足の設定かに応じてデータをリサンプリング
+            if interval > 1:
+                df_resampled = df.iloc[::interval, :].copy()
+            else:
+                df_resampled = df.copy()
+
+            # 初期値の設定
+            sar_list = [df_resampled['current_price'].iloc[0]]
+            af = 0.02
+            ep = df_resampled['current_price'].iloc[0]
+
+            # SARの計算
+            for i in range(1, len(df_resampled)):
+                if sar_list[-1] < df_resampled['current_price'].iloc[i]:
+                    if ep < df_resampled['current_price'].iloc[i]:
+                        ep = df_resampled['current_price'].iloc[i]
+                        af = min(af + 0.02, 0.2)
+                    sar = sar_list[-1] + af * (ep - sar_list[-1])
+                else:
+                    if ep > df_resampled['current_price'].iloc[i]:
+                        ep = df_resampled['current_price'].iloc[i]
+                        af = max(af - 0.02, 0.02)
+                    sar = sar_list[-1] - af * (sar_list[-1] - ep)
+
+                sar_list.append(sar)
+
+            df_resampled[column_name] = sar_list
+
+            # 元のデータフレームにリサンプリングされたデータをマージ
+            df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
+
+            # リサンプリングされていない行を直前の値で埋める
+            df[column_name].fillna(method='ffill', inplace=True)
+
+        except Exception as e:
+            self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
+            return False, None
+
+        return True, df
+
+    def get_ichimoku_cloud(self, df, column_name, short_window_size, long_window_size, interval):
+        '''
+        一目均衡表を計算してカラムに追加する
+
+        Args:
+            df(DataFrame): 板情報のデータ
+                ※current_priceカラムかhigh&lowカラムが存在かつデータが時系列で連続していること
+            column_name(str): 一目均衡表を設定するカラム名
+            short_window_size(int): 短期のウィンドウ幅
+            long_window_size(int): 長期のウィンドウ幅
+            interval(int): 何分足として計算するか
+
+        Returns:
+            bool: 実行結果
+            df(DataFrame): 一目均衡表を追加したDataFrame
+
+        '''
+        try:
+            # 何分足の設定かに応じてデータをリサンプリング
+            if interval > 1:
+                df_resampled = df.iloc[::interval, :].copy()
+            else:
+                df_resampled = df.copy()
+
+            # カラム名の設定
+            base_line = f'{column_name}_base_line'
+            conversion_line = f'{column_name}_conversion_line'
+            leading_span_a = f'{column_name}_senkou_span_a'
+            leading_span_b = f'{column_name}_senkou_span_b'
+            lagging_span = f'{column_name}_lagging_span'
+            add_columns = [base_line, conversion_line, leading_span_a, leading_span_b, lagging_span]
+
+            # 終値ベースのデータしかない場合
+            if 'high' not in df_resampled.columns:
+                df_resampled['high'] = df_resampled['current_price']
+                df_resampled['low'] = df_resampled['current_price']
+
+            # 基準線の計算 long_window_size本の高値と安値の平均
+            df_resampled[base_line] = (df_resampled['high'].rolling(window = long_window_size).max() + df_resampled['low'].rolling(window = long_window_size).min()) / 2
+
+            # 転換線の計算 short_window_size本の高値と安値の平均
+            df_resampled[conversion_line] = (df_resampled['high'].rolling(window = short_window_size).max() + df_resampled['low'].rolling(window = short_window_size).min()) / 2
+
+            # 先行スパン1の計算 long_window_size本先の基準線と転換線の平均
+            df_resampled[leading_span_a] = ((df_resampled[conversion_line] + df_resampled[base_line]) / 2).shift(long_window_size)
+
+            # 先行スパン2の計算 long_window_size x 2本の高値と安値の平均をlong_window_size本先にずらす
+            df_resampled[leading_span_b] = ((df_resampled['high'].rolling(window = long_window_size * 2).max() + df_resampled['low'].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)
+
+            # 遅行スパンの計算 現在の価格をlong_window_size本前にずらす
+            df_resampled[lagging_span] = df_resampled['current_price'].shift(-long_window_size)
+
+            # 先頭の要素を-1で埋める
+            df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -1
+
+            # 元のデータフレームにリサンプリングされたデータをマージ
+            df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
+
+            # リサンプリングされていない行を直前の値で埋める
+            for column in add_columns:
+                df[column].fillna(method='ffill', inplace=True)
+
+        except Exception as e:
+            self.log.error(f'一目均衡表計算でエラー\n{str(e)}\n{traceback.format_exc()}')
+            return False, None
+
+        return True, df
