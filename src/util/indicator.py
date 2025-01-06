@@ -25,9 +25,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # SMAの計算・カラムを追加
             df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).mean().round(1)
@@ -66,12 +66,12 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # EMAの計算・カラムを追加
-            df_resampled[column_name] = df['current_price'].ewm(span = window_size).mean().round(1)
+            df_resampled[column_name] = df_resampled['current_price'].ewm(span = window_size).mean().round(1)
 
             # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
@@ -107,9 +107,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # WMAの計算・カラムを追加
             weights = np.arange(1, window_size + 1)
@@ -149,9 +149,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # 移動平均線と移動標準偏差を計算
             df_resampled['sma_tmp'] = df_resampled['current_price'].rolling(window = window_size).mean()
@@ -199,9 +199,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # 前日との差分を計算
             df_resampled['diff'] = df_resampled['current_price'].diff()
@@ -258,11 +258,11 @@ class Indicator():
             df(DataFrame): RCIを追加したDataFrame
         '''
         try:
-            # 何分足の設定か応じてデータをリサンプリング
+            # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # RCIの計算・カラムを追加
             df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).apply(self.calc_rci, raw=False)
@@ -321,9 +321,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # カラム名の設定
             column_signal_name = f'{column_name}_signal'
@@ -376,9 +376,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # 前日との差分を計算
             df_resampled['diff'] = df_resampled['current_price'].diff()
@@ -424,15 +424,15 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df.iloc[::interval, :].copy()
+                df_resampled = df[['current_price']].iloc[::interval, :].copy()
             else:
-                df_resampled = df.copy()
+                df_resampled = df[['current_price']].copy()
 
             # 初期値の設定 SARの初期値と前日のEPは初期値の終値になる
             sar_list = [df_resampled['current_price'].iloc[0]]
             ep = df_resampled['current_price'].iloc[0]
             af = min_af
-            trand = ''
+            trend = ''
 
             # SARの計算
             for i in range(1, len(df_resampled)):

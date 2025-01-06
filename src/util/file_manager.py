@@ -1,4 +1,6 @@
 import csv
+import os
+import py7zr
 
 class FileManager():
     '''ファイルの入力・出力を行うクラス'''
@@ -57,4 +59,72 @@ class FileManager():
             return False, e
 
         self.log.info(f'CSVファイル書き込み処理終了')
+        return True, None
+
+    def move_file(self, src_path, dst_path):
+        '''
+        ファイルを移動する
+
+        Args:
+            src_path(str): 移動元のファイルパス
+            dst_path(str): 移動先のファイルパス
+
+        Returns:
+            result(bool): 実行結果
+            error_message(str): エラーメッセージ
+        '''
+        self.log.info(f'ファイル移動処理開始 {src_path} -> {dst_path}')
+
+        try:
+            os.rename(src_path, dst_path)
+        except Exception as e:
+            self.log.error(f'ファイル移動でエラー\n移動元: {src_path}\n移動先: {dst_path}\n{e}')
+            return False, e
+
+        self.log.info(f'ファイル移動処理終了')
+        return True, None
+
+    def compress_csv_files(self, directory, output_file):
+        '''
+        指定したディレクトリ内の.gitkeep以外のすべてのCSVファイルを一つの.7zファイルに圧縮する
+
+        Args:
+            directory(str): 対象ディレクトリのパス
+            output_file(str): 出力する.7zファイルのパス
+
+        Returns:
+            result(bool): 実行結果
+            error_message(str): エラーメッセージ
+        '''
+        self.log.info(f'CSVファイル圧縮処理開始')
+        csv_files = []
+
+        try:
+            # 圧縮対象のCSVファイルを取得
+            for root, _, files in os.walk(directory):
+                for file in files:
+                    if file.endswith('.csv') and file != '.gitkeep':
+                        file_path = os.path.join(root, file)
+                        csv_files.append(file_path)
+
+            self.log.info(f'圧縮対象のCSVファイル数: {len(csv_files)}')
+
+            # CSVファイルを.7zファイルに圧縮
+            with py7zr.SevenZipFile(output_file, 'w') as archive:
+                for file_path in csv_files:
+                    archive.write(file_path, arcname=os.path.basename(file_path))
+
+        except Exception as e:
+            self.log.error(f'CSVファイルの圧縮処理でエラー\nディレクトリ: {directory}\n出力ファイル: {output_file}\n{e}')
+            return False, e
+
+        # 圧縮成功後に元のCSVファイルを削除する
+        try:
+            for file_path in csv_files:
+                os.remove(file_path)
+        except Exception as e:
+            self.log.error(f'元のCSVファイルの削除処理でエラー\n{e}')
+            return False, e
+
+        self.log.info(f'CSVファイル圧縮処理終了')
         return True, None

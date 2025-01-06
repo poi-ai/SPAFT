@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import re
 from service_base import ServiceBase
+from datetime import datetime
 
 class BoardMold(ServiceBase):
     '''板情報CSVを成形する'''
@@ -30,14 +31,17 @@ class BoardMold(ServiceBase):
             if result == False:
                 continue
 
-            # CSV出力を行う
-            self.write_csv(csv_path, new_board_df)
+            # カラム追加したCSVをformattedディレクトリに出力を行う
+            result = self.write_csv(csv_path, new_board_df)
+            if result == False:
+                continue
 
-            # TODO カラムを追加したCSVをformattedディレクトリに移す
+            # カラム追加前の元のCSVファイルをbakディレクトリに移す
+            result = self.util.file_manager.move_file(csv_path, os.path.join(os.path.dirname(csv_path), 'bak', os.path.basename(csv_path)))
 
-            # TODO 元のCSVファイルをbakディレクトリに移す
-
-        # TODO 先月以前のCSVファイルを7zへ圧縮する
+        # bakディレクトリに移したCSVファイルを7zipに圧縮する
+        bak_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'csv', 'bak')
+        result = self.util.file_manager.compress_csv_files(bak_dir, os.path.join(bak_dir, datetime.now().strftime('%Y%m%d%H%M%S') + '.7z'))
 
         return True
 
@@ -49,10 +53,10 @@ class BoardMold(ServiceBase):
             bool: 処理結果
         '''
         try:
-            # 一つ上の階層のcsvディレクトリのパスを取得
+            # 一つ上の階層のCSVディレクトリのパスを取得
             csv_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'csv')
 
-            # csvディレクトリが存在するか確認
+            # CSVディレクトリが存在するか確認
             if not os.path.exists(csv_dir):
                 self.log.info(f'CSVディレクトリが存在しません: {csv_dir}')
                 return False
@@ -99,7 +103,7 @@ class BoardMold(ServiceBase):
         Returns:
             bool: 処理結果
         '''
-        new_csv_path = csv_path.replace('.csv', '_new.csv')
+        new_csv_path = csv_path.replace(os.path.basename(csv_path), os.path.join('formatted', os.path.basename(csv_path))).replace('.csv', '_new.csv')
 
         try:
             board_df.to_csv(new_csv_path, index = False)
@@ -129,7 +133,6 @@ class BoardMold(ServiceBase):
         window_size_list3 = [10, 12, 15]
         af_list = [[0.01, 0.1], [0.02, 0.2], [0.05, 0.5], [0.1, 1]]
 
-        # 移動平均線を研鑽してカラムとして追加する
         for minute in minute_list:
             for window_size in window_size_list:
                 # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
@@ -167,7 +170,6 @@ class BoardMold(ServiceBase):
                                                                            interval = minute)
                 if result == False:
                     return False, None
-
 
             for window_size in window_size_list2:
                 # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
