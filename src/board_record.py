@@ -101,10 +101,11 @@ class BoardRecord(Base):
                 # 1分ごと取得モードの場合は次の分まで待機
                 self.util.culc_time.wait_time_next_minute(False)
 
-        # CSVの成形を行う
-        result = self.service.board_mold.main()
-        if result == False:
-            return False
+        # CSV記録モードの場合は板情報から計算可能な情報を計算してCSVに記録・成形
+        if config.BOARD_RECORD_DB == 0:
+            result = self.service.board_mold.main()
+            if result == False:
+                return False
 
         return True
 

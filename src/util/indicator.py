@@ -265,7 +265,7 @@ class Indicator():
                 df_resampled = df.copy()
 
             # RCIの計算・カラムを追加
-            df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).apply(self.calculate_rci, raw=False)
+            df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).apply(self.calc_rci, raw=False)
 
             # 初めの方の要素はNaNになるので直前の値で埋める
             df_resampled[column_name].fillna(method='ffill', inplace=True)
@@ -285,7 +285,7 @@ class Indicator():
 
         return True, df
 
-    def calculate_rci(self, sub_df):
+    def calc_rci(self, sub_df):
         '''
         RCIの計算を行う
 
@@ -404,7 +404,7 @@ class Indicator():
 
         return True, df
 
-    def get_parabolic(self, df, column_name, af, interval):
+    def get_parabolic(self, df, column_name, min_af, max_af, interval):
         '''
         パラボリック(SAR)を計算してカラムに追加する
 
@@ -412,7 +412,8 @@ class Indicator():
             df(DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): SARを設定するカラム名
-            af(float): 加速因数
+            min_af(float): 加速因数の初期値(最小値)
+            max_af(float): 加速因数の最大値
             interval(int): 何分足として計算するか
 
         Returns:
@@ -427,25 +428,58 @@ class Indicator():
             else:
                 df_resampled = df.copy()
 
-            # 初期値の設定
+            # 初期値の設定 SARの初期値と前日のEPは初期値の終値になる
             sar_list = [df_resampled['current_price'].iloc[0]]
-            af = 0.02
             ep = df_resampled['current_price'].iloc[0]
+            af = min_af
+            trand = ''
 
             # SARの計算
             for i in range(1, len(df_resampled)):
-                if sar_list[-1] < df_resampled['current_price'].iloc[i]:
-                    if ep < df_resampled['current_price'].iloc[i]:
-                        ep = df_resampled['current_price'].iloc[i]
-                        af = min(af + 0.02, 0.2)
-                    sar = sar_list[-1] + af * (ep - sar_list[-1])
-                else:
-                    if ep > df_resampled['current_price'].iloc[i]:
-                        ep = df_resampled['current_price'].iloc[i]
-                        af = max(af - 0.02, 0.02)
-                    sar = sar_list[-1] - af * (sar_list[-1] - ep)
+                current_price = df_resampled['current_price'].iloc[i]
 
-                sar_list.append(sar)
+                # 1つ目の要素の場合は前日との差分で上昇か下降トレンドかを判定
+                if i == 1:
+                    if sar_list[-1] < current_price:
+                        trend = 'up'
+                    else:
+                        trend = 'down'
+
+                # 上昇トレンドの場合
+                if trend == 'up':
+                    # トレンド内での高値を更新した場合
+                    if ep < current_price:
+                        ep = current_price
+                        af = min(af + min_af, max_af)
+
+                    # SARの計算
+                    sar = sar_list[i - 1] + af * (ep - sar_list[i - 1])
+
+                    # SARが現在の価格よりも高い場合はトレンドを反転
+                    if sar > current_price:
+                        trend = 'down'
+                        sar = ep
+                        ep = current_price
+                        af = min_af
+
+                # 下降トレンドの場合
+                else:
+                    # トレンド内での安値を更新した場合
+                    if ep > current_price:
+                        ep = current_price
+                        af = min(af + min_af, max_af)
+
+                    # SARの計算
+                    sar = sar_list[i - 1] - af * (sar_list[i - 1] - ep)
+
+                    # SARが現在の価格よりも低い場合はトレンドを反転
+                    if sar < current_price:
+                        trend = 'up'
+                        sar = ep
+                        ep = current_price
+                        af = min_af
+
+                sar_list.append(sar.round(4))
 
             df_resampled[column_name] = sar_list
 
@@ -488,8 +522,8 @@ class Indicator():
             # カラム名の設定
             base_line = f'{column_name}_base_line'
             conversion_line = f'{column_name}_conversion_line'
-            leading_span_a = f'{column_name}_senkou_span_a'
-            leading_span_b = f'{column_name}_senkou_span_b'
+            leading_span_a = f'{column_name}_leading_span_a'
+            leading_span_b = f'{column_name}_leading_span_b'
             lagging_span = f'{column_name}_lagging_span'
             add_columns = [base_line, conversion_line, leading_span_a, leading_span_b, lagging_span]
 

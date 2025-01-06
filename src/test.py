@@ -10,7 +10,7 @@ class Test(Base):
         result = self.service.board_mold.main()
         if result == False:
             return
-        
+
 if __name__ == '__main__':
     test = Test()
     test.main()

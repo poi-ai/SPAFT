@@ -127,7 +127,7 @@ class BoardMold(ServiceBase):
         window_size_list = [3, 5, 10, 15]
         window_size_list2 = [9, 14, 22, 26, 52]
         window_size_list3 = [10, 12, 15]
-        af_list = [0.01, 0.02, 0.05, 0.1]
+        af_list = [[0.01, 0.1], [0.02, 0.2], [0.05, 0.5], [0.1, 1]]
 
         # 移動平均線を研鑽してカラムとして追加する
         for minute in minute_list:
@@ -203,11 +203,12 @@ class BoardMold(ServiceBase):
                 if result == False:
                     return False, None
 
-            for af in af_list:
+            for min_af, max_af in af_list:
                 # パラボリックSARを計算・追加する
                 result, board_df = self.util.indicator.get_parabolic(df = board_df,
-                                                                     column_name = f'sar_{minute}min_{af}af',
-                                                                     af = af,
+                                                                     column_name = f'sar_{minute}min_{min_af}_{max_af}af',
+                                                                     min_af = min_af,
+                                                                     max_af = max_af,
                                                                      interval = minute)
                 if result == False:
                     return False, None
