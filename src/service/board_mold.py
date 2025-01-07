@@ -125,7 +125,7 @@ class BoardMold(ServiceBase):
             new_board_list(pandas.DataFrame): パラメータを追加した板情報のリスト
         '''
         # 何分足で計算するか
-        minute_list = [1, 3, 5, 10, 15, 30]
+        minute_list = [1, 3, 5, 10, 15, 30, 60, 90, 120, 240]
 
         # 直近何個のデータから算出するか
         window_size_list = [3, 5, 10, 15]
@@ -134,6 +134,18 @@ class BoardMold(ServiceBase):
         af_list = [[0.01, 0.1], [0.02, 0.2], [0.05, 0.5], [0.1, 1]]
 
         for minute in minute_list:
+            # minute分前からの増減率・増減幅・増減フラグを計算・追加する
+            result, board_df = self.util.indicator.get_change_price(df = board_df,
+                                                                    column_name = f'change_{minute}min',
+                                                                    interval = minute)
+
+            if result == False:
+                return False, None
+
+            # 説明変数に60分足以上の間隔ではデータ数が少なくなりすぎるのでスキップ
+            if minute >= 60:
+                continue
+
             for window_size in window_size_list:
                 # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
                 if minute * window_size > 150:
@@ -235,14 +247,6 @@ class BoardMold(ServiceBase):
                                                                       short_window_size = 9,
                                                                       long_window_size = 26,
                                                                       interval = minute)
-            if result == False:
-                return False, None
-
-            # minute分前からの増減率・増減幅・増減フラグを計算・追加する
-            result, board_df = self.util.indicator.get_change_price(df = board_df,
-                                                                    column_name = f'change_{minute}min',
-                                                                    interval = minute)
-
             if result == False:
                 return False, None
 
