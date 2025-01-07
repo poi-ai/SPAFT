@@ -238,6 +238,14 @@ class BoardMold(ServiceBase):
             if result == False:
                 return False, None
 
+            # minute分前からの増減率・増減幅・増減フラグを計算・追加する
+            result, board_df = self.util.indicator.get_change_price(df = board_df,
+                                                                    column_name = f'change_{minute}min',
+                                                                    interval = minute)
+
+            if result == False:
+                return False, None
+
         return True, board_df
 
 if __name__ == '__main__':

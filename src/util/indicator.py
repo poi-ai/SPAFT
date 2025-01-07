@@ -135,7 +135,7 @@ class Indicator():
         ボリンジャーバンドを計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): WMAを設定するカラム名
             window_size(int): ボリンジャーバンドを計算する際のウィンドウ幅
@@ -143,7 +143,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): ボリンジャーバンドを追加したDataFrame
+            df(pandas.DataFrame): ボリンジャーバンドを追加したDataFrame
 
         '''
         try:
@@ -185,7 +185,7 @@ class Indicator():
         相対力指数(RSI)を計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): RSIを設定するカラム名
             window_size(int): RSIを計算する際のウィンドウ幅
@@ -193,7 +193,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): RSIを追加したDataFrame
+            df(pandas.DataFrame): RSIを追加したDataFrame
 
         '''
         try:
@@ -247,7 +247,7 @@ class Indicator():
         順位相関指数(RCI)を計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): RCIを設定するカラム名
             window_size(int): RCIを計算する際のウィンドウ幅
@@ -255,7 +255,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): RCIを追加したDataFrame
+            df(pandas.DataFrame): RCIを追加したDataFrame
         '''
         try:
             # 何分足の設定かに応じてデータをリサンプリング
@@ -305,7 +305,7 @@ class Indicator():
         MACDを計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): MACDを設定するカラム名
             short_window_size(int): 短期EMAのウィンドウ幅
@@ -315,7 +315,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): MACDを追加したDataFrame
+            df(pandas.DataFrame): MACDを追加したDataFrame
 
         '''
         try:
@@ -362,7 +362,7 @@ class Indicator():
         サイコロジカルライン(PSY)を計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): PSYを設定するカラム名
             window_size(int): PSYを計算する際のウィンドウ幅
@@ -370,7 +370,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): PSYを追加したDataFrame
+            df(pandas.DataFrame): PSYを追加したDataFrame
 
         '''
         try:
@@ -409,7 +409,7 @@ class Indicator():
         パラボリック(SAR)を計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムが存在かつデータが時系列で連続していること
             column_name(str): SARを設定するカラム名
             min_af(float): 加速因数の初期値(最小値)
@@ -418,7 +418,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): SARを追加したDataFrame
+            df(pandas.DataFrame): SARを追加したDataFrame
 
         '''
         try:
@@ -500,7 +500,7 @@ class Indicator():
         一目均衡表を計算してカラムに追加する
 
         Args:
-            df(DataFrame): 板情報のデータ
+            df(pandas.DataFrame): 板情報のデータ
                 ※current_priceカラムかhigh&lowカラムが存在かつデータが時系列で連続していること
             column_name(str): 一目均衡表を設定するカラム名
             short_window_size(int): 短期のウィンドウ幅
@@ -509,7 +509,7 @@ class Indicator():
 
         Returns:
             bool: 実行結果
-            df(DataFrame): 一目均衡表を追加したDataFrame
+            df(pandas.DataFrame): 一目均衡表を追加したDataFrame
 
         '''
         try:
@@ -559,6 +559,53 @@ class Indicator():
 
         except Exception as e:
             self.log.error(f'一目均衡表計算でエラー\n{str(e)}\n{traceback.format_exc()}')
+            return False, None
+
+        return True, df
+
+    def get_change_price(self, df, column_name, interval):
+        '''
+        変動した価格・変動率・変動フラグを計算してカラムに追加する
+
+        Args:
+            df(pandas.DataFrame): 板情報のデータ
+                ※current_priceカラムが存在かつデータが時系列で連続していること
+            column_name(str): 追加するカラム名
+            interval(int): 何分足として計算するか
+
+        Returns:
+            bool: 実行結果
+            df(pandas.DataFrame): 前日比を追加したDataFrame
+
+        '''
+        try:
+            # 必要なカラムだけコピー
+            df_resampled = df[['current_price']].copy()
+
+            # 変数名の定義
+            change_price = f'{column_name}_price'
+            change_rate = f'{column_name}_rate'
+            change_flag = f'{column_name}_flag'
+            add_columns = [change_price, change_rate, change_flag]
+
+            # 変動価格・変動率・変動フラグ(0:変動なし, 1:上昇, -1:下落)の計算
+            df_resampled[change_price] = df_resampled['current_price'].shift(-interval) - df_resampled['current_price']
+            df_resampled[change_rate] = df_resampled[change_price] / df_resampled['current_price']
+            df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: -999 if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
+
+            # データの末尾周囲の計算できない要素は-999で埋める
+            for column in add_columns:
+                df_resampled[column].fillna(-999, inplace=True)
+
+            # 元のデータに計算で追加したデータをマージ
+            df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
+
+            # 計算(リサンプリング)対象外の行は直前の値で埋める
+            for column in add_columns:
+                df[column].fillna(method='ffill', inplace=True)
+
+        except Exception as e:
+            self.log.error(f'計算でエラー\n{str(e)}\n{traceback.format_exc()}')
             return False, None
 
         return True, df
