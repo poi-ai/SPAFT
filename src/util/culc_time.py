@@ -37,8 +37,8 @@ class CulcTime():
 
         Returns:
             time_type(int): 時間種別
-                1: 前場取引時間、2: 後場取引時間、
-                3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引け後)
+                1: 前場取引時間、2: 後場取引時間(クロージング・オークション除く)、
+                3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引け後)、6: クロージング・オークション
         '''
         # 時間が指定されていない場合はNTPサーバーから現在の時刻を取得
         if now == None:
@@ -47,8 +47,11 @@ class CulcTime():
         # 前場
         if 9 <= now.hour < 11 or (now.hour == 11 and now.minute < 30):
             return 1
+        #クロージング・オークション
+        elif 15 == now.hour and (25 <= now.minute < 30):
+            return 6
         # 後場
-        elif 12 < now.hour < 15 or (now.hour == 12 and now.minute >= 30):
+        elif 12 < now.hour < 15 or (now.hour == 12 and now.minute >= 30) or (now.hour == 15 and now.minute < 25):
             return 2
         # 寄り前
         elif now.hour < 9:

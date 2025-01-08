@@ -27,7 +27,7 @@ class Record(ServiceBase):
             self.log.info('デバッグモードのため営業日判定処理をスキップします')
         else:
             self.log.info('営業日判定処理開始')
-            result = self.util.culc_time.exchange_time()
+            result = self.util.culc_time.exchange_date()
             if result == False:
                 self.log.warning('非営業日のため取得処理を行いません')
                 return False, None
