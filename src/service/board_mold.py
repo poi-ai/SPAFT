@@ -183,6 +183,9 @@ class BoardMold(ServiceBase):
                 if result == False:
                     return False, None
 
+            # 短期と長期の移動平均線の関連性を計算・追加する
+            result, board_df = self.util.indicator.get_ma_cross(df = board_df, interval = minute)
+
             for window_size in window_size_list2:
                 # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
                 if minute * window_size > 150:
