@@ -8,7 +8,7 @@ class BoardMold(ServiceBase):
     '''板情報CSVを成形する'''
     def __init__(self):
         # 親クラスのinitを実行
-        super().__init__(api_headers = False, api_url = False, conn = False)
+        super().__init__(api_headers = False, api_url = False, ws_url = False, conn = False)
 
         self.target_csv = []
 

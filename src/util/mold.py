@@ -134,7 +134,7 @@ class Mold():
                 'bid_qty_9': board_info['Sell9']['Qty'], # 売気配数量9(9番目に安い価格)
                 'bid_price_10': board_info['Sell10']['Price'], # 売気配価格10(10番目に安い価格)
                 'bid_qty_10': board_info['Sell10']['Qty'], # 売気配数量10(10番目に安い価格)
-                'orver_sell_qty': board_info['OverSellQty'], # OVER売気配数量
+                'over_sell_qty': board_info['OverSellQty'], # OVER売気配数量
                 'ask_sign': board_info['Buy1']['Sign'], # 買気配フラグ
                 'market_order_buy_qty': board_info['MarketOrderBuyQty'], # 買成行数量
                 'ask_price_1': board_info['Buy1']['Price'], # 買気配価格1(最良気配)

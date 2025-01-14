@@ -6,6 +6,7 @@ from .info import Info
 from .order import Order
 from .register import Register
 from .wallet import Wallet
+from .websocket import Websocket
 
 class KabusApi():
     def controller_init(self, log, api_password, production = False):
@@ -22,8 +23,10 @@ class KabusApi():
         # ポート番号の設定
         if production:
             api_url = 'http://localhost:18080/kabusapi'
+            ws_url = 'ws://localhost:18080/kabusapi'
         else:
             api_url = 'http://localhost:18081/kabusapi'
+            ws_url = 'ws://localhost:18081/kabusapi'
 
         # APIトークンを発行
         self.auth = Auth(api_url, log)
@@ -45,9 +48,9 @@ class KabusApi():
         # 認証ヘッダー
         api_headers = {'X-API-KEY': token}
 
-        return api_url, api_headers
+        return api_url, ws_url, api_headers
 
-    def service_init(self, log, api_headers, api_url, trade_password):
+    def service_init(self, log, api_headers, api_url, ws_url, trade_password):
         '''Serviceクラスから呼び出す場合'''
         # 認証情報発行APIクラス
         self.auth = Auth(api_url, log)
@@ -59,3 +62,5 @@ class KabusApi():
         self.register = Register(api_headers, api_url, log)
         # 余力関連APIクラス
         self.wallet = Wallet(api_headers, api_url, log)
+        # Websocket通信クラス
+        self.websocket = Websocket(ws_url, log)

@@ -4,11 +4,13 @@ from service_base import ServiceBase
 
 class Record(ServiceBase):
     '''データ取得に関するServiceクラス'''
-    def __init__(self, api_headers, api_url, conn):
-        super().__init__(api_headers, api_url, conn)
+    def __init__(self, api_headers, api_url, ws_url, conn):
+        super().__init__(api_headers, api_url, ws_url, conn)
 
         # 今日の年月をyyyymm形式で取得
         self.today = self.util.culc_time.get_now(accurate = False).strftime('%Y%m%d')
+
+        self.target_code_list = []
 
     def record_init(self, target_code_list, debug = False):
         '''
@@ -49,7 +51,46 @@ class Record(ServiceBase):
                 target_code_list.remove(stock_code)
         self.log.info('初回板情報空取得処理終了')
 
+        self.target_code_list = target_code_list
+
+        for target_code in target_code_list:
+            self.log.info(f'銘柄登録処理開始 証券コード: {target_code}')
+            result = self.api.register.register(target_code)
+            if result != True:
+                self.log.error(f'銘柄登録処理でエラー\n{result}')
+                continue
+            self.log.info(f'銘柄登録処理終了 証券コード: {target_code}')
+
         return True, target_code_list
+
+    async def websocket_main(self):
+        '''
+        WebSocket接続/受信とDBへの登録処理を行う
+
+        Returns:
+            bool: 処理結果
+        '''
+        self.log.info('WebSocket接続処理開始')
+
+        # WebSocket接続
+        result = await self.api.websocket.connect(self.on_message)
+        if result != True:
+            self.log.error(f'WebSocket接続処理でエラー\n{result}')
+            return False
+
+        self.log.info('WebSocket接続処理終了')
+        return
+
+    async def on_message(self, data):
+        '''
+        WebSocketで受信したデータを処理する
+
+        Args:
+            data (dict): 受信したデータ
+        '''
+        # 受信したデータをDBに登録する処理をここに記述
+        self.log.info(f'受信データ: {data}')
+        await self.insert_board(data)
 
     def insert_board(self, board_info):
         '''

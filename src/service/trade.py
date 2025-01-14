@@ -4,8 +4,8 @@ from service_base import ServiceBase
 
 class Trade(ServiceBase):
     '''取引に関するServiceクラス'''
-    def __init__(self, api_headers, api_url, conn):
-        super().__init__(api_headers, api_url, conn)
+    def __init__(self, api_headers, api_url, ws_url, conn):
+        super().__init__(api_headers, api_url, ws_url, conn)
 
         # 取引パスワード
         self.trade_password = ''

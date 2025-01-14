@@ -29,7 +29,7 @@ class ServiceBase():
 
     '''
 
-    def __init__(self, api_headers, api_url, conn):
+    def __init__(self, api_headers, api_url, ws_url, conn):
         '''
         Utilクラス、Dbクラス、Apiクラスのインスタンスを生成する
         Serviceクラスから呼び出す初期処理
@@ -37,6 +37,7 @@ class ServiceBase():
         Args:
             api_headers(dict) or False: APIのヘッダー情報 ※APIを使わない場合はFalse
             api_url(str) or False: APIのURL ※APIを使わない場合はFalse
+            ws_url(str) or False: WebSocketのURL ※APIを使わない場合はFalse
             conn(pymysql.connections.Connection) or False: DB接続情報 ※DBを使わない場合はFalse
 
         '''
@@ -57,6 +58,7 @@ class ServiceBase():
             self.api.service_init(log = self.log,
                                   api_headers = api_headers,
                                   api_url = api_url,
+                                  ws_url = ws_url,
                                   trade_password = trade_password)
 
         # データベースの操作に関連するクラス
