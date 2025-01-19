@@ -1,6 +1,11 @@
+import asyncio
+import datetime
 import json
 import os
+import time
+import websockets
 from service_base import ServiceBase
+from datetime import datetime
 
 class Record(ServiceBase):
     '''データ取得に関するServiceクラス'''
@@ -12,13 +17,14 @@ class Record(ServiceBase):
 
         self.target_code_list = []
 
-    def record_init(self, target_code_list, debug = False):
+    def record_init(self, target_code_list, debug = False, push_mode = False):
         '''
         データ取得系処理を行うときの初期処理
 
         Args:
             target_code_list(list): 取得対象の銘柄リスト
             debug(bool): デバッグモードか
+            push_mode(bool): PUSH配信を受けるモードか
 
         Return:
             bool: 判定結果(T: 営業日、F: 非営業日)
@@ -53,13 +59,15 @@ class Record(ServiceBase):
 
         self.target_code_list = target_code_list
 
-        for target_code in target_code_list:
-            self.log.info(f'銘柄登録処理開始 証券コード: {target_code}')
-            result = self.api.register.register(target_code)
-            if result != True:
-                self.log.error(f'銘柄登録処理でエラー\n{result}')
-                continue
-            self.log.info(f'銘柄登録処理終了 証券コード: {target_code}')
+        # TODO 銘柄登録を行わなくても空取得のみでPUSH配信を受けることができるか要確認
+        if push_mode == True:
+            for target_code in target_code_list:
+                self.log.info(f'銘柄登録処理開始 証券コード: {target_code}')
+                result = self.api.register.register(target_code)
+                if result != True:
+                    self.log.error(f'銘柄登録処理でエラー\n{result}')
+                    continue
+                self.log.info(f'銘柄登録処理終了 証券コード: {target_code}')
 
         return True, target_code_list
 
@@ -72,25 +80,86 @@ class Record(ServiceBase):
         '''
         self.log.info('WebSocket接続処理開始')
 
-        # WebSocket接続
-        result = await self.api.websocket.connect(self.on_message)
-        if result != True:
-            self.log.error(f'WebSocket接続処理でエラー\n{result}')
-            return False
+        # デバッグモードチェック
+        if self.config.BOARD_RECORD_DEBUG == False:
+            # 日付チェック
+            if self.util.culc_time.exchange_date() == False:
+                self.log.info('非営業日のためPUSH配信受信を行いません')
+                return True
+
+            # 時間チェック
+            time_type = self.util.culc_time.exchange_time()
+            # 寄り前
+            if time_type == 3:
+                # 寄り1秒前まで待機
+                _ = self.util.culc_time.wait_time(hour = 8, minute = 59, second = 59)
+            # お昼休み
+            elif time_type == 4:
+                # 後場開始1秒前まで待機
+                _ = self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59)
+            # クロージング・オークション / 大引け後
+            elif time_type in [5, 6]:
+                self.log.info('クロージング・オークション/大引け後のためPUSH配信受信を行いません')
+                return True
+
+        error_counter = 0
+
+        # WebSocket接続/PUSH配信の受信
+        async with self.api.websocket.connect() as ws:
+            while True:
+                try:
+                    # デバッグモードでない場合のみ時間チェック
+                    if self.config.BOARD_RECORD_DEBUG == False:
+                        time_type = self.util.culc_time.exchange_time()
+                        # お昼休み
+                        if time_type == 4:
+                            # 後場開始1秒前まで待機
+                            _ = self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59)
+                        elif time_type in [5, 6]:
+                            self.log.info('クロージング・オークション/大引け後のためPUSH配信受信を終了します')
+                            break
+
+                    # 現時刻を再取得
+                    now = self.util.culc_time.get_now(accurate = True)
+                    # 前場の場合
+                    if now.hour < 11 or (now.hour == 11 and now.minute < 30):
+                        # 昼休みになったらタイムアウトするように
+                        time_out = (now.replace(hour = 11, minute = 30, second = 0) - now).total_seconds()
+                    # 後場(クロージング・オークション除く)の場合
+                    elif now.hour < 15 or (now.hour == 15 and now.minute < 25):
+                        # クロージング・オークション時間に突入したらタイムアウトするように
+                        time_out = (now.replace(hour = 15, minute = 25, second = 0) - now).total_seconds()
+                    # その他(デバッグモードなど)の場合
+                    else:
+                        # 過去の時間セットしてタイムアウトにならないように便宜上23:59:59に設定
+                        time_out = (now.replace(hour = 23, minute = 59, second = 59) - now).total_seconds()
+
+                    # PUSHメッセージ配信の待機
+                    message = await asyncio.wait_for(ws.recv(), timeout = time_out)
+
+                    # メッセージを受信したらレコードを設定する処理をコールバック関数として実行
+                    asyncio.create_task(self.operate_ohlc(json.loads(message)))
+
+                except Exception as e:
+                    self.log.error(f'PUSH配信の受信処理でエラー\n{e}')
+                    error_counter += 1
+                    if error_counter >= 15:
+                        self.log.error('エラーが続いたためWebSocket接続を終了します')
+                        return False
+                    continue
 
         self.log.info('WebSocket接続処理終了')
-        return
+        return True
 
-    async def on_message(self, data):
+    async def operate_ohlc(self, data):
         '''
-        WebSocketで受信したデータを処理する
+        WebSocketで受信した板情報をDBに登録する
 
         Args:
             data (dict): 受信したデータ
         '''
-        # 受信したデータをDBに登録する処理をここに記述
-        self.log.info(f'受信データ: {data}')
-        await self.insert_board(data)
+        # TODO DBにレコードを追加/更新する処理を実装
+        pass
 
     def insert_board(self, board_info):
         '''

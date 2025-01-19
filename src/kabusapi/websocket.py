@@ -1,6 +1,9 @@
+import asyncio
 import json
+import time
 import traceback
 import websockets
+from datetime import datetime, time
 
 class Websocket():
     '''Websocket通信を行うクラス'''
@@ -9,27 +12,17 @@ class Websocket():
         self.ws_url = ws_url
         self.log = log
 
-    async def connect(self, on_message):
+    async def connect(self):
         '''
         Websocket接続を確立する
 
-        Args:
-            on_message(function): メッセージ受信時のコールバック関数
-
         Returns:
-            bool: Websocket接続の成否
+            handler(websockets.connect): Websocket接続ハンドラ
         '''
         url = f'{self.ws_url}/websocket'
-
-        async with websockets.connect(url, ping_timeout = None) as websocket:
-            while True:
-                try:
-                    # PUSHメッセージを待つ
-                    message = await websocket.recv()
-
-                    # メッセージを受信したらコールバック関数を実行
-                    await on_message(json.loads(message))
-
-                except Exception as e:
-                    return f'{e}\n{traceback.format_exc()}'
-        return True
+        try:
+            handler = await websockets.connect(url, ping_timeout = None)
+        except Exception as e:
+            self.log.error(f'Websocket接続確率処理でエラー\n{e}')
+            return False
+        return handler

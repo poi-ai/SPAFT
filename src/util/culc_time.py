@@ -47,7 +47,7 @@ class CulcTime():
         # 前場
         if 9 <= now.hour < 11 or (now.hour == 11 and now.minute < 30):
             return 1
-        #クロージング・オークション
+        # クロージング・オークション
         elif 15 == now.hour and (25 <= now.minute < 30):
             return 6
         # 後場

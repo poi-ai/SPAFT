@@ -42,6 +42,7 @@ class ServiceBase():
 
         '''
         self.log = Log()
+        self.config = config
 
         # Utilityクラス
         self.util = Util(log = self.log)
