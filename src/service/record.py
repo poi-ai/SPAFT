@@ -5,7 +5,7 @@ import os
 import time
 import websockets
 from service_base import ServiceBase
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class Record(ServiceBase):
     '''データ取得に関するServiceクラス'''
@@ -15,7 +15,11 @@ class Record(ServiceBase):
         # 今日の年月をyyyymm形式で取得
         self.today = self.util.culc_time.get_now(accurate = False).strftime('%Y%m%d')
 
+        # 記録対象の銘柄リスト
         self.target_code_list = []
+
+        # 四本値データの一時記録用メモリ
+        self.ohlc_list = []
 
     def record_init(self, target_code_list, debug = False, push_mode = False):
         '''
@@ -49,25 +53,25 @@ class Record(ServiceBase):
         self.unregister_all()
         self.log.info('登録済銘柄解約処理終了')
 
-        # 取得対象の銘柄の初回データ取得は時間がかかるので先に板情報の空取得を行う
-        self.log.info('初回板情報空取得処理開始')
-        for stock_code in target_code_list[:]:
-            result, error_code = self.info_board(stock_code, market_code = 1, add_info = False)
-            if result == False and error_code == 402001:
-                target_code_list.remove(stock_code)
-        self.log.info('初回板情報空取得処理終了')
-
         self.target_code_list = target_code_list
 
-        # TODO 銘柄登録を行わなくても空取得のみでPUSH配信を受けることができるか要確認
+        # PUSH配信を受けるモードの場合は銘柄登録処理を行う
         if push_mode == True:
             for target_code in target_code_list:
                 self.log.info(f'銘柄登録処理開始 証券コード: {target_code}')
                 result = self.api.register.register(target_code)
-                if result != True:
+                if result != True: ## TODO ここで失敗したコードをインスタンス変数から除く
                     self.log.error(f'銘柄登録処理でエラー\n{result}')
                     continue
                 self.log.info(f'銘柄登録処理終了 証券コード: {target_code}')
+        # 板情報のAPIを叩きに行くモードの場合 初回データ取得は時間がかかるので先に板情報の空取得を行う
+        else:
+            self.log.info('初回板情報空取得処理開始')
+            for stock_code in target_code_list[:]:
+                result, error_code = self.info_board(stock_code, market_code = 1, add_info = False)
+                if result == False and error_code == 402001:
+                    target_code_list.remove(stock_code)
+            self.log.info('初回板情報空取得処理終了')
 
         return True, target_code_list
 
@@ -88,7 +92,7 @@ class Record(ServiceBase):
                 return True
 
             # 時間チェック
-            time_type = self.util.culc_time.exchange_time()
+            time_type = self.util.culc_time.exchange_time(datetime.now())
             # 寄り前
             if time_type == 3:
                 # 寄り1秒前まで待機
@@ -105,12 +109,13 @@ class Record(ServiceBase):
         error_counter = 0
 
         # WebSocket接続/PUSH配信の受信
-        async with self.api.websocket.connect() as ws:
+        ws_handler = await self.api.websocket.connect()
+        async with ws_handler as ws:
             while True:
                 try:
                     # デバッグモードでない場合のみ時間チェック
                     if self.config.BOARD_RECORD_DEBUG == False:
-                        time_type = self.util.culc_time.exchange_time()
+                        time_type = self.util.culc_time.exchange_time(datetime.now())
                         # お昼休み
                         if time_type == 4:
                             # 後場開始1秒前まで待機
@@ -119,23 +124,13 @@ class Record(ServiceBase):
                             self.log.info('クロージング・オークション/大引け後のためPUSH配信受信を終了します')
                             break
 
-                    # 現時刻を再取得
-                    now = self.util.culc_time.get_now(accurate = True)
-                    # 前場の場合
-                    if now.hour < 11 or (now.hour == 11 and now.minute < 30):
-                        # 昼休みになったらタイムアウトするように
-                        time_out = (now.replace(hour = 11, minute = 30, second = 0) - now).total_seconds()
-                    # 後場(クロージング・オークション除く)の場合
-                    elif now.hour < 15 or (now.hour == 15 and now.minute < 25):
-                        # クロージング・オークション時間に突入したらタイムアウトするように
-                        time_out = (now.replace(hour = 15, minute = 25, second = 0) - now).total_seconds()
-                    # その他(デバッグモードなど)の場合
-                    else:
-                        # 過去の時間セットしてタイムアウトにならないように便宜上23:59:59に設定
-                        time_out = (now.replace(hour = 23, minute = 59, second = 59) - now).total_seconds()
+                    # タイムアウト(=PUSH配信が来なくなるまで)の時間を計算
+                    time_out = self.util.culc_time.get_trade_end_time_seconds(accurate = False)
 
+                    self.log.info('PUSHメッセージ配信の待機')
                     # PUSHメッセージ配信の待機
                     message = await asyncio.wait_for(ws.recv(), timeout = time_out)
+                    self.log.info('PUSHメッセージ配信を受信')
 
                     # メッセージを受信したらレコードを設定する処理をコールバック関数として実行
                     asyncio.create_task(self.operate_ohlc(json.loads(message)))
@@ -151,15 +146,78 @@ class Record(ServiceBase):
         self.log.info('WebSocket接続処理終了')
         return True
 
-    async def operate_ohlc(self, data):
+    async def operate_ohlc(self, reception_data):
         '''
         WebSocketで受信した板情報をDBに登録する
 
         Args:
-            data (dict): 受信したデータ
+            reception_data(dict): 受信したデータ
         '''
-        # TODO DBにレコードを追加/更新する処理を実装
-        pass
+        self.log.info('四本値テーブルへの記録処理開始')
+        # 既に記録済の同一分のデータを詰めるために使用
+        recorded_ohlc_data = {}
+
+        # 直近の取引時間のdatetime型に変換
+        reception_data['CurrentPriceTime'] = datetime.strptime(reception_data['CurrentPriceTime'], '%Y-%m-%dT%H:%M:%S%z')
+        # 直近の取引の秒を切り捨て
+        reception_data['CurrentPriceMinute'] = reception_data['CurrentPriceTime'].replace(second = 0, microsecond = 0)
+
+        # 受信データと同一分のデータが既に存在するか
+        # 一時保存用のメモリをチェック
+        if len(self.ohlc_list) > 0:
+            for ohlc in self.ohlc_list:
+                # メモリに存在する場合
+                if ohlc['symbol'] == reception_data['Symbol'] and ohlc['trade_time'] == reception_data['CurrentPriceMinute']:
+                    recorded_ohlc_data = ohlc
+                    break
+
+        # メモリに存在しない場合はDBをチェック
+        if recorded_ohlc_data == {}:
+            recorded_ohlc_data = self.db.ohlc.select_time(reception_data['Symbol'], reception_data['CurrentPriceMinute'])
+            if recorded_ohlc_data == False:
+                self.log.error('四本値テーブルの記録済みデータ取得処理でエラー')
+                recorded_ohlc_data == {}
+                # TODO エラーカウント追加
+
+        # 記録済のデータがない場合は直近の累計出来高を取得
+        if recorded_ohlc_data == {}:
+            # まずはメモリからチェック
+            total_volume = self.get_latest_total_volume(reception_data)
+            # メモリに存在しない場合はDBをチェック
+            if total_volume == -999:
+                total_volume = self.db.ohlc.select_latest_total_volume(reception_data['Symbol'], reception_data['CurrentPriceMinute'].date())
+                if total_volume == False:
+                    self.log.error('四本値テーブルの累計出来高取得処理でエラー')
+                    total_volume = -999
+
+        # レコード未存在/エラーで-999としていたデータを0に変更
+        if total_volume == -999:
+            total_volume = 0
+
+        # 受信したデータと記録済みのOHLCデータをもとに、DBテーブル用のフォーマットに成形
+        result, new_ohlc_data = self.util.mold.response_to_ohlc(reception_data, recorded_ohlc_data, total_volume)
+        if result == False:
+            self.log.error(new_ohlc_data)
+            self.log.error(f'記録に失敗したデータ: {reception_data}')
+            return False
+
+        # 先にメモリを更新
+        for ohlc in self.ohlc_list[:]:
+            if ohlc['symbol'] == new_ohlc_data['symbol'] and ohlc['trade_time'] == new_ohlc_data['trade_time']:
+                self.ohlc_list.remove(ohlc)
+                break
+        self.ohlc_list.append(new_ohlc_data)
+
+        # メモリクリーニング
+        result = self.memory_cleaning()
+
+        # DBを更新 TODO 3,4回/秒x銘柄数分upsertするので、頻度を減らしたい
+        result = self.db.ohlc.upsert(new_ohlc_data)
+        if result != True:
+            return False
+
+        self.log.info('四本値テーブルへの記録終了')
+        return True
 
     def insert_board(self, board_info):
         '''
@@ -265,4 +323,52 @@ class Record(ServiceBase):
             self.log.error(f'板情報CSV出力処理でエラー\n{error_message}')
             return False
         self.log.info('板情報CSV出力処理終了')
+        return True
+
+    def get_latest_total_volume(self, reception_data):
+        '''
+        最新の累計出来高を取得する基準日時に最も近い時間の累計出来高を取得
+
+        Args:
+            reception_data(dict): 受信したデータ
+
+        Returns:
+            int: 最新の累計出来高
+        '''
+        latest_date, latest_total_volume = self.util.culc_time.get_now(accurate = False).replace(hour = 23, minute = 59), -999
+        for ohlc in self.ohlc_list:
+            if ohlc['symbol'] == reception_data['Symbol']:
+                if latest_date <= ohlc['trade_time']:
+                    latest_date, latest_total_volume = ohlc['trade_time'], ohlc['total_volume']
+        return latest_total_volume
+
+    def memory_cleaning(self):
+        '''
+        メモリで保持しているデータの中からいらないものを取り除く
+
+        Returns:
+            bool: 処理結果
+        '''
+        # 管理用の連想配列
+        memory_dict = {}
+        # 削除する要素を一時的に保持するリスト
+        to_remove = []
+
+        # メモリの中から取引情報をチェック
+        for index, ohlc in enumerate(self.ohlc_list):
+            # 銘柄コードが管理用の連想配列に存在しない場合は追加
+            if ohlc['symbol'] not in memory_dict:
+                memory_dict[ohlc['symbol']] = (ohlc['trade_time'], index)
+            else:
+                # 同じ銘柄コードで取引時間が古いものはいらないので削除リストに追加
+                if memory_dict[ohlc['symbol']][0] > ohlc['trade_time']:
+                    to_remove.append(index)
+                else:
+                    to_remove.append(memory_dict[ohlc['symbol']][1])
+                    memory_dict[ohlc['symbol']] = (ohlc['trade_time'], index)
+
+        # 一括で削除
+        for index in sorted(to_remove, reverse = True):
+            del self.ohlc_list[index]
+
         return True

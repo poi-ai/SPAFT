@@ -9,6 +9,7 @@ from .buying_power import Buying_Power
 from .errors import Errors
 from .holds import Holds
 from .listed import Listed
+from .ohlc import Ohlc
 from .orders import Orders
 
 class Db():
@@ -41,6 +42,7 @@ class Db():
         self.errors = Errors(log, conn, dict_return)
         self.holds = Holds(log, conn, dict_return)
         self.listed = Listed(log, conn, dict_return)
+        self.ohlc = Ohlc(log, conn, dict_return)
         self.orders = Orders(log, conn, dict_return)
 
     def connect(self, db_info):

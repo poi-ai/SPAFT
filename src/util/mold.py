@@ -256,6 +256,55 @@ class Mold():
         except Exception as e:
             return False, f'注文APIリクエスト作成処理でエラー\n証券コード: {stock_code}\n{e}'
 
+    def response_to_ohlc(self, ohlc_data, recorded_data, total_volume = -1):
+        '''
+        四本値テーブル(ohlc)にレコードを追加するためのデータを整形する
+
+        Args:
+            ohlc_data(dict): PUSH配信で取得したOHLCデータ
+            recorded_data(dict): 既に記録済みのOHLCデータ
+            total_volume(int): 1分前の累積出来高
+
+        Returns:
+            result(bool): 処理結果
+            ohlc_table_info(dict): 整形後のOHLCデータ
+                ※エラー時はエラーメッセージを返す
+        '''
+        try:
+            # 記録済のOHLCデータがない場合
+            if recorded_data == {}:
+                ohlc_table_info = {
+                    'symbol': ohlc_data['Symbol'],
+                    'trade_time': ohlc_data['CurrentPriceMinute'],
+                    'open_price': ohlc_data['CurrentPrice'],
+                    'high_price': ohlc_data['CurrentPrice'],
+                    'low_price': ohlc_data['CurrentPrice'],
+                    'close_price': ohlc_data['CurrentPrice'],
+                    'total_volume': ohlc_data['TradingVolume'],
+                    'status': 1
+                }
+
+                if total_volume == -1:
+                    ohlc_table_info['volume'] = ohlc_data['TradingVolume']
+                else:
+                    ohlc_table_info['volume'] = (ohlc_data['TradingVolume'] - total_volume)
+
+            # 記録済のOHLCデータがある場合
+            else:
+                ohlc_table_info = recorded_data
+
+                # 更新が必要な項目のみ更新
+                ohlc_table_info['high_price'] = max(ohlc_data['CurrentPrice'], recorded_data['high_price'])
+                ohlc_table_info['low_price'] = min(ohlc_data['CurrentPrice'], recorded_data['low_price'])
+                ohlc_table_info['close_price'] = ohlc_data['CurrentPrice']
+                ohlc_table_info['volume'] += (ohlc_data['TradingVolume'] - recorded_data['total_volume'])
+                ohlc_table_info['total_volume'] = ohlc_data['TradingVolume']
+
+        except Exception as e:
+            return False, f'四本値テーブル用のフォーマット生成処理でエラー\n{e}\n{traceback.format_exc()}'
+
+        return True, ohlc_table_info
+
     def format_datetime(self, datetime_str):
         '''
         日時文字列を整形する

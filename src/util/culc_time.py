@@ -455,6 +455,38 @@ class CulcTime():
         self.log.info('待機終了')
         return True
 
+    def get_trade_end_time_seconds(self, accurate = False):
+        '''
+        引け(クロージング・オークション)の時間までの秒数を取得する
+
+        Args:
+            accurate(bool): 正確な時刻が欲しいか
+                True: NTPサーバーから取得、False: datetimeから取得
+
+        Returns:
+            time_out(float): 引け(クロージング・オークション)の時間までの秒数
+        '''
+        # 現時刻を取得
+        now = self.get_now(accurate)
+        # 前場・前場前の場合
+        if now.hour < 11 or (now.hour == 11 and now.minute < 30):
+            # 昼休みになったらタイムアウトするように
+            time_out = (now.replace(hour = 11, minute = 30, second = 0) - now).total_seconds()
+        # 昼休み・後場(クロージング・オークション除く)の場合
+        elif now.hour < 15 or (now.hour == 15 and now.minute < 25):
+            # クロージング・オークション時間に突入したらタイムアウトするように
+            time_out = (now.replace(hour = 15, minute = 25, second = 0) - now).total_seconds()
+        # クロージング・オークションの場合
+        elif now.hour == 15 and (25 <= now.minute < 30):
+            # 大引けになったらタイムアウトするように
+            time_out = (now.replace(hour = 15, minute = 30, second = 0) - now).total_seconds()
+        # その他(デバッグモードなど)の場合
+        else:
+            # 処理の都合上なんかしらの数値を設定する必要がある場合のために99999をセット
+            time_out = 99999
+
+        return time_out
+
     def ntp(self, server_id = 1):
         '''NTPサーバーから現在の時刻を取得する'''
         if server_id == 1:

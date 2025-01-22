@@ -8,11 +8,11 @@ from base import Base
 class ReceptionWebsocket(Base):
     '''Websocketで取引情報を取得し、DBに登録する'''
     def __init__(self):
-        super().__init__(use_db = False)
+        super().__init__()
 
     async def main(self):
         # 初期処理(営業日判定/登録済銘柄の解除/PUSH配信を受ける銘柄の登録)
-        record_init = self.service.record.record_init(config.RECORD_STOCK_CODE_LIST, config.BOARD_RECORD_DEBUG)
+        record_init = self.service.record.record_init(config.RECORD_STOCK_CODE_LIST, config.BOARD_RECORD_DEBUG, push_mode = True)
         if record_init == False:
             return False
 
