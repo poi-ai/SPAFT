@@ -4,6 +4,7 @@ import json
 import os
 import time
 import websockets
+import pytz
 from service_base import ServiceBase
 from datetime import datetime, timedelta
 
@@ -20,6 +21,9 @@ class Record(ServiceBase):
 
         # 四本値データの一時記録用メモリ
         self.ohlc_list = []
+
+        # タイムゾーン設定用
+        self.jst = pytz.timezone('Asia/Tokyo')
 
     def record_init(self, target_code_list, debug = False, push_mode = False):
         '''
@@ -180,6 +184,7 @@ class Record(ServiceBase):
                 # TODO エラーカウント追加
 
         # 記録済のデータがない場合は直近の累計出来高を取得
+        total_volume = -999
         if recorded_ohlc_data == {}:
             # まずはメモリからチェック
             total_volume = self.get_latest_total_volume(reception_data)
@@ -203,12 +208,14 @@ class Record(ServiceBase):
 
         # 先にメモリを更新
         for ohlc in self.ohlc_list[:]:
+            print('ohlc[trade_time]:', ohlc['trade_time'])
+            print('new_ohlc_data[trade_time]:', new_ohlc_data['trade_time'])
             if ohlc['symbol'] == new_ohlc_data['symbol'] and ohlc['trade_time'] == new_ohlc_data['trade_time']:
                 self.ohlc_list.remove(ohlc)
                 break
         self.ohlc_list.append(new_ohlc_data)
 
-        # メモリクリーニング
+        # 既に記録済み/使用しないためメモリにいらないデータは削除する
         result = self.memory_cleaning()
 
         # DBを更新 TODO 3,4回/秒x銘柄数分upsertするので、頻度を減らしたい
@@ -335,7 +342,7 @@ class Record(ServiceBase):
         Returns:
             int: 最新の累計出来高
         '''
-        latest_date, latest_total_volume = self.util.culc_time.get_now(accurate = False).replace(hour = 23, minute = 59), -999
+        latest_date, latest_total_volume = self.jst.localize(self.util.culc_time.get_now(accurate = False).replace(hour = 23, minute = 59)), -999
         for ohlc in self.ohlc_list:
             if ohlc['symbol'] == reception_data['Symbol']:
                 if latest_date <= ohlc['trade_time']:
@@ -367,8 +374,11 @@ class Record(ServiceBase):
                     to_remove.append(memory_dict[ohlc['symbol']][1])
                     memory_dict[ohlc['symbol']] = (ohlc['trade_time'], index)
 
-        # 一括で削除
+        # 一括で削除 削除してインデックス番号がずれるのを防ぐために逆順で削除
         for index in sorted(to_remove, reverse = True):
+            # TODO DBに登録されているかのチェック
+            
+            # 登録されていたら本当に削除
             del self.ohlc_list[index]
 
         return True

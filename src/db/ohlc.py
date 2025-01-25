@@ -283,6 +283,7 @@ class Ohlc():
 
         Returns:
             result(bool): SQL実行結果
+            row_count(int): 実行されたSQLの種別 ※追加の場合は1、更新の場合は2
         '''
         try:
             with self.conn.cursor() as cursor:
@@ -332,7 +333,7 @@ class Ohlc():
                     ohlc_data['status']
                 ))
 
-            return True
+            return True, cursor.rowcount
         except Exception as e:
             self.log.error('四本値テーブルのレコード追加または更新処理でエラー', e, traceback.format_exc())
-            return False
+            return False, 0
