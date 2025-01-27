@@ -30,11 +30,13 @@ class PastRecord(ServiceBase):
         for stock_code in target_stock_code_list:
             time.sleep(5)
 
+            self.log.info(f'銘柄コード: {stock_code} の四本値取得処理開始')
             # 過去の四本値取得
             result, ohlc = self.get_ohlc(stock_code, target_days)
             if result == False:
                 # TODO エラーリストをCSVに出力
                 continue
+            self.log.info(f'銘柄コード: {stock_code} の四本値取得処理終了')
 
             # 記録済みの日付チェック
             recorded_date_list = self.check_recorded_csv(stock_code)
@@ -45,6 +47,7 @@ class PastRecord(ServiceBase):
                 # TODO エラーリストをCSVに出力
                 continue
 
+            self.log.info(f'銘柄コード: {stock_code} の四本値データのCSV出力開始')
             # 四本値データをCSVに出力
             csv_path = os.path.join(self.output_csv_dir, f'ohlc_{datetime.now().strftime("%Y%m")}.csv')
             header = ['stock_code', 'timestamp', 'open', 'high', 'low', 'close', 'volume']
@@ -52,7 +55,9 @@ class PastRecord(ServiceBase):
             if result == False:
                 # TODO エラーリストをCSVに出力
                 continue
+            self.log.info(f'銘柄コード: {stock_code} の四本値データのCSV出力終了')
 
+            self.log.info(f'銘柄コード: {stock_code} の記録済み日付のCSV出力開始')
             # 記録済みの日付をCSVに出力
             check_csv_path = os.path.join(self.output_csv_dir, f'check_past_ohlc.csv')
             header = ['stock_code', 'date']
@@ -60,6 +65,7 @@ class PastRecord(ServiceBase):
             if result == False:
                 # TODO エラーリストをCSVに出力
                 continue
+            self.log.info(f'銘柄コード: {stock_code} の記録済み日付のCSV出力終了')
 
         return True
 
@@ -293,8 +299,6 @@ class PastRecord(ServiceBase):
             result(bool): 実行結果
         '''
         try:
-            self.log.info(f'CSVファイル書き込み処理開始')
-
             with open(file_path, 'a', newline = '', encoding = 'utf-8') as f:
                 writer = csv.writer(f)
 
@@ -310,7 +314,6 @@ class PastRecord(ServiceBase):
             self.log.error(f'CSVファイル書き込みでエラー\nファイルパス: {file_path}\n{e}\n{traceback.format_exc()}')
             return False
 
-        self.log.info(f'CSVファイル書き込み処理終了')
         return True
 
     def delete_old_data(self):
