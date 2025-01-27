@@ -62,6 +62,7 @@ class Record(ServiceBase):
         # PUSH配信を受けるモードの場合は銘柄登録処理を行う
         if push_mode == True:
             for target_code in target_code_list:
+                time.sleep(0.3)
                 self.log.info(f'銘柄登録処理開始 証券コード: {target_code}')
                 result = self.api.register.register(target_code)
                 if result != True: ## TODO ここで失敗したコードをインスタンス変数から除く

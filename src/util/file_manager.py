@@ -7,9 +7,9 @@ class FileManager():
     def __init__(self, log):
         self.log = log
 
-    def read_csv(self, file_path):
+    def read_file(self, file_path):
         '''
-        CSVファイルを読み込む
+        ファイルを読み込む
 
         Args:
             file_path(str): ファイルパス
