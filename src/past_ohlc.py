@@ -14,14 +14,20 @@ class PastOhlc(Base):
 
     def main(self):
         '''メイン処理'''
+
+        '''
         self.log.info('米Yahoo!Financeからの四本値取得処理開始')
-        result = self.service.past_record.main(self.target_stock_code_list, self.target_days, self.output_csv_dir)
+        _ = self.service.past_record.main(self.target_stock_code_list, self.target_days, self.output_csv_dir)
         self.log.info('米Yahoo!Financeからの四本値取得処理終了')
 
         self.log.info('記録管理用CSVから古いデータの削除処理開始')
-        # 記録管理用CSVから古いデータを削除する
-        result = self.service.past_record.delete_old_data()
+        _ = self.service.past_record.delete_old_data()
         self.log.info('記録管理用CSVから古いデータの削除処理終了')
+        '''
+
+        self.log.info('古い四本値データの圧縮処理開始')
+        _ = self.service.past_record.compress_old_data(self.output_csv_dir)
+        self.log.info('古い四本値データの圧縮処理終了')
 
 if __name__ == '__main__':
     oo = PastOhlc()

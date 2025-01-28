@@ -2,6 +2,8 @@ import csv
 import os
 import pandas as pd
 import pytz
+import py7zr
+import re
 import requests
 import time
 import traceback
@@ -31,7 +33,6 @@ class PastRecord(ServiceBase):
             time.sleep(5)
 
             self.log.info(f'銘柄コード: {stock_code} の四本値取得処理開始')
-            # 過去の四本値取得
             result, ohlc = self.get_ohlc(stock_code, target_days)
             if result == False:
                 # TODO エラーリストをCSVに出力
@@ -48,7 +49,6 @@ class PastRecord(ServiceBase):
                 continue
 
             self.log.info(f'銘柄コード: {stock_code} の四本値データのCSV出力開始')
-            # 四本値データをCSVに出力
             csv_path = os.path.join(self.output_csv_dir, f'ohlc_{datetime.now().strftime("%Y%m")}.csv')
             header = ['stock_code', 'timestamp', 'open', 'high', 'low', 'close', 'volume']
             result = self.write_csv(formatted_ohlc, header, csv_path)
@@ -58,7 +58,6 @@ class PastRecord(ServiceBase):
             self.log.info(f'銘柄コード: {stock_code} の四本値データのCSV出力終了')
 
             self.log.info(f'銘柄コード: {stock_code} の記録済み日付のCSV出力開始')
-            # 記録済みの日付をCSVに出力
             check_csv_path = os.path.join(self.output_csv_dir, f'check_past_ohlc.csv')
             header = ['stock_code', 'date']
             result = self.write_csv(record_list, header, check_csv_path)
@@ -318,6 +317,7 @@ class PastRecord(ServiceBase):
 
     def delete_old_data(self):
         '''30日以上前の記録済みデータはいらないので削除する'''
+
         # CSVの存在チェック/読み込み
         csv_path = os.path.join(self.output_csv_dir, f'check_past_ohlc.csv')
         if not os.path.exists(csv_path):
@@ -330,5 +330,43 @@ class PastRecord(ServiceBase):
 
         # 削除後のデータを上書き
         check_csv.to_csv(csv_path, index = False)
+
+        return True
+
+    def compress_old_data(self,a):
+        '''古い四本値データを圧縮する'''
+
+        self.output_csv_dir = a
+
+        # CSV保存ディレクトリからCSVファイル一覧の名前の取得
+        csv_files = os.listdir(self.output_csv_dir)
+
+        # 今月の記録用ファイル名
+        current_month = f'ohlc_{datetime.now().strftime("%Y%m")}.csv'
+
+        # 1ファイルずつチェックする
+        for csv_file in csv_files:
+            # OHLCデータのCSVファイル以外はスキップ
+            if not re.match(r'ohlc_\d{6}.csv', csv_file):
+                continue
+
+            # 今月のファイルはスキップ
+            if csv_file == current_month:
+                continue
+
+            # CSVファイルを7z形式で圧縮
+            csv_path = os.path.join(self.output_csv_dir, csv_file)
+            compressed_path = csv_path.replace('.csv', '.7z')
+            try:
+                with py7zr.SevenZipFile(compressed_path, 'w') as archive:
+                    archive.write(csv_path, arcname=csv_file)
+
+                # 圧縮に成功したら元のファイルを削除
+                if os.path.exists(compressed_path):
+                    os.remove(csv_path)
+                else:
+                    self.log.error(f'CSVファイルの圧縮が見つかりません\nファイルパス: {csv_path}')
+            except Exception as e:
+                self.log.error(f'CSVファイルの圧縮に失敗\nファイルパス: {csv_path}\n{e}')
 
         return True
