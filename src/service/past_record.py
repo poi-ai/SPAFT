@@ -246,9 +246,10 @@ class PastRecord(ServiceBase):
                         continue
 
                 # ザラ場中に実行すると中途半端なデータが入るのでそれも除外
-                second = int(formatted_timestamp[index][17:19])
-                if second != 0:
-                    continue
+                # MEMO: 秒を切り捨てたのでチェック処理が行えない
+                #second = int(formatted_timestamp[index][17:19])
+                #if second != 0:
+                #    continue
 
                 # 出来高チェック
                 if ohlc_data['volume'][index] is not None:
