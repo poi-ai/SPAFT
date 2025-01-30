@@ -129,7 +129,7 @@ class PastRecord(ServiceBase):
 
             # 日付データ取得/成形
             timestamp = ohlc_data['timestamp']
-            formatted_timestamp = [datetime.fromtimestamp(ts, pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M:%S') for ts in timestamp]
+            formatted_timestamp = [datetime.fromtimestamp(ts, pytz.timezone('Asia/Tokyo')).strftime('%Y-%m-%d %H:%M') for ts in timestamp]
 
             # 四本値データ取得
             ohlc_data = ohlc_data['indicators']['quote'][0]
@@ -178,34 +178,71 @@ class PastRecord(ServiceBase):
                     if now.strftime('%Y-%m-%d') == formatted_timestamp[index][:10]:
                         continue
 
-                # 1本目のデータは寄った時分のデータなので埋めずに9:00の出来高0のデータを追加する
+                # 1本目のデータは寄った時分のデータなので、特別気配の場合は9:00のデータが入っていない
+                # その場合は9:00のデータを出来高0として追加する
                 if index == 0 and formatted_timestamp[index][11:16] != '09:00':
                     formatted_ohlc.append([stock_code,
-                                            formatted_timestamp[index][:10] + ' 09:00:00',
-                                            ohlc_data['open'][index],
-                                            ohlc_data['high'][index],
-                                            ohlc_data['low'][index],
-                                            ohlc_data['close'][index],
+                                            formatted_timestamp[index][:10] + ' 09:00',
+                                            last_close,
+                                            last_close,
+                                            last_close,
+                                            last_close,
                                             0]
                     )
+
+                    # 特別気配の場合、次のデータが9:01でなく寄った時の時分のデータの場合があるため、その場合は間の時間を出来高0で埋める
+                    next_time = formatted_timestamp[index + 1][11:16]
+                    if next_time != '09:01':
+                        base_time = datetime.strptime(formatted_timestamp[index], '%Y-%m-%d %H:%M') + timedelta(minutes = 1)
+                        while next_time != base_time.strftime('%H:%M'):
+                            formatted_ohlc.append([stock_code,
+                                                base_time.strftime('%Y-%m-%d %H:%M'),
+                                                last_close,
+                                                last_close,
+                                                last_close,
+                                                last_close,
+                                                0]
+                            )
+                            base_time += timedelta(minutes = 1)
                     continue
 
                 # 日付変更チェック
                 if formatted_timestamp[index][:10] != current_date:
+                    # 記録済みの日付を追加
                     record_date.append([stock_code, formatted_timestamp[index][:10]])
+
+                    # 処理通の日付を更新
                     current_date = formatted_timestamp[index][:10]
+
                     # 始値の設定しなおし
-                    last_close = ohlc_data['open'][0]
-                    # 寄りのデータが9:00の出来高0かチェックのデータを追加する
+                    last_close = ohlc_data['open'][index]
+
+                    # 日付変更後1本目のデータは寄った時分のデータなので、特別気配の場合は9:00のデータが入っていない
+                    # その場合は9:00のデータを出来高0として追加する
                     if formatted_timestamp[index][11:16] != '09:00':
                         formatted_ohlc.append([stock_code,
-                                                formatted_timestamp[index][:10] + ' 09:00:00',
-                                                ohlc_data['open'][index],
-                                                ohlc_data['high'][index],
-                                                ohlc_data['low'][index],
-                                                ohlc_data['close'][index],
+                                                formatted_timestamp[index][:10] + ' 09:00',
+                                                last_close,
+                                                last_close,
+                                                last_close,
+                                                last_close,
                                                 0]
                         )
+
+                        # 特別気配の場合、次のデータが9:01でなく寄った時の時分のデータの場合があるため、その場合は間の時間を出来高0で埋める
+                        next_time = formatted_timestamp[index + 1][11:16]
+                        if next_time != '09:01':
+                            base_time = datetime.strptime(formatted_timestamp[index], '%Y-%m-%d %H:%M') + timedelta(minutes = 1)
+                            while next_time != base_time.strftime('%H:%M'):
+                                formatted_ohlc.append([stock_code,
+                                                    base_time.strftime('%Y-%m-%d %H:%M'),
+                                                    last_close,
+                                                    last_close,
+                                                    last_close,
+                                                    last_close,
+                                                    0]
+                                )
+                                base_time += timedelta(minutes = 1)
                         continue
 
                 # ザラ場中に実行すると中途半端なデータが入るのでそれも除外
