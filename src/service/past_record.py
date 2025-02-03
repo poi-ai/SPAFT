@@ -265,15 +265,14 @@ class PastRecord(ServiceBase):
 
             # 1本目の時刻までのレコードを補完
             while current_time.strftime('%H:%M') != today_ohlc['timestamp'][0][11:16]:
-                add_data.append({
-                    'stock_code': stock_code,
-                    'timestamp': current_time.strftime('%Y-%m-%d %H:%M'),
-                    'open': start_price,
-                    'high': start_price,
-                    'low': start_price,
-                    'close': start_price,
-                    'volume': 0
-                })
+                add_data.append([stock_code,
+                                current_time.strftime('%Y-%m-%d %H:%M'),
+                                start_price,
+                                start_price,
+                                start_price,
+                                start_price,
+                                0
+                ])
                 current_time += timedelta(minutes = 1)
 
                 # 元データの時刻部分の表記が狂っていた場合無限ループに陥るので、念のため対策
