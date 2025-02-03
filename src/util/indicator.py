@@ -7,16 +7,17 @@ class Indicator():
     def __init__(self, log):
         self.log = log
 
-    def get_sma(self, df, column_name, window_size, interval):
+    def get_sma(self, df, column_name, window_size, interval, price_column_name = 'current_price'):
         '''
         単純移動平均線(SMA)を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定するカラム名が存在し、連続した時系列のデータであること
             column_name(str): SMAを設定するカラム名
             window_size(int): 移動平均線を計算する際のウィンドウ幅
             interval(int): SMAを計算する間隔(何分足として計算するか)
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -26,12 +27,12 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # SMAの計算・カラムを追加
-            df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).mean().round(1)
+            df_resampled[column_name] = df_resampled[price_column_name].rolling(window=window_size).mean().round(1)
 
             # window_size - 1番目までのデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
@@ -48,16 +49,17 @@ class Indicator():
 
         return True, df
 
-    def get_ema(self, df, column_name, window_size, interval):
+    def get_ema(self, df, column_name, window_size, interval, price_column_name = 'current_price'):
         '''
         指数移動平均線(EMA)を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定するカラム名が存在し、連続した時系列のデータであること
             column_name(str): EMAを設定するカラム名
             window_size(int): 移動平均線を計算する際のウィンドウ幅
             interval(int): SMAを計算する間隔(何分足として計算するか)
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -67,12 +69,12 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # EMAの計算・カラムを追加
-            df_resampled[column_name] = df_resampled['current_price'].ewm(span = window_size).mean().round(1)
+            df_resampled[column_name] = df_resampled[price_column_name].ewm(span = window_size).mean().round(1)
 
             # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
@@ -89,16 +91,17 @@ class Indicator():
 
         return True, df
 
-    def get_wma(self, df, column_name, window_size, interval):
+    def get_wma(self, df, column_name, window_size, interval, price_column_name = 'current_price'):
         '''
         加重移動平均線(WMA)を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定するカラム名が存在し、連続した時系列のデータであること
             column_name(str): WMAを設定するカラム名
             window_size(int): 移動平均線を計算する際のウィンドウ幅
             interval(int): SMAを計算する間隔(何分足として計算するか)
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -108,13 +111,13 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # WMAの計算・カラムを追加
             weights = np.arange(1, window_size + 1)
-            df_resampled[column_name] = df_resampled['current_price'].rolling(window = window_size).apply(lambda x: np.dot(x, weights) / weights.sum(), raw = True).round(1)
+            df_resampled[column_name] = df_resampled[price_column_name].rolling(window = window_size).apply(lambda x: np.dot(x, weights) / weights.sum(), raw = True).round(1)
 
             # window_size - 1番目までのデータでは計算ができずNaNになるので-1で埋める
             df_resampled[column_name].fillna(-1, inplace=True)
@@ -137,7 +140,6 @@ class Indicator():
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※sma_shortカラムとsma_longカラムが存在かつデータが時系列で連続していること
             interval(int): SMAを計算する間隔(何分足として計算するか)
 
         Returns:
@@ -157,8 +159,11 @@ class Indicator():
             ema_columns = [col for col in df_resampled.columns if re.compile(f'ema_{interval}min_\\d+piece').match(col)]
             wma_columns = [col for col in df_resampled.columns if re.compile(f'wma_{interval}min_\\d+piece').match(col)]
 
-            add_columns = []
+            if len(sma_columns) == 0 or len(ema_columns) == 0 or len(wma_columns) == 0:
+                ##self.log.warning('移動平均線の値が存在しません')
+                return True, pd.DataFrame()
 
+            add_columns = []
             for columns in [sma_columns, ema_columns, wma_columns]:
                 # 移動平均線の種別
                 line_type = columns[0].split('_')[0]
@@ -190,25 +195,29 @@ class Indicator():
                         df_resampled[dead_cross_after] = df_resampled.groupby('dc_id').cumcount()
 
                         # 短期と長期の差を計算
-                        df_resampled[diff] = df_resampled[column_short] - df_resampled[column_long]
+                        df_resampled[diff] = (df_resampled[column_short] - df_resampled[column_long]).round(2)
                         add_columns.extend([golden_cross, golden_cross_after, dead_cross, dead_cross_after, diff])
 
+            # 元のデータフレームにリサンプリングされたデータをマージ
+            df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
+
         except Exception as e:
-            self.log.error(f'SMAクロス計算でエラー\n{str(e)}\n{traceback.format_exc()}')
+            self.log.error(f'MAクロス計算でエラー\n{str(e)}\n{traceback.format_exc()}')
             return False, None
 
         return True, df
 
-    def get_bollinger_bands(self, df, column_name, window_size, interval):
+    def get_bollinger_bands(self, df, column_name, window_size, interval, price_column_name = 'current_price'):
         '''
         ボリンジャーバンドを計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定するカラム名が存在し、連続した時系列のデータであること
             column_name(str): WMAを設定するカラム名
             window_size(int): ボリンジャーバンドを計算する際のウィンドウ幅
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -218,13 +227,13 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # 移動平均線と移動標準偏差を計算
-            df_resampled['sma_tmp'] = df_resampled['current_price'].rolling(window = window_size).mean()
-            df_resampled['sigma_tmp'] = df_resampled['current_price'].rolling(window = window_size).std()
+            df_resampled['sma_tmp'] = df_resampled[price_column_name].rolling(window = window_size).mean()
+            df_resampled['sigma_tmp'] = df_resampled[price_column_name].rolling(window = window_size).std()
 
             # 追加対象のカラム名
             add_columns = []
@@ -237,31 +246,31 @@ class Indicator():
                 add_columns.extend([f'{column_name}_upper_{sigma}_alpha', f'{column_name}_lower_{sigma}_alpha'])
 
             # バンド(α)の幅を計算
-            df_resampled[f'{column_name}_width'] = df_resampled['sigma_tmp'] * 2
+            df_resampled[f'{column_name}_width'] = (df_resampled['sigma_tmp'] * 2).round(3)
             add_columns.append(f'{column_name}_width')
 
             # バンド幅の収縮・拡大度合いを計算
-            df_resampled[f'{column_name}_width_diff'] = df_resampled[f'{column_name}_width'].diff()
+            df_resampled[f'{column_name}_width_diff'] = df_resampled[f'{column_name}_width'].diff().round(3)
             add_columns.append(f'{column_name}_width_diff')
 
             # 価格とバンドの差を計算
-            df_resampled[f'{column_name}_upper_diff'] = df_resampled['current_price'] - df_resampled[f'{column_name}_upper_1_alpha']
-            df_resampled[f'{column_name}_lower_diff'] = df_resampled[f'{column_name}_lower_1_alpha'] - df_resampled['current_price']
+            df_resampled[f'{column_name}_upper_diff'] = (df_resampled[price_column_name] - df_resampled[f'{column_name}_upper_1_alpha']).round(3)
+            df_resampled[f'{column_name}_lower_diff'] = (df_resampled[f'{column_name}_lower_1_alpha'] - df_resampled[price_column_name]).round(3)
             add_columns.extend([f'{column_name}_upper_diff', f'{column_name}_lower_diff'])
 
             # バンド内での位置を計算 αの場合は1、-αの場合は0になる
-            df_resampled[f'{column_name}_position'] = (df_resampled['current_price'] - df_resampled[f'{column_name}_lower_1_alpha']) / df_resampled[f'{column_name}_width']
+            df_resampled[f'{column_name}_position'] = ((df_resampled[price_column_name] - df_resampled[f'{column_name}_lower_1_alpha']) / df_resampled[f'{column_name}_width']).round(3)
             add_columns.append(f'{column_name}_position')
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
 
-            for column_name in add_columns:
+            for column in add_columns:
                 # リサンプリング対象外の行は、直近の値で埋める
-                df[column_name].fillna(method='ffill', inplace=True)
+                df[column].fillna(method='ffill', inplace=True)
 
                 # window_size - 1番目までのデータでは計算ができずNaNになるので-999で埋める
-                df[column_name].fillna(-999, inplace=True)
+                df[column].fillna(-999, inplace=True)
 
         except Exception as e:
             self.log.error(f'ボリンジャーバンド計算でエラー\n{str(e)}\n{traceback.format_exc()}')
