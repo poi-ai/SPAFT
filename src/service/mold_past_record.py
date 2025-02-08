@@ -28,20 +28,35 @@ class MoldPastRecord(ServiceBase):
         # ディレクトリ内のCSVファイル名を取得
         csv_name_list = os.listdir(self.csv_dir_name)
 
-        # 四本値データのCSV(ohlc_xxxxxx.csv)のみを抽出
+        # 四本値の元データのCSVファイル
         target_list = []
+
+        # 途中まで保存したCSVファイル
+        tmp_target_list = []
+
         for csv_name in csv_name_list:
-            if re.fullmatch(r'tmp_ohlc_\d{6}.csv', csv_name):
+            # 四本値データのCSV(ohlc_xxxxxx.csv)を抽出
+            if re.fullmatch(r'ohlc_\d{6}.csv', csv_name):
                 target_list.append(csv_name)
 
-        return target_list
+            # 途中まで保存したCSVファイル(tmp_ohlc_xxxxxx.csv)を抽出
+            if re.fullmatch(r'tmp_ohlc_\d{6}.csv', csv_name):
+                tmp_target_list.append(csv_name)
 
-    def main(self, csv_name):
+        # 途中まで保存したCSVがあるデータは対象から除く
+        for target_csv in target_list:
+            if f'tmp_{target_csv}' in tmp_target_list:
+                target_list.remove(target_csv)
+
+        return target_list, tmp_target_list
+
+    def main(self, csv_name, file_type):
         '''
         成形のメイン処理
 
         Args:
             csv_name(str): 成形対象のCSVファイル名
+            file_type(int): ファイルの種類(0: 四本値元データ, 1: 目的変数追加済データ)
 
         Returns:
             bool: 実行結果
@@ -59,31 +74,39 @@ class MoldPastRecord(ServiceBase):
         #1332,2025-01-16 09:08,855.7,855.7,854.1,854.1,3800
         #1332,2025-01-16 09:09,854.4,854.5,853.6,853.6,10400
 
-        '''
-        # 重要度の低い(クロージング・オークション)のレコードを削除
-        df = self.delete_record(df)
+        # 元データの場合
+        if file_type == 0:
 
-        # 時間に関する特徴量を追加
-        ## 処理量を減らすため、この中から必要なカラムだけを引数として送り、あとで結合させる
-        df_tmp = self.add_time_feature(df[['timestamp']])
+            # データの前処理
+            # timestampをdatetime型に変換
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
 
-        ## 重複するカラムを削除してから結合
-        df_tmp.drop(columns = 'timestamp', inplace = True)
-        df = pd.concat([df, df_tmp], axis = 1)
+            # 重要度の低い(クロージング・オークション)のレコードを削除
+            df = self.delete_record(df)
 
-        # 目的変数(株価変化額/率/フラグ)のカラムを追加
-        ## 処理量を減らすため、この中から必要なカラムだけを引数として送り、あとで結合させる
-        target_columns = ['timestamp', 'close', 'stock_code', 'date']
-        df_tmp = self.add_change_feature(df[target_columns])
+            # 時間に関する特徴量を追加
+            ## 処理量を減らすため、この中から必要なカラムだけを引数として送り、あとで結合させる
+            df_tmp = self.add_time_feature(df[['timestamp']])
 
-        ## 重複するカラムを削除してから結合
-        df_tmp.drop(columns = target_columns, inplace = True)
-        df = pd.concat([df, df_tmp], axis = 1)
+            ## 重複するカラムを削除してから結合
+            df_tmp.drop(columns = 'timestamp', inplace = True)
+            df = pd.concat([df, df_tmp], axis = 1)
 
-        # 一時保存のCSVファイルの出力
-        output_csv_path = os.path.join(self.csv_dir_name, f'tmp_formatted_{csv_name}')
-        df.to_csv(output_csv_path, index = False)
-        '''
+            # 目的変数(株価変化額/率/フラグ)のカラムを追加
+            ## 処理量を減らすため、この中から必要なカラムだけを引数として送り、あとで結合させる
+            target_columns = ['timestamp', 'close', 'stock_code', 'date']
+            df_tmp = self.add_change_feature(df[target_columns])
+
+            ## 重複するカラムを削除してから結合
+            df_tmp.drop(columns = target_columns, inplace = True)
+            df = pd.concat([df, df_tmp], axis = 1)
+
+            # timestampをstr型に戻して秒を削除
+            df['timestamp'] = df['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
+
+            # 一時保存のCSVファイルの出力
+            output_csv_path = os.path.join(self.csv_dir_name, f'tmp_{csv_name}')
+            df.to_csv(output_csv_path, index = False)
 
         # 主要なテクニカル指標を追加
         ## 必要なカラムだけを引数として送り、あとで結合させる
@@ -96,20 +119,12 @@ class MoldPastRecord(ServiceBase):
         df_tmp.drop(columns = target_columns, inplace = True)
         df = pd.concat([df, df_tmp], axis = 1)
 
-        # timestampをstr型に戻して秒を削除
-        #df['timestamp'] = df['timestamp'].dt.strftime('%Y-%m-%d %H:%M')
-
         # CSVファイルの出力
         output_csv_path = os.path.join(self.csv_dir_name, f'formatted_{csv_name}')
         df.to_csv(output_csv_path, index = False)
 
-
     def delete_record(self, df):
-        '''モデル作成に使えなさそうなレコードを削除する'''
-
-        # データの前処理
-        # 必要に応じてtimestampをdatetime型に変換
-        df['timestamp'] = pd.to_datetime(df['timestamp'])
+        '''モデル作成の際に使わなさそうなレコードを削除する'''
 
         # 15:25以降(クロージング・オークション)のデータを削除
         df = df[df['timestamp'].dt.time < pd.to_datetime('15:25').time()]
@@ -158,8 +173,6 @@ class MoldPastRecord(ServiceBase):
                     df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), f'change_{minute}min_flag'] = df_tmp[f'change_{minute}min_flag']
                     df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), f'change_{minute}min_price'] = df_tmp[f'change_{minute}min_price']
                     df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), f'change_{minute}min_rate'] = df_tmp[f'change_{minute}min_rate']
-
-                break
 
         # 日付変更フラグの追加(管理用)
         df['date_change_flag'] = (df['timestamp'].dt.day != df['timestamp'].shift(-1).dt.day).astype(int)
