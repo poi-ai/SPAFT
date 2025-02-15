@@ -278,16 +278,17 @@ class Indicator():
 
         return True, df
 
-    def get_rsi(self, df, column_name,  window_size, interval):
+    def get_rsi(self, df, column_name,  window_size, interval, price_column_name = 'current_price'):
         '''
         相対力指数(RSI)を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定したカラム名が存在かつデータが時系列で連続していること
             column_name(str): RSIを設定するカラム名
             window_size(int): RSIを計算する際のウィンドウ幅
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -297,12 +298,12 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # 前日との差分を計算
-            df_resampled['diff'] = df_resampled['current_price'].diff()
+            df_resampled['diff'] = df_resampled[price_column_name].diff()
 
             # 前日との差分がプラスならその値、マイナスなら0を設定
             df_resampled['up'] = df_resampled['diff'].apply(lambda x: x if x > 0 else 0)
@@ -340,16 +341,17 @@ class Indicator():
 
         return True, df
 
-    def get_rci(self, df, column_name, window_size, interval):
+    def get_rci(self, df, column_name, window_size, interval, price_column_name = 'current_price'):
         '''
         順位相関指数(RCI)を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定したカラム名が存在かつデータが時系列で連続していること
             column_name(str): RCIを設定するカラム名
             window_size(int): RCIを計算する際のウィンドウ幅
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -358,12 +360,12 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # RCIの計算・カラムを追加
-            df_resampled[column_name] = df_resampled['current_price'].rolling(window=window_size).apply(self.calc_rci, raw=False)
+            df_resampled[column_name] = df_resampled[price_column_name].rolling(window=window_size).apply(self.calc_rci, raw=False)
 
             # 初めの方の要素はNaNになるので直前の値で埋める
             df_resampled[column_name].fillna(method='ffill', inplace=True)
@@ -398,18 +400,19 @@ class Indicator():
         rci = ((1 - 6 * d / (n *(n ** 2 - 1))) * 100).round(2)
         return rci
 
-    def get_macd(self, df, column_name, short_window_size, long_window_size, signal_window_size, interval):
+    def get_macd(self, df, column_name, short_window_size, long_window_size, signal_window_size, interval, price_column_name = 'current_price'):
         '''
         MACDを計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定したカラム名が存在かつデータが時系列で連続していること
             column_name(str): MACDを設定するカラム名
             short_window_size(int): 短期EMAのウィンドウ幅
             long_window_size(int): 長期EMAのウィンドウ幅
             signal_window_size(int): シグナル線のウィンドウ幅
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -419,9 +422,9 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # カラム名の設定
             macd = column_name
@@ -429,9 +432,9 @@ class Indicator():
             macd_histogram = f'{macd}_diff'
             add_columns = []
 
-            # MACD(短期EMA - 長期EMA)の計算
-            short_ema = df_resampled['current_price'].ewm(span = short_window_size).mean()
-            long_ema = df_resampled['current_price'].ewm(span = long_window_size).mean()
+            # MACD(短期EMA - 長期EMA)の計算 # TODO 円でだけでなく、%も見た方がいいかも
+            short_ema = df_resampled[price_column_name].ewm(span = short_window_size).mean()
+            long_ema = df_resampled[price_column_name].ewm(span = long_window_size).mean()
             df_resampled[macd] = (short_ema - long_ema).round(2)
             add_columns.append(macd)
 
@@ -459,7 +462,7 @@ class Indicator():
                 add_columns.extend([f'{macd}_{count}_slope', f'{macd_signal}_{count}_slope'])
 
             # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグ
-            df_resampled[f'{macd}_mismatch'] = (df_resampled[macd].diff() * df_resampled['current_price'].diff()).apply(lambda x: 1 if x < 0 else 0)
+            df_resampled[f'{macd}_mismatch'] = (df_resampled[macd].diff() * df_resampled[price_column_name].diff()).apply(lambda x: 1 if x < 0 else 0)
             add_columns.append(f'{macd}_mismatch')
 
             # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグが続いている回数
@@ -482,16 +485,17 @@ class Indicator():
 
         return True, df
 
-    def get_psy(self, df, column_name, window_size, interval):
+    def get_psy(self, df, column_name, window_size, interval, price_column_name = 'current_price'):
         '''
         サイコロジカルライン(PSY)を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定したカラム名が存在し、データが時系列で連続していること
             column_name(str): PSYを設定するカラム名
             window_size(int): PSYを計算する際のウィンドウ幅
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -501,12 +505,12 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # 前日との差分を計算
-            df_resampled['diff'] = df_resampled['current_price'].diff()
+            df_resampled['diff'] = df_resampled[price_column_name].diff()
 
             # 前日との差分がプラスなら1、マイナスなら0を設定
             df_resampled['up'] = df_resampled['diff'].apply(lambda x: 1 if x > 0 else 0)
@@ -529,17 +533,18 @@ class Indicator():
 
         return True, df
 
-    def get_parabolic(self, df, column_name, min_af, max_af, interval):
+    def get_parabolic(self, df, column_name, min_af, max_af, interval, price_column_name = 'current_price'):
         '''
-        パラボリック(SAR)を計算してカラムに追加する
+        パラボリック(SAR)を計算してカラムに追加する(終値のみから算出)
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定したカラム名が存在し、データが時系列で連続していること
             column_name(str): SARを設定するカラム名
             min_af(float): 加速因数の初期値(最小値)
             max_af(float): 加速因数の最大値
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -549,19 +554,19 @@ class Indicator():
         try:
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
-                df_resampled = df[['current_price']].iloc[::interval, :].copy()
+                df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
             else:
-                df_resampled = df[['current_price']].copy()
+                df_resampled = df[[price_column_name]].copy()
 
             # 初期値の設定 SARの初期値と前日のEPは初期値の終値になる
-            sar_list = [df_resampled['current_price'].iloc[0]]
-            ep = df_resampled['current_price'].iloc[0]
+            sar_list = [df_resampled[price_column_name].iloc[0]]
+            ep = df_resampled[price_column_name].iloc[0]
             af = min_af
             trend = ''
 
             # SARの計算
             for i in range(1, len(df_resampled)):
-                current_price = df_resampled['current_price'].iloc[i]
+                current_price = df_resampled[price_column_name].iloc[i]
 
                 # 1つ目の要素の場合は前日との差分で上昇か下降トレンドかを判定
                 if i == 1:
@@ -608,14 +613,115 @@ class Indicator():
 
             df_resampled[column_name] = sar_list
             column_name_flag = f'{column_name}_flag'
-            df_resampled[column_name_flag] = (df_resampled[column_name] >= 0).astype(int)
+            # SARが一つ前のSARよりも高い場合は1、低い場合は0
+            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
-            df = df.merge(df_resampled[column_name, column_name_flag], left_index=True, right_index=True, how='left')
+            df = df.merge(df_resampled[[column_name, column_name_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
             df[column_name].fillna(method='ffill', inplace=True)
             df[column_name_flag].fillna(method='ffill', inplace=True)
+
+        except Exception as e:
+            self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
+            return False, None
+
+        return True, df
+
+    def get_parabolic_hlc(self, df, column_name, min_af, max_af, interval):
+        '''
+        パラボリック(SAR)を計算してカラムに追加する(三本値から算出)
+
+        Args:
+            df(pandas.DataFrame): 板情報のデータ
+                ※high, low, closeカラムが存在し、データが時系列で連続していること
+            column_name(str): SARを設定するカラム名
+            min_af(float): 加速因数の初期値(最小値)
+            max_af(float): 加速因数の最大値
+            interval(int): 何分足として計算するか
+
+        Returns:
+            bool: 実行結果
+            df(pandas.DataFrame): SARを追加したDataFrame
+
+        '''
+        try:
+            # 計算に必要なカラム名のリスト
+            columns = ['high', 'low', 'close']
+
+            # 何分足の設定かに応じてデータをリサンプリング
+            if interval > 1:
+                df_resampled = df[columns].iloc[::interval, :].copy()
+            else:
+                df_resampled = df[columns].copy()
+
+            # 初期値の設定 SARの初期値と前日のEPは初期値の終値になる
+            sar_list = [df_resampled['close'].iloc[0]]
+            ep = df_resampled['close'].iloc[0]
+            af = min_af
+            trend = ''
+
+            # SARの計算
+            for i in range(1, len(df_resampled)):
+                close = df_resampled['close'].iloc[i]
+                high = df_resampled['high'].iloc[i]
+                low = df_resampled['low'].iloc[i]
+
+                # 1つ目の要素の場合は前日との差分で上昇か下降トレンドかを判定
+                if i == 1:
+                    if sar_list[0] < close:
+                        trend = 'up'
+                    else:
+                        trend = 'down'
+
+                # 上昇トレンドの場合
+                if trend == 'up':
+                    # トレンド内での高値を更新した場合
+                    if ep < high:
+                        ep, af = high, min(af + min_af, max_af)
+
+                    # SARの計算
+                    sar = sar_list[i - 1] + af * (ep - sar_list[i - 1])
+
+                    # SARが現在の安値と同じか高くなった場合はトレンドを反転
+                    if sar >= low:
+                        trend, af = 'down', min_af
+                        sar = ep = low
+
+                # 下降トレンドの場合
+                else:
+                    # トレンド内での安値を更新した場合
+                    if ep > low:
+                        ep, af = low, min(af + min_af, max_af)
+
+                    # SARの計算
+                    sar = sar_list[i - 1] - af * (sar_list[i - 1] - ep)
+
+                    # SARが現在の高値と同じか高くなった場合はトレンドを反転
+                    if sar <= high:
+                        trend, af = 'up', min_af
+                        sar = ep = high
+
+                sar_list.append(sar.round(4))
+
+            df_resampled[column_name] = sar_list
+            column_name_flag = f'{column_name}_flag'
+            column_name_reverse_flag = f'{column_name}_reverse_flag'
+
+            # SARが一つ前のSARよりも高い場合は1、低い場合は0
+            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
+
+            # トレンドが反転した場合は1、そうでない場合は0
+            df_resampled[column_name_reverse_flag] = (df_resampled[column_name_flag] != df_resampled[column_name_flag].shift()).astype(int)
+
+            # 元のデータフレームにリサンプリングされたデータをマージ
+            df = df.merge(df_resampled[[column_name, column_name_flag, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
+
+            # リサンプリングされていない行を直前の値で埋める
+            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name_flag].fillna(method='ffill', inplace=True)
+            df[column_name_reverse_flag].fillna(method='ffill', inplace=True)
 
         except Exception as e:
             self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')

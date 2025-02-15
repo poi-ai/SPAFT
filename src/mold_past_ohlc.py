@@ -28,7 +28,7 @@ class MoldPastOhlc(Base):
         for csv_name in tmp_csv_name_list:
             self.log.info(f'対象CSVファイル名: {csv_name}')
             self.logic.main(csv_name, 1)
-        self.log.info('四本値データからのテクニカル指標追加処理終了終了')
+        self.log.info('四本値データからのテクニカル指標追加処理終了')
 
 if __name__ == '__main__':
     mpo = MoldPastOhlc()

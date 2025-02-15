@@ -213,6 +213,10 @@ class MoldPastRecord(ServiceBase):
         close_columns = ['date', 'stock_code', 'close']
         close_df = df[close_columns].copy()
 
+        # timestampとhigh, low, closeのカラムを持ったdfを作成
+        hlc_columns = ['date', 'stock_code', 'high', 'low', 'close']
+        hlc_df = df[hlc_columns].copy()
+
         # 日付/証券コードのユニーク値を取得
         date_list = df['date'].unique()
         stock_code_list = df['stock_code'].unique()
@@ -221,14 +225,16 @@ class MoldPastRecord(ServiceBase):
             for stock_code in tqdm(stock_code_list):
                 # 日付/証券コードごとにデータを取得
                 unique_df = close_df[(close_df['date'] == date) & (close_df['stock_code'] == stock_code)].copy()
+                hlc_unique_df = hlc_df[(hlc_df['date'] == date) & (hlc_df['stock_code'] == stock_code)].copy()
 
                 if len(unique_df) == 0:
                     continue
 
                 for minute in minute_list:
+                    '''
                     for window_size in window_size_list:
                         # 間隔と本数が多すぎると説明変数として利用できるようになるまで時間がかかるためスキップ
-                        if minute * window_size > 9:
+                        if minute * window_size > 9: # TODO 元は150だったが、計算量を減らすため一時的に9に変更
                             continue
 
                         sma_column_name = f'sma_{minute}min_{window_size}piece'
@@ -281,7 +287,7 @@ class MoldPastRecord(ServiceBase):
                             if re.search(bb_column_name, column_name):
                                 add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = bb_df[column_name]
 
-                    # MAから短期と長期の移動平均線の関連性を計算・追加する
+                    # 計算・カラム追加済みの各種移動平均線のカラム名を取得
                     ma_columns = []
                     for column in add_df.columns:
                         if re.compile(f'.ma_{minute}min_\\d+piece').match(column):
@@ -290,6 +296,7 @@ class MoldPastRecord(ServiceBase):
                     # 日付と証券コードでフィルタリングし、必要なカラムだけをコピー
                     ma_unique_df = add_df.loc[(close_df['date'] == date) & (add_df['stock_code'] == stock_code), ma_columns].copy()
 
+                    # 計算済みの移動平均線から短期と長期の関連性を計算・追加する
                     result, ma_cross_df = self.util.indicator.get_ma_cross(df = ma_unique_df, interval = minute)
                     if result == False:
                         return False, None
@@ -299,61 +306,94 @@ class MoldPastRecord(ServiceBase):
                         if column_name not in ma_columns:
                             add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = ma_cross_df[column_name]
 
-
-                    '''
                     for window_size in window_size_list2:
                         # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                        if minute * window_size > 150:
+                        if minute * window_size > 44: # TODO 元は150だったが、計算量を減らすため一時的に44に変更
                             continue
 
+                        # カラム名定義
+                        rsi_column_name = f'rsi_{minute}min_{window_size}piece'
+                        rci_column_name = f'rci_{minute}min_{window_size}piece'
+
                         # RSIを計算・追加する
-                        result, board_df = self.util.indicator.get_rsi(df = board_df,
-                                                                    column_name = f'rsi_{minute}min_{window_size}piece',
+                        result, rsi_df = self.util.indicator.get_rsi(df = unique_df,
+                                                                    column_name = rsi_column_name,
                                                                     window_size = window_size,
-                                                                    interval = minute)
+                                                                    interval = minute,
+                                                                    price_column_name = 'close')
                         if result == False:
                             return False, None
 
                         # RCIを計算・追加する
-                        result, board_df = self.util.indicator.get_rci(df = board_df,
-                                                                    column_name = f'rci_{minute}min_{window_size}piece',
+                        result, rci_df = self.util.indicator.get_rci(df = unique_df,
+                                                                    column_name = rci_column_name,
                                                                     window_size = window_size,
-                                                                    interval = minute)
+                                                                    interval = minute,
+                                                                    price_column_name = 'close')
+
                         if result == False:
                             return False, None
+
+                        # 計算したデータをdfに追加する
+                        add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), rsi_column_name] = rsi_df[rsi_column_name]
+                        add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), rci_column_name] = rci_df[rci_column_name]
+
 
                     for window_size in window_size_list3:
                         # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                        if minute * window_size > 150:
+                        if minute * window_size > 59: # TODO 元は150だったが、計算量を減らすため一時的に59に変更
                             continue
 
+                        # カラム名定義
+                        psy_column_name = f'psy_{minute}min_{window_size}piece'
+
                         # サイコロジカルラインを計算・追加する
-                        result, board_df = self.util.indicator.get_psy(df = board_df,
-                                                                    column_name = f'psy_{minute}min_{window_size}piece',
+                        result, psy_df = self.util.indicator.get_psy(df = unique_df,
+                                                                    column_name = psy_column_name,
                                                                     window_size = window_size,
-                                                                    interval = minute)
+                                                                    interval = minute,
+                                                                    price_column_name = 'close')
                         if result == False:
                             return False, None
 
+                        # 計算したデータをdfに追加する
+                        add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), psy_column_name] = psy_df[psy_column_name]
+                    '''
+
                     for min_af, max_af in af_list:
+                        # カラム名定義
+                        sar_column_name = f'sar_{minute}min_{min_af}_{max_af}af'
+
                         # パラボリックSARを計算・追加する
-                        result, board_df = self.util.indicator.get_parabolic(df = board_df,
-                                                                            column_name = f'sar_{minute}min_{min_af}_{max_af}af',
+                        result, sar_df = self.util.indicator.get_parabolic_hlc(df = hlc_unique_df,
+                                                                            column_name = sar_column_name,
                                                                             min_af = min_af,
                                                                             max_af = max_af,
                                                                             interval = minute)
                         if result == False:
                             return False, None
 
+                        # 計算したデータをdfに追加する
+                        for column_name in sar_df.columns:
+                            if column_name not in add_df.columns:
+                                add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = sar_df[column_name]
+
+                    '''
                     # MACDを計算・追加する
-                    result, board_df = self.util.indicator.get_macd(df = board_df,
+                    result, macd_df = self.util.indicator.get_macd(df = unique_df,
                                                                     column_name = f'macd_{minute}min',
                                                                     short_window_size = 12,
                                                                     long_window_size = 26,
                                                                     signal_window_size = 9,
-                                                                    interval = minute)
+                                                                    interval = minute,
+                                                                    price_column_name = 'close')
                     if result == False:
                         return False, None
+
+                    # 計算したデータをdfに追加する
+                    for column_name in macd_df.columns:
+                        if column_name not in add_df.columns:
+                            add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = macd_df[column_name]
 
                     # 一目均衡表は計算に広いデータが必要になるため5分足までで制限
                     if minute > 5:
