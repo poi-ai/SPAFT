@@ -172,9 +172,15 @@ class Record(ServiceBase):
         if len(self.ohlc_list) > 0:
             for ohlc in self.ohlc_list:
                 # メモリに存在する場合
-                if ohlc['symbol'] == reception_data['Symbol'] and ohlc['trade_time'] == reception_data['CurrentPriceMinute']:
-                    recorded_ohlc_data = ohlc
-                    break
+                try:
+                    if ohlc['symbol'] == reception_data['Symbol'] and ohlc['trade_time'] == reception_data['CurrentPriceMinute']:
+                        recorded_ohlc_data = ohlc
+                        break
+                except Exception as e:
+                    self.log.error(f'メモリのチェック処理でエラー\n{e}')
+                    self.log.error(f'ohlc[trade_time]: {ohlc["trade_time"]}')
+                    self.log.error(f'reception_data[CurrentPriceMinute]: {reception_data["CurrentPriceMinute"]}')
+                    continue
 
         # メモリに存在しない場合はDBをチェック
         if recorded_ohlc_data == {}:
@@ -209,11 +215,15 @@ class Record(ServiceBase):
 
         # 先にメモリを更新
         for ohlc in self.ohlc_list[:]:
-            print('ohlc[trade_time]:', ohlc['trade_time'])
-            print('new_ohlc_data[trade_time]:', new_ohlc_data['trade_time'])
-            if ohlc['symbol'] == new_ohlc_data['symbol'] and ohlc['trade_time'] == new_ohlc_data['trade_time']:
-                self.ohlc_list.remove(ohlc)
-                break
+            try:
+                if ohlc['symbol'] == new_ohlc_data['symbol'] and ohlc['trade_time'] == new_ohlc_data['trade_time']:
+                    self.ohlc_list.remove(ohlc)
+                    break
+            except Exception as e:
+                self.log.error(f'メモリの更新処理でエラー\n{e}')
+                self.log.error(f'ohlc[trade_time]: {ohlc["trade_time"]}')
+                self.log.error(f'new_ohlc_data[trade_time]: {new_ohlc_data["trade_time"]}')
+                continue
         self.ohlc_list.append(new_ohlc_data)
 
         # 既に記録済み/使用しないためメモリにいらないデータは削除する
