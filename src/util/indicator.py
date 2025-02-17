@@ -466,7 +466,8 @@ class Indicator():
             add_columns.append(f'{macd}_mismatch')
 
             # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグが続いている回数
-            df_resampled[f'{macd}_mismatch_count'] = df_resampled[f'{macd}_mismatch'].rolling(window=50, min_periods=1).sum()
+            df_resampled[f'{macd}_mismatch_count'] = df_resampled[f'{macd}_mismatch'].groupby((df_resampled[f'{macd}_mismatch'] != df_resampled[f'{macd}_mismatch'].shift()).cumsum()).cumcount() + 1
+            df_resampled.loc[df_resampled[f'{macd}_mismatch'] == 0, f'{macd}_mismatch_count'] = 0
             add_columns.append(f'{macd}_mismatch_count')
 
             # 先頭の要素を-999で埋める
@@ -687,7 +688,8 @@ class Indicator():
                     # SARが現在の安値と同じか高くなった場合はトレンドを反転
                     if sar >= low:
                         trend, af = 'down', min_af
-                        sar = ep = low
+                        sar = ep
+                        ep = high
 
                 # 下降トレンドの場合
                 else:
@@ -701,7 +703,8 @@ class Indicator():
                     # SARが現在の高値と同じか高くなった場合はトレンドを反転
                     if sar <= high:
                         trend, af = 'up', min_af
-                        sar = ep = high
+                        sar = ep
+                        ep = low
 
                 sar_list.append(sar.round(4))
 
@@ -729,17 +732,18 @@ class Indicator():
 
         return True, df
 
-    def get_ichimoku_cloud(self, df, column_name, short_window_size, long_window_size, interval):
+    def get_ichimoku_cloud(self, df, column_name, short_window_size, long_window_size, interval, close_column_name = 'current_price'):
         '''
         一目均衡表を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムかhigh&lowカラムが存在かつデータが時系列で連続していること
+                ※close_column_nameで指定したカラム(+high(高値)+row(終値))が存在かつデータが時系列で連続していること
             column_name(str): 一目均衡表を設定するカラム名
             short_window_size(int): 短期のウィンドウ幅
             long_window_size(int): 長期のウィンドウ幅
             interval(int): 何分足として計算するか
+            close_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -792,8 +796,8 @@ class Indicator():
 
             # 高値/安値がない場合
             if 'high' not in df_resampled.columns:
-                df_resampled['high'] = df_resampled['current_price']
-                df_resampled['low'] = df_resampled['current_price']
+                df_resampled['high'] = df_resampled[close_column_name]
+                df_resampled['low'] = df_resampled[close_column_name]
 
             # 基準線の計算 long_window_size本の高値と安値の平均
             df_resampled[base_line] = (df_resampled['high'].rolling(window = long_window_size).max() + df_resampled['low'].rolling(window = long_window_size).min()) / 2
@@ -808,7 +812,7 @@ class Indicator():
             df_resampled[leading_span_b] = ((df_resampled['high'].rolling(window = long_window_size * 2).max() + df_resampled['low'].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)
 
             # 遅行スパンの計算 現在の価格をlong_window_size本前にずらす
-            df_resampled[lagging_span] = df_resampled['current_price'].shift(-long_window_size)
+            df_resampled[lagging_span] = df_resampled[close_column_name].shift(-long_window_size)
 
             # 基準線と転換線の差/位置関係
             df_resampled[base_conversion_diff] = df_resampled[conversion_line] - df_resampled[base_line]
@@ -826,13 +830,13 @@ class Indicator():
             df_resampled.loc[df_resampled[base_conversion_cross] == -1, base_conversion_dc_after] = 0
 
             # 終値と遅行スパンの差/位置関係
-            df_resampled[price_lagging_diff] = df_resampled['current_price'] - df_resampled[lagging_span]
-            df_resampled[price_lagging_position] = (df_resampled['current_price'] > df_resampled[lagging_span]).astype(int)
+            df_resampled[price_lagging_diff] = df_resampled[close_column_name] - df_resampled[lagging_span]
+            df_resampled[price_lagging_position] = (df_resampled[close_column_name] > df_resampled[lagging_span]).astype(int)
 
             # 終値と遅行スパンのクロスフラグ
             df_resampled[price_lagging_cross] = 0
-            df_resampled.loc[(df_resampled['current_price'] > df_resampled[lagging_span]) & (df_resampled['current_price'].shift() < df_resampled[lagging_span].shift()), price_lagging_cross] = 1
-            df_resampled.loc[(df_resampled['current_price'] < df_resampled[lagging_span]) & (df_resampled['current_price'].shift() > df_resampled[lagging_span].shift()), price_lagging_cross] = -1
+            df_resampled.loc[(df_resampled[close_column_name] > df_resampled[lagging_span]) & (df_resampled[close_column_name].shift() < df_resampled[lagging_span].shift()), price_lagging_cross] = 1
+            df_resampled.loc[(df_resampled[close_column_name] < df_resampled[lagging_span]) & (df_resampled[close_column_name].shift() > df_resampled[lagging_span].shift()), price_lagging_cross] = -1
 
             # ゴールデンクロス/デッドクロスからの経過データ数を計算
             df_resampled[price_lagging_gc_after] = df_resampled.groupby((df_resampled[price_lagging_cross] == 1).cumsum()).cumcount()
@@ -856,23 +860,23 @@ class Indicator():
             df_resampled.loc[df_resampled[leading_span_cross] == -1, leading_span_dc_after] = 0
 
             # 終値と雲(先行スパン1と2の間)の差/位置関係
-            df_resampled[price_cloud_high_diff] = df_resampled['current_price'] - np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])
-            df_resampled[price_cloud_low_diff] = df_resampled['current_price'] - np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])
+            df_resampled[price_cloud_high_diff] = df_resampled[close_column_name] - np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])
+            df_resampled[price_cloud_low_diff] = df_resampled[close_column_name] - np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])
             # 雲の上下位置フラグ(1: 上、 0: 中、-1: 下)
             df_resampled[price_cloud_position] = 0
-            df_resampled.loc[(df_resampled['current_price'] > np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = 1
-            df_resampled.loc[(df_resampled['current_price'] < np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = -1
+            df_resampled.loc[(df_resampled[close_column_name] > np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = 1
+            df_resampled.loc[(df_resampled[close_column_name] < np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = -1
 
-            # 終値と雲(先行スパン1と2の間)からのクロスフラグ
+            # 終値と雲(先行スパン1と2の間)からのクロスフラグ # TODO おかしいかも
             df_resampled[price_cloud_cross] = 0
             # 雲の上->中
-            df_resampled.loc[(df_resampled['current_price'] > np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled['current_price'].shift() < np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b]).shift()), price_cloud_cross] = 1
+            df_resampled.loc[(df_resampled[close_column_name] >= np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() < np.maximum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 1
             # 雲の中->上
-            df_resampled.loc[(df_resampled['current_price'] < np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled['current_price'].shift() > np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b]).shift()), price_cloud_cross] = 2
+            df_resampled.loc[(df_resampled[close_column_name] <= np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() > np.maximum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 2
             # 雲の中->下
-            df_resampled.loc[(df_resampled['current_price'] > np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled['current_price'].shift() < np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b]).shift()), price_cloud_cross] = 3
+            df_resampled.loc[(df_resampled[close_column_name] >= np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() < np.minimum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 3
             # 雲の下->中
-            df_resampled.loc[(df_resampled['current_price'] < np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled['current_price'].shift() > np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b]).shift()), price_cloud_cross] = 4
+            df_resampled.loc[(df_resampled[close_column_name] <= np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() > np.minimum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 4
 
             # ゴールデンクロス/デッドクロスからの経過データ数を計算
             df_resampled[price_cloud_cross_gc_after1] = df_resampled.groupby((df_resampled[price_cloud_cross] == 2).cumsum()).cumcount()

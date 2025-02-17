@@ -174,6 +174,9 @@ class MoldPastRecord(ServiceBase):
                     df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), f'change_{minute}min_price'] = df_tmp[f'change_{minute}min_price']
                     df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), f'change_{minute}min_rate'] = df_tmp[f'change_{minute}min_rate']
 
+                    # データ削減のためカラムを削除
+                    #df_tmp.drop(columns = [f'change_{minute}min_flag', f'change_{minute}min_price', f'change_{minute}min_rate'], inplace = True)
+
         # 日付変更フラグの追加(管理用)
         df['date_change_flag'] = (df['timestamp'].dt.day != df['timestamp'].shift(-1).dt.day).astype(int)
         # 処理の都合上、末尾は1になってしまうため0にする
@@ -195,7 +198,6 @@ class MoldPastRecord(ServiceBase):
                 ※エラーが発生した場合はNoneを返す
 
         '''
-        ############### board_model.pyの内容を移植だけなのでそのままでは動かない
         # 何分足で計算するか
         minute_list = [1, 3, 5, 10, 15, 30, 60, 90, 120, 240]
 
@@ -230,11 +232,13 @@ class MoldPastRecord(ServiceBase):
                 if len(unique_df) == 0:
                     continue
 
+                # メモリ削減のための一時的なデータフレームを作成
+                ma_tmp_df = df.copy()
+
                 for minute in minute_list:
-                    '''
                     for window_size in window_size_list:
                         # 間隔と本数が多すぎると説明変数として利用できるようになるまで時間がかかるためスキップ
-                        if minute * window_size > 9: # TODO 元は150だったが、計算量を減らすため一時的に9に変更
+                        if minute * window_size > 150: # TODO 元は150だったが、計算量を減らすため一時的に9に変更
                             continue
 
                         sma_column_name = f'sma_{minute}min_{window_size}piece'
@@ -282,6 +286,11 @@ class MoldPastRecord(ServiceBase):
                         add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), sma_column_name] = sma_df[sma_column_name]
                         add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), ema_column_name] = ema_df[ema_column_name]
                         add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), wma_column_name] = wma_df[wma_column_name]
+
+                        ma_tmp_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), sma_column_name] = sma_df[sma_column_name]
+                        ma_tmp_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), ema_column_name] = ema_df[ema_column_name]
+                        ma_tmp_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), wma_column_name] = wma_df[wma_column_name]
+
                         ## ボリンジャーバンドは複数のカラムがあるので一つずつ追加
                         for column_name in bb_df.columns:
                             if re.search(bb_column_name, column_name):
@@ -289,26 +298,28 @@ class MoldPastRecord(ServiceBase):
 
                     # 計算・カラム追加済みの各種移動平均線のカラム名を取得
                     ma_columns = []
-                    for column in add_df.columns:
+                    for column in ma_tmp_df.columns:
                         if re.compile(f'.ma_{minute}min_\\d+piece').match(column):
                             ma_columns.append(column)
 
-                    # 日付と証券コードでフィルタリングし、必要なカラムだけをコピー
-                    ma_unique_df = add_df.loc[(close_df['date'] == date) & (add_df['stock_code'] == stock_code), ma_columns].copy()
+                    # 対象のカラムがない場合はスキップ
+                    if len(ma_columns) != 0:
+                        # 日付と証券コードでフィルタリングし、必要なカラムだけをコピー
+                        ma_unique_df = ma_tmp_df.loc[(close_df['date'] == date) & (add_df['stock_code'] == stock_code), ma_columns].copy()
 
-                    # 計算済みの移動平均線から短期と長期の関連性を計算・追加する
-                    result, ma_cross_df = self.util.indicator.get_ma_cross(df = ma_unique_df, interval = minute)
-                    if result == False:
-                        return False, None
+                        # 計算済みの移動平均線から短期と長期の関連性を計算・追加する
+                        result, ma_cross_df = self.util.indicator.get_ma_cross(df = ma_unique_df, interval = minute)
+                        if result == False:
+                            return False, None
 
-                    # 計算したデータをdfに追加する
-                    for column_name in ma_cross_df.columns:
-                        if column_name not in ma_columns:
-                            add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = ma_cross_df[column_name]
+                        # 計算したデータをdfに追加する
+                        for column_name in ma_cross_df.columns:
+                            if column_name not in ma_columns:
+                                add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = ma_cross_df[column_name]
 
                     for window_size in window_size_list2:
                         # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                        if minute * window_size > 44: # TODO 元は150だったが、計算量を減らすため一時的に44に変更
+                        if minute * window_size > 150: # TODO 元は150だったが、計算量を減らすため一時的に44に変更
                             continue
 
                         # カラム名定義
@@ -341,7 +352,7 @@ class MoldPastRecord(ServiceBase):
 
                     for window_size in window_size_list3:
                         # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                        if minute * window_size > 59: # TODO 元は150だったが、計算量を減らすため一時的に59に変更
+                        if minute * window_size > 150: # TODO 元は150だったが、計算量を減らすため一時的に59に変更
                             continue
 
                         # カラム名定義
@@ -358,7 +369,6 @@ class MoldPastRecord(ServiceBase):
 
                         # 計算したデータをdfに追加する
                         add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), psy_column_name] = psy_df[psy_column_name]
-                    '''
 
                     for min_af, max_af in af_list:
                         # カラム名定義
@@ -378,7 +388,6 @@ class MoldPastRecord(ServiceBase):
                             if column_name not in add_df.columns:
                                 add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = sar_df[column_name]
 
-                    '''
                     # MACDを計算・追加する
                     result, macd_df = self.util.indicator.get_macd(df = unique_df,
                                                                     column_name = f'macd_{minute}min',
@@ -400,13 +409,18 @@ class MoldPastRecord(ServiceBase):
                         continue
 
                     # 一目均衡表を計算・追加する
-                    result, board_df = self.util.indicator.get_ichimoku_cloud(df = board_df,
+                    result, ichimoku_df = self.util.indicator.get_ichimoku_cloud(df = hlc_unique_df,
                                                                             column_name = f'ichimoku_{minute}min',
                                                                             short_window_size = 9,
                                                                             long_window_size = 26,
-                                                                            interval = minute)
+                                                                            interval = minute,
+                                                                            close_column_name = 'close')
                     if result == False:
                         return False, None
-                    '''
+
+                    # 計算したデータをdfに追加する
+                    for column_name in ichimoku_df.columns:
+                        if column_name not in add_df.columns:
+                            add_df.loc[(df['date'] == date) & (df['stock_code'] == stock_code), column_name] = ichimoku_df[column_name]
 
         return True, add_df
