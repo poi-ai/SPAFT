@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import re
 import traceback
+from datetime import datetime
 from service_base import ServiceBase
 from tqdm import tqdm
 
@@ -20,11 +21,13 @@ class MoldPastRecord(ServiceBase):
         # 成形処理を行う対象のCSVファイル名
         self.target_list = []
         self.tmp_target_list = []
+        self.formatted_separated_list = []
 
-    def set_dir_name(self, csv_dir_name, tmp_csv_dir_name):
+    def set_dir_name(self, csv_dir_name, tmp_csv_dir_name, formatted_csv_dir_name):
         '''CSVファイルが格納されているディレクトリ名を設定する'''
         self.csv_dir_name = csv_dir_name
         self.tmp_csv_dir_name = tmp_csv_dir_name
+        self.formatted_csv_dir_name = formatted_csv_dir_name
 
     def get_target_csv_name_list(self):
         '''
@@ -80,6 +83,44 @@ class MoldPastRecord(ServiceBase):
 
         return True
 
+    def merge_csv(self):
+        '''成形済CSVファイルを一つにまとめる'''
+
+        try:
+            # 出力先のCSVファイル
+            now_time = datetime.now().strftime('%Y%m%d%H%M')
+            output_csv_file_name = f'formatted_ohlc_{now_time}.csv'
+            output_csv_path = os.path.join(self.tmp_csv_dir_name, output_csv_file_name)
+
+            # 目的変数まで追加されているCSVファイルのリストを取得
+            formatted_tmp_csv_list = [csv_name for csv_name in os.listdir(self.tmp_csv_dir_name) if re.fullmatch(r'formatted_tmp_ohlc_\d{8}_\w{4}.csv', csv_name)]
+
+            # dfで読み取って追加先のCSVファイルにdfで結合という形を取るとメモリ不足で落ちるため
+            # openで読み取って追加先のCSVファイルの末尾に追加する方法にする/ポインタで書き込むからメモリを喰わない
+            for csv_name in formatted_tmp_csv_list:
+                try:
+                    # 対象CSVファイルの読み込んで1行ずつ追加
+                    csv_path = os.path.join(self.tmp_csv_dir_name, csv_name)
+                    with open(csv_path, 'r') as f:
+                        lines = f.readlines()
+                        if csv_name == formatted_tmp_csv_list[0]:
+                            with open(output_csv_path, 'a') as f:
+                                f.writelines(lines)
+                except Exception as e:
+                    self.log.error(f'ファイルへの書き込みでエラーが発生しました。出力先ファイル名: {output_csv_path}、出力元ファイル名: {csv_path}')
+                    self.log.error(f'{e}\n{traceback.format_exc()}')
+                    continue
+
+                # 追加に成功したテーブルを結合する
+                self.formatted_separated_list.append(csv_name)
+
+        except Exception as e:
+            self.log.error(f'成形済CSVファイルの一括まとめ処理で想定外のエラーが発生しました')
+            self.log.error(f'{e}\n{traceback.format_exc()}')
+            return False
+
+        return True
+
     def create_dv(self):
         '''目的変数のカラムを作成する'''
 
@@ -114,11 +155,15 @@ class MoldPastRecord(ServiceBase):
                 ## 処理量を減らすため、この中から必要なカラムだけを引数として送り、あとで結合させる
                 target_columns = ['timestamp', 'close', 'stock_code', 'date']
 
+                # 出力先ディレクトリのファイル一覧を取得
+                output_csv_list = os.listdir(self.tmp_csv_dir_name)
+
                 for date in tqdm(date_list):
                     for stock_code in stock_code_list:
                         # 出力先のCSVファイルの存在チェック
-                        output_csv_path = os.path.join(self.tmp_csv_dir_name, f'tmp_ohlc_{str(date).replace("-", "")}_{stock_code}.csv')
-                        if os.path.exists(output_csv_path):
+                        output_csv_name = f'tmp_ohlc_{str(date).replace("-", "")}_{stock_code}.csv'
+                        output_csv_path = os.path.join(self.tmp_csv_dir_name, output_csv_name)
+                        if output_csv_name in output_csv_list:
                             self.log.info(f'既にCSVにデータ出力済のためスキップします: {output_csv_path}')
                             continue
 
@@ -156,10 +201,14 @@ class MoldPastRecord(ServiceBase):
         '''説明変数のカラムを作成する'''
 
         try:
+            # 出力先ディレクトリのファイル一覧を取得
+            output_csv_list = os.listdir(self.tmp_csv_dir_name)
+
             for csv_name in self.tmp_target_list:
                 # 出力先CSVファイルの存在チェック
-                output_csv_path = os.path.join(self.tmp_csv_dir_name, f'formatted_{csv_name}')
-                if os.path.exists(output_csv_path):
+                output_csv_file_name = f'formatted_{csv_name}'
+                output_csv_path = os.path.join(self.tmp_csv_dir_name, output_csv_file_name)
+                if output_csv_file_name in output_csv_list:
                     self.log.info(f'既にCSVにデータ出力済のためスキップします: {output_csv_path}')
                     continue
 
