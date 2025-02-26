@@ -6,6 +6,7 @@ from .mold import Mold
 from .culc_time import CulcTime
 from .stock_price import StockPrice
 from .file_manager import FileManager
+from .indicator import Indicator
 
 class Util():
     def __init__(self, log):
@@ -32,3 +33,6 @@ class Util():
 
         # ファイルの入出力を行うクラス
         self.file_manager = FileManager(self.log)
+
+        # テクニカル指標の計算を行うクラス
+        self.indicator = Indicator(self.log)
