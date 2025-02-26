@@ -18,6 +18,9 @@ class MoldPastRecord(ServiceBase):
         self.csv_dir_name = ''
         self.tmp_csv_dir_name = ''
 
+        # 最終的な出力先のCSV名
+        self.formatted_csv_name = ''
+
         # 成形処理を行う対象のCSVファイル名
         self.target_list = []
         self.tmp_target_list = []
@@ -28,6 +31,10 @@ class MoldPastRecord(ServiceBase):
         self.csv_dir_name = csv_dir_name
         self.tmp_csv_dir_name = tmp_csv_dir_name
         self.formatted_csv_dir_name = formatted_csv_dir_name
+
+    def set_formatted_csv_name(self, formatted_csv_name):
+        '''最終的な出力先のCSVファイル名を設定する'''
+        self.formatted_csv_name = formatted_csv_name
 
     def get_target_csv_name_list(self):
         '''
@@ -90,29 +97,56 @@ class MoldPastRecord(ServiceBase):
             # 出力先のCSVファイル
             now_time = datetime.now().strftime('%Y%m%d%H%M')
             output_csv_file_name = f'formatted_ohlc_{now_time}.csv'
-            output_csv_path = os.path.join(self.tmp_csv_dir_name, output_csv_file_name)
+            # プログラムでファイル名を指定しているならそちらを優先して採用
+            if self.formatted_csv_name:
+                output_csv_file_name = self.formatted_csv_name
+            output_csv_path = os.path.join(self.csv_dir_name, output_csv_file_name)
 
             # 目的変数まで追加されているCSVファイルのリストを取得
             formatted_tmp_csv_list = [csv_name for csv_name in os.listdir(self.tmp_csv_dir_name) if re.fullmatch(r'formatted_tmp_ohlc_\d{8}_\w{4}.csv', csv_name)]
 
+            # 最初のCSVのみヘッダー行出力
+            first_csv = True
+
             # dfで読み取って追加先のCSVファイルにdfで結合という形を取るとメモリ不足で落ちるため
             # openで読み取って追加先のCSVファイルの末尾に追加する方法にする/ポインタで書き込むからメモリを喰わない
-            for csv_name in formatted_tmp_csv_list:
+            for csv_name in tqdm(formatted_tmp_csv_list):
                 try:
                     # 対象CSVファイルの読み込んで1行ずつ追加
                     csv_path = os.path.join(self.tmp_csv_dir_name, csv_name)
-                    with open(csv_path, 'r') as f:
-                        lines = f.readlines()
-                        if csv_name == formatted_tmp_csv_list[0]:
-                            with open(output_csv_path, 'a') as f:
-                                f.writelines(lines)
+                    with open(csv_path, 'r') as f_in:
+                        with open(output_csv_path, 'a') as f_out:
+                            if not first_csv:
+                                next(f_in)
+                            else:
+                                first_csv = False
+                            for line in f_in:
+                                f_out.write(line)
                 except Exception as e:
-                    self.log.error(f'ファイルへの書き込みでエラーが発生しました。出力先ファイル名: {output_csv_path}、出力元ファイル名: {csv_path}')
+                    self.log.error(f'まとめファイルへの書き込みでエラーが発生しました。出力先ファイル名: {output_csv_path}、出力元ファイル名: {csv_path}')
                     self.log.error(f'{e}\n{traceback.format_exc()}')
                     continue
 
-                # 追加に成功したテーブルを結合する
-                self.formatted_separated_list.append(csv_name)
+                # まとめに成功したファイルを別ファイルに記録する
+                try:
+                    # 記録に成功した小分けしたCSVファイル名,まとめ先のCSVファイル名の順に記録
+                    recorded_csv_name = 'recorded_ohlc.csv'
+                    csv_path = os.path.join(self.csv_dir_name, recorded_csv_name)
+                    with open(csv_path, 'a') as f:
+                        f.write(f'{csv_name},{output_csv_file_name}\n')
+                except Exception as e:
+                    self.log.error(f'まとめ完了したCSVファイルを記録する処理でエラーが発生しました。出力ファイル名: {csv_path}、出力内容: {csv_name},{output_csv_file_name}')
+                    self.log.error(f'{e}\n{traceback.format_exc()}')
+                    continue
+
+                # まとめ元のファイルを削除
+                try:
+                    os.remove(os.path.join(self.tmp_csv_dir_name, csv_name))
+                    os.remove(os.path.join(self.tmp_csv_dir_name, csv_name.replace('formatted_', '')))
+                except Exception as e:
+                    self.log.error(f'まとめ完了したCSVファイルを削除する処理でエラーが発生しました。削除ファイル名: {csv_name} / {csv_name.replace("formatted_", "")}')
+                    self.log.error(f'{e}\n{traceback.format_exc()}')
+                    continue
 
         except Exception as e:
             self.log.error(f'成形済CSVファイルの一括まとめ処理で想定外のエラーが発生しました')
@@ -158,19 +192,38 @@ class MoldPastRecord(ServiceBase):
                 # 出力先ディレクトリのファイル一覧を取得
                 output_csv_list = os.listdir(self.tmp_csv_dir_name)
 
+                # 記録済のCSVのデータを取得
+                try:
+                    recorded_df = pd.read_csv(os.path.join(self.csv_dir_name, 'recorded_ohlc.csv'), header = None)
+                    recorded_list = recorded_df[0].tolist()
+                except Exception as e:
+                    # ファイルが存在しない場合
+                    self.log.info('記録済のCSVデータは存在しません')
+                    recorded_list = []
+
                 for date in tqdm(date_list):
-                    for stock_code in stock_code_list:
+                    for stock_code in tqdm(stock_code_list):
                         # 出力先のCSVファイルの存在チェック
                         output_csv_name = f'tmp_ohlc_{str(date).replace("-", "")}_{stock_code}.csv'
                         output_csv_path = os.path.join(self.tmp_csv_dir_name, output_csv_name)
+
+                        # 同名のCSVファイルが存在した場合は既に出力済と判定してスキップ
                         if output_csv_name in output_csv_list:
-                            self.log.info(f'既にCSVにデータ出力済のためスキップします: {output_csv_path}')
+                            #self.log.info(f'既にCSVにデータ出力済のためスキップします: {output_csv_path}')
                             continue
 
-                        self.log.info(f'目的変数追加処理開始 出力ファイル名: {output_csv_path}')
+                        # 記録済情報をメモしたファイルに記録されていた場合は出力済と判定してスキップ
+                        if f'formatted_{output_csv_name}' in recorded_list:
+                            continue
+
+                        #self.log.info(f'目的変数追加処理開始 出力ファイル名: {output_csv_path}')
 
                         # 日付/証券コードごとにデータを切り出し
                         df_tmp = df[(df['date'] == date) & (df['stock_code'] == stock_code)].copy()
+
+                        # データが存在しなければスキップ
+                        if df_tmp.empty:
+                            continue
 
                         # 目的変数(株価変化額/率/フラグ)のカラムを追加
                         df_dv = self.culc_dv(df_tmp[target_columns])
@@ -189,7 +242,8 @@ class MoldPastRecord(ServiceBase):
                         output_csv_path = os.path.join(self.tmp_csv_dir_name, f'tmp_ohlc_{str(date).replace("-", "")}_{stock_code}.csv')
                         new_df.to_csv(output_csv_path, index = False)
 
-                        self.log.info(f'目的変数追加処理終了 出力ファイル名: {output_csv_path}')
+                        #self.log.info(f'目的変数追加処理終了 出力ファイル名: {output_csv_path}')
+
         except Exception as e:
             self.log.error(f'目的変数追加処理で想定外のエラーが発生しました')
             self.log.error(f'{e}\n{traceback.format_exc()}')
@@ -204,12 +258,27 @@ class MoldPastRecord(ServiceBase):
             # 出力先ディレクトリのファイル一覧を取得
             output_csv_list = os.listdir(self.tmp_csv_dir_name)
 
-            for csv_name in self.tmp_target_list:
+            # 記録済のCSVのデータを取得
+            try:
+                recorded_df = pd.read_csv(os.path.join(self.csv_dir_name, 'recorded_ohlc.csv'), header = None)
+                recorded_list = recorded_df[0].tolist()
+            except Exception as e:
+                # ファイルが存在しない場合
+                self.log.info('記録済のCSVデータは存在しません')
+                recorded_list = []
+
+            for csv_name in tqdm(self.tmp_target_list):
                 # 出力先CSVファイルの存在チェック
                 output_csv_file_name = f'formatted_{csv_name}'
                 output_csv_path = os.path.join(self.tmp_csv_dir_name, output_csv_file_name)
+
+                # 出力先に同名のCSVファイルが存在する場合は既に出力済と判定してスキップ
                 if output_csv_file_name in output_csv_list:
-                    self.log.info(f'既にCSVにデータ出力済のためスキップします: {output_csv_path}')
+                    #self.log.info(f'既にCSVにデータ出力済のためスキップします: {output_csv_file_name}')
+                    continue
+
+                # 記録済情報をメモしたファイルに記録されていた場合は出力済と判定してスキップ
+                if output_csv_file_name in recorded_list:
                     continue
 
                 # CSVファイルの読み込み
@@ -219,11 +288,11 @@ class MoldPastRecord(ServiceBase):
                 # 主要なテクニカル指標を追加
                 ## 処理量を減らすため、この中から必要なカラムだけを引数として送り、あとで結合させる
                 target_columns = ['date', 'stock_code', 'high', 'low', 'close']
-                self.log.info(f'説明変数追加処理開始 出力ファイル名: {output_csv_path}')
+                #self.log.info(f'説明変数追加処理開始 出力ファイル名: {output_csv_file_name}')
                 result, df_tmp = self.culc_iv(df[target_columns])
                 if result == False:
-                    self.log.info(f'説明変数追加処理でエラー 出力ファイル名: {output_csv_path}')
-                    return False
+                    self.log.info(f'説明変数追加処理でエラー 対象ファイル名: {csv_name}、 出力ファイル名: {output_csv_file_name}')
+                    continue
 
                 ## 重複するカラムを削除してから結合
                 df_tmp.drop(columns = target_columns, inplace = True)
@@ -236,7 +305,7 @@ class MoldPastRecord(ServiceBase):
                 output_csv_path = os.path.join(self.tmp_csv_dir_name, f'formatted_{csv_name}')
                 df.to_csv(output_csv_path, index = False)
 
-                self.log.info(f'説明変数追加処理終了 出力ファイル名: {output_csv_path}')
+                #self.log.info(f'説明変数追加処理終了 出力ファイル名: {output_csv_file_name}')
 
         except Exception as e:
             self.log.error(f'説明変数追加処理で想定外のエラーが発生しました')
@@ -376,18 +445,18 @@ class MoldPastRecord(ServiceBase):
                         return False, None
 
                     # 計算したデータをdfに追加する
-                    add_df.loc[sma_column_name] = sma_df[sma_column_name]
-                    add_df.loc[ema_column_name] = ema_df[ema_column_name]
-                    add_df.loc[wma_column_name] = wma_df[wma_column_name]
+                    add_df[sma_column_name] = sma_df[sma_column_name]
+                    add_df[ema_column_name] = ema_df[ema_column_name]
+                    add_df[wma_column_name] = wma_df[wma_column_name]
 
-                    ma_tmp_df.loc[sma_column_name] = sma_df[sma_column_name]
-                    ma_tmp_df.loc[ema_column_name] = ema_df[ema_column_name]
-                    ma_tmp_df.loc[wma_column_name] = wma_df[wma_column_name]
+                    ma_tmp_df[sma_column_name] = sma_df[sma_column_name]
+                    ma_tmp_df[ema_column_name] = ema_df[ema_column_name]
+                    ma_tmp_df[wma_column_name] = wma_df[wma_column_name]
 
                     ## ボリンジャーバンドは複数のカラムがあるので一つずつ追加
                     for column_name in bb_df.columns:
                         if re.search(bb_column_name, column_name):
-                            add_df.loc[column_name] = bb_df[column_name]
+                            add_df[column_name] = bb_df[column_name]
 
                 # 計算・カラム追加済みの各種移動平均線のカラム名を取得
                 ma_columns = []
@@ -398,7 +467,7 @@ class MoldPastRecord(ServiceBase):
                 # 対象のカラムがない場合はスキップ
                 if len(ma_columns) != 0:
                     # 日付と証券コードでフィルタリングし、必要なカラムだけをコピー
-                    ma_unique_df = ma_tmp_df.loc[ma_columns].copy()
+                    ma_unique_df = ma_tmp_df[ma_columns].copy()
 
                     # 計算済みの移動平均線から短期と長期の関連性を計算・追加する
                     result, ma_cross_df = self.util.indicator.get_ma_cross(df = ma_unique_df, interval = minute)
@@ -408,7 +477,7 @@ class MoldPastRecord(ServiceBase):
                     # 計算したデータをdfに追加する
                     for column_name in ma_cross_df.columns:
                         if column_name not in ma_columns:
-                            add_df.loc[column_name] = ma_cross_df[column_name]
+                            add_df[column_name] = ma_cross_df[column_name]
 
                 for window_size in window_size_list2:
                     # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
@@ -439,8 +508,8 @@ class MoldPastRecord(ServiceBase):
                         return False, None
 
                     # 計算したデータをdfに追加する
-                    add_df.loc[rsi_column_name] = rsi_df[rsi_column_name]
-                    add_df.loc[rci_column_name] = rci_df[rci_column_name]
+                    add_df[rsi_column_name] = rsi_df[rsi_column_name]
+                    add_df[rci_column_name] = rci_df[rci_column_name]
 
 
                 for window_size in window_size_list3:
@@ -461,7 +530,7 @@ class MoldPastRecord(ServiceBase):
                         return False, None
 
                     # 計算したデータをdfに追加する
-                    add_df.loc[psy_column_name] = psy_df[psy_column_name]
+                    add_df[psy_column_name] = psy_df[psy_column_name]
 
                 for min_af, max_af in af_list:
                     # カラム名定義
@@ -479,7 +548,7 @@ class MoldPastRecord(ServiceBase):
                     # 計算したデータをdfに追加する
                     for column_name in sar_df.columns:
                         if column_name not in add_df.columns:
-                            add_df.loc[column_name] = sar_df[column_name]
+                            add_df[column_name] = sar_df[column_name]
 
                 # MACDを計算・追加する
                 result, macd_df = self.util.indicator.get_macd(df = unique_df,
@@ -495,7 +564,7 @@ class MoldPastRecord(ServiceBase):
                 # 計算したデータをdfに追加する
                 for column_name in macd_df.columns:
                     if column_name not in add_df.columns:
-                        add_df.loc[column_name] = macd_df[column_name]
+                        add_df[column_name] = macd_df[column_name]
 
                 # 一目均衡表は計算に広いデータが必要になるため5分足までで制限
                 if minute > 5:
@@ -514,7 +583,7 @@ class MoldPastRecord(ServiceBase):
                 # 計算したデータをdfに追加する
                 for column_name in ichimoku_df.columns:
                     if column_name not in add_df.columns:
-                        add_df.loc[column_name] = ichimoku_df[column_name]
+                        add_df[column_name] = ichimoku_df[column_name]
 
         except Exception as e:
             self.log.error(f'説明変数の計算に失敗しました')

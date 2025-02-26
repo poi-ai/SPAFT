@@ -1,6 +1,9 @@
 import os
 from base import Base
 
+### 最終的なまとめ先のファイル名 ###
+formatted_csv_name = 'formatted_ohlc_test.csv'
+
 class MoldPastOhlc(Base):
     '''四本値データを持つCSVファイルを成形する'''
     def __init__(self):
@@ -15,6 +18,7 @@ class MoldPastOhlc(Base):
 
         # ディレクトリ名の設定
         self.logic.set_dir_name(self.output_csv_dir, self.tmp_csv_dir, self.formatted_csv_dir)
+        self.logic.set_formatted_csv_name(formatted_csv_name)
 
         self.log.info('成形対象の四本値CSVファイル名の取得開始')
         result = self.logic.get_target_csv_name_list()
@@ -37,12 +41,14 @@ class MoldPastOhlc(Base):
             return
         self.log.info('成形対象の目的変数追加済CSVファイル名の取得終了')
 
-        self.log.info('説明変数追加処理開始')
-        result = self.logic.create_iv()
-        if result == False:
-            self.log.error('説明変数追加処理に失敗しました')
-            return
-        self.log.info('説明変数追加処理終了')
+        # メモリの問題かたまにうまくいかないことがあるので2周回す
+        for _ in range(2):
+            self.log.info('説明変数追加処理開始')
+            result = self.logic.create_iv()
+            if result == False:
+                self.log.error('説明変数追加処理に失敗しました')
+                return
+            self.log.info('説明変数追加処理終了')
 
         self.log.info('成形済CSVファイルの一括まとめ処理開始')
         result = self.logic.merge_csv()
@@ -50,13 +56,6 @@ class MoldPastOhlc(Base):
             self.log.error('成形済CSVファイルの一括まとめ処理に失敗しました')
             return
         self.log.info('成形済CSVファイルの一括まとめ処理終了')
-
-        self.log.info('成形済CSVファイルの削除処理開始')
-        result = self.logic.remove_tmp_csv()
-        if result == False:
-            self.log.error('成形済CSVファイルの削除処理に失敗しました')
-            return
-        self.log.info('成形済CSVファイルの削除処理終了')
 
 if __name__ == '__main__':
     mpo = MoldPastOhlc()
