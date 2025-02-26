@@ -178,105 +178,109 @@ class PastRecord(ServiceBase):
                     if now.strftime('%Y-%m-%d') == formatted_timestamp[index][:10]:
                         continue
 
-                # 1本目のデータは寄った時分のデータなので、特別気配の場合は9:00のデータが入っていない
-                # その場合は9:00のデータを出来高0として追加する
-                if index == 0 and formatted_timestamp[index][11:16] != '09:00':
-                    formatted_ohlc.append([stock_code,
-                                            formatted_timestamp[index][:10] + ' 09:00',
-                                            last_close,
-                                            last_close,
-                                            last_close,
-                                            last_close,
-                                            0]
-                    )
+                # 特別気配の場合や大元のデータ欠損があるため補完を行う
+                # 1本目のデータか日付が変わった場合のみ
+                if (index == 0 and formatted_timestamp[index][11:16] != '09:00') or (formatted_timestamp[index][:10] != current_date):
+                    # 日付変更の場合のみ管理用のデータ追加/変更
+                    if formatted_timestamp[index][:10] != current_date:
+                        # 記録済みの日付を追加
+                        record_date.append([stock_code, formatted_timestamp[index][:10]])
 
-                    # 特別気配の場合、次のデータが9:01でなく寄った時の時分のデータの場合があるため、その場合は間の時間を出来高0で埋める
-                    next_time = formatted_timestamp[index + 1][11:16]
-                    if next_time != '09:01':
-                        base_time = datetime.strptime(formatted_timestamp[index], '%Y-%m-%d %H:%M') + timedelta(minutes = 1)
-                        while next_time != base_time.strftime('%H:%M'):
-                            formatted_ohlc.append([stock_code,
-                                                base_time.strftime('%Y-%m-%d %H:%M'),
-                                                last_close,
-                                                last_close,
-                                                last_close,
-                                                last_close,
-                                                0]
-                            )
-                            base_time += timedelta(minutes = 1)
-                    continue
+                        # 処理中の日付を更新
+                        current_date = formatted_timestamp[index][:10]
 
-                # 日付変更チェック
-                if formatted_timestamp[index][:10] != current_date:
-                    # 記録済みの日付を追加
-                    record_date.append([stock_code, formatted_timestamp[index][:10]])
+                    # 同日のOHLCデータのみ切り出し
+                    diff_index = len(formatted_timestamp) - 1
+                    for i in range(index, len(formatted_timestamp)):
+                        if formatted_timestamp[i][:10] != formatted_timestamp[index][:10] :
+                            diff_index = i
+                            break
+                    sliced_ohlc_data = {key: ohlc_data[key][index:diff_index] for key in ohlc_data.keys()}
+                    sliced_ohlc_data['timestamp'] = formatted_timestamp[index:diff_index]
 
-                    # 処理通の日付を更新
-                    current_date = formatted_timestamp[index][:10]
+                    # 始値データの設定、同日データの中で欠損しているレコードの補完を行う
+                    last_close, add_data = self.correcting_loss_ohlc(stock_code, sliced_ohlc_data)
 
-                    # 始値の設定しなおし
-                    last_close = ohlc_data['open'][index]
+                    # 終値があればそっちを穴埋めの値に設定
+                    if ohlc_data['close'][index] is not None and formatted_timestamp[index][11:16] == '09:00':
+                        last_close = ohlc_data['close'][index]
 
-                    # 日付変更後1本目のデータは寄った時分のデータなので、特別気配の場合は9:00のデータが入っていない
-                    # その場合は9:00のデータを出来高0として追加する
-                    if formatted_timestamp[index][11:16] != '09:00':
-                        formatted_ohlc.append([stock_code,
-                                                formatted_timestamp[index][:10] + ' 09:00',
-                                                last_close,
-                                                last_close,
-                                                last_close,
-                                                last_close,
-                                                0]
-                        )
-
-                        # 特別気配の場合、次のデータが9:01でなく寄った時の時分のデータの場合があるため、その場合は間の時間を出来高0で埋める
-                        next_time = formatted_timestamp[index + 1][11:16]
-                        if next_time != '09:01':
-                            base_time = datetime.strptime(formatted_timestamp[index], '%Y-%m-%d %H:%M') + timedelta(minutes = 1)
-                            while next_time != base_time.strftime('%H:%M'):
-                                formatted_ohlc.append([stock_code,
-                                                    base_time.strftime('%Y-%m-%d %H:%M'),
-                                                    last_close,
-                                                    last_close,
-                                                    last_close,
-                                                    last_close,
-                                                    0]
-                                )
-                                base_time += timedelta(minutes = 1)
-                        continue
+                    # 補完データを追加
+                    formatted_ohlc.extend(add_data)
 
                 # ザラ場中に実行すると中途半端なデータが入るのでそれも除外
-                second = int(formatted_timestamp[index][17:19])
-                if second != 0:
-                    continue
+                # MEMO: 秒を切り捨てたのでチェック処理が行えない
+                #second = int(formatted_timestamp[index][17:19])
+                #if second != 0:
+                #    continue
 
-                # 出来高チェック
-                if ohlc_data['volume'][index] is not None:
-                    formatted_ohlc.append([stock_code,
-                                            formatted_timestamp[index],
-                                            ohlc_data['open'][index],
-                                            ohlc_data['high'][index],
-                                            ohlc_data['low'][index],
-                                            ohlc_data['close'][index],
-                                            ohlc_data['volume'][index]]
-                    )
+                # データの追加
+                # Noneの場合は補完値で穴埋め
+                formatted_ohlc.append([stock_code,
+                                        formatted_timestamp[index],
+                                        ohlc_data['open'][index] if ohlc_data['open'][index] is not None else last_close,
+                                        ohlc_data['high'][index] if ohlc_data['high'][index] is not None else last_close,
+                                        ohlc_data['low'][index] if ohlc_data['low'][index] is not None else last_close,
+                                        ohlc_data['close'][index] if ohlc_data['close'][index] is not None else last_close,
+                                        ohlc_data['volume'][index] if ohlc_data['volume'][index] is not None else 0
+                ])
+                if ohlc_data['close'][index] is not None:
                     last_close = ohlc_data['close'][index]
-                else:
-                    # 出来高がない(=None)の場合、前のデータの終値を設定
-                    # 前のデータがない場合は、後のデータの始値を設定
-                    formatted_ohlc.append([stock_code,
-                                            formatted_timestamp[index],
-                                            last_close,
-                                            last_close,
-                                            last_close,
-                                            last_close,
-                                            0]
-                    )
 
             return True, formatted_ohlc, record_date
         except Exception as e:
             self.log.error(f'取得データの成形でエラー\n{e}\n{traceback.format_exc()}')
             return False, None, None
+
+    def correcting_loss_ohlc(self, stock_code, today_ohlc):
+        '''
+        欠損している四本値データを埋める
+
+        Args:
+            stock_code(int or str): 銘柄コード
+            today_ohlc(dict): 当日の四本値データ
+
+        Returns:
+            start_price(float): 当日の始値
+            add_data(list): 補完が必要なデータ
+        '''
+        # 当日の始値を取得
+        start_price = -1
+        for i in range(len(today_ohlc['open'])):
+            if today_ohlc['open'][i] is not None:
+                start_price = today_ohlc['open'][i]
+                break
+
+        # 欠損レコードの補完
+        # 9:00から数分間レコードが欠損している場合があるため、その場合は欠損しているレコードを埋める
+        add_data = []
+        # 1本目が9:00のデータでない場合
+        if today_ohlc['timestamp'][0][11:16] != '09:00':
+            # 時間計算できるようにdatetime型に変換
+            # 当日の9:00のデータを作成
+            current_time = datetime.strptime(f'{today_ohlc["timestamp"][0][:10]} 09:00', '%Y-%m-%d %H:%M')
+
+            # バグ対策
+            count = 0
+
+            # 1本目の時刻までのレコードを補完
+            while current_time.strftime('%H:%M') != today_ohlc['timestamp'][0][11:16]:
+                add_data.append([stock_code,
+                                current_time.strftime('%Y-%m-%d %H:%M'),
+                                start_price,
+                                start_price,
+                                start_price,
+                                start_price,
+                                0
+                ])
+                current_time += timedelta(minutes = 1)
+
+                # 元データの時刻部分の表記が狂っていた場合無限ループに陥るので、念のため対策
+                count += 1
+                if count > 1000:
+                    break
+
+        return start_price, add_data
 
     def check_recorded_csv(self, stock_code):
         '''
