@@ -18,9 +18,6 @@ class MoldPastRecord(ServiceBase):
         self.csv_dir_name = ''
         self.tmp_csv_dir_name = ''
 
-        # 最終的な出力先のCSV名
-        self.formatted_csv_name = ''
-
         # 成形処理を行う対象のCSVファイル名
         self.target_list = []
         self.tmp_target_list = []
@@ -31,10 +28,6 @@ class MoldPastRecord(ServiceBase):
         self.csv_dir_name = csv_dir_name
         self.tmp_csv_dir_name = tmp_csv_dir_name
         self.formatted_csv_dir_name = formatted_csv_dir_name
-
-    def set_formatted_csv_name(self, formatted_csv_name):
-        '''最終的な出力先のCSVファイル名を設定する'''
-        self.formatted_csv_name = formatted_csv_name
 
     def get_target_csv_name_list(self):
         '''
@@ -94,32 +87,33 @@ class MoldPastRecord(ServiceBase):
         '''成形済CSVファイルを一つにまとめる'''
 
         try:
-            # 出力先のCSVファイル
-            now_time = datetime.now().strftime('%Y%m%d%H%M')
-            output_csv_file_name = f'formatted_ohlc_{now_time}.csv'
-            # プログラムでファイル名を指定しているならそちらを優先して採用
-            if self.formatted_csv_name:
-                output_csv_file_name = self.formatted_csv_name
-            output_csv_path = os.path.join(self.csv_dir_name, output_csv_file_name)
-
             # 目的変数まで追加されているCSVファイルのリストを取得
             formatted_tmp_csv_list = [csv_name for csv_name in os.listdir(self.tmp_csv_dir_name) if re.fullmatch(r'formatted_tmp_ohlc_\d{8}_\w{4}.csv', csv_name)]
-
-            # 最初のCSVのみヘッダー行出力
-            first_csv = True
 
             # dfで読み取って追加先のCSVファイルにdfで結合という形を取るとメモリ不足で落ちるため
             # openで読み取って追加先のCSVファイルの末尾に追加する方法にする/ポインタで書き込むからメモリを喰わない
             for csv_name in tqdm(formatted_tmp_csv_list):
                 try:
+
+                    # 日付ごとにファイルをまとめるため、対象のファイルの日付を取得
+                    # 例: formatted_tmp_ohlc_20210101_0000.csv -> 20210101
+                    date = re.search(r'\d{8}', csv_name).group()
+
+                    # 出力先のCSVファイルパスを設定
+                    output_csv_file_name = f'formatted_ohlc_{date}.csv'
+                    output_csv_path = os.path.join(self.csv_dir_name, output_csv_file_name)
+
+                    # ファイルが存在するか
+                    exist_csv = os.path.exists(output_csv_path)
+
                     # 対象CSVファイルの読み込んで1行ずつ追加
                     csv_path = os.path.join(self.tmp_csv_dir_name, csv_name)
                     with open(csv_path, 'r') as f_in:
                         with open(output_csv_path, 'a') as f_out:
-                            if not first_csv:
+                            # まとめ先のファイルが既に存在する場合ヘッダー行はスキップする
+                            if not exist_csv:
                                 next(f_in)
-                            else:
-                                first_csv = False
+
                             for line in f_in:
                                 f_out.write(line)
                 except Exception as e:
@@ -373,7 +367,7 @@ class MoldPastRecord(ServiceBase):
 
         '''
         # 何分足で計算するか
-        minute_list = [1, 3, 5, 10, 15, 30, 60, 90, 120, 240]
+        minute_list = [1, 3, 5, 10, 15, 30, 60]
 
         # 直近何本のデータから計算するか
         window_size_list = [3, 5, 10, 15]

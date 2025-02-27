@@ -1,8 +1,6 @@
 import os
 from base import Base
 
-### 最終的なまとめ先のファイル名 ###
-formatted_csv_name = 'formatted_ohlc_test.csv'
 
 class MoldPastOhlc(Base):
     '''四本値データを持つCSVファイルを成形する'''
@@ -18,7 +16,6 @@ class MoldPastOhlc(Base):
 
         # ディレクトリ名の設定
         self.logic.set_dir_name(self.output_csv_dir, self.tmp_csv_dir, self.formatted_csv_dir)
-        self.logic.set_formatted_csv_name(formatted_csv_name)
 
         self.log.info('成形対象の四本値CSVファイル名の取得開始')
         result = self.logic.get_target_csv_name_list()
