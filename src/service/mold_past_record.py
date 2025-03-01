@@ -101,7 +101,7 @@ class MoldPastRecord(ServiceBase):
 
                     # 出力先のCSVファイルパスを設定
                     output_csv_file_name = f'formatted_ohlc_{date}.csv'
-                    output_csv_path = os.path.join(self.csv_dir_name, output_csv_file_name)
+                    output_csv_path = os.path.join(self.formatted_csv_dir_name, output_csv_file_name)
 
                     # ファイルが存在するか
                     exist_csv = os.path.exists(output_csv_path)
@@ -111,7 +111,7 @@ class MoldPastRecord(ServiceBase):
                     with open(csv_path, 'r') as f_in:
                         with open(output_csv_path, 'a') as f_out:
                             # まとめ先のファイルが既に存在する場合ヘッダー行はスキップする
-                            if not exist_csv:
+                            if exist_csv:
                                 next(f_in)
 
                             for line in f_in:

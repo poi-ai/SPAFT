@@ -201,6 +201,10 @@ class Indicator():
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
 
+            # リサンプリングされていない行を直前の値で埋める
+            for column in add_columns:
+                df[column].fillna(method='ffill', inplace=True)
+
         except Exception as e:
             self.log.error(f'MAクロス計算でエラー\n{str(e)}\n{traceback.format_exc()}')
             return False, None
@@ -270,7 +274,7 @@ class Indicator():
                 df[column].fillna(method='ffill', inplace=True)
 
                 # window_size - 1番目までのデータでは計算ができずNaNになるので-999で埋める
-                df[column].fillna(-999, inplace=True)
+                ##df[column].fillna(-999, inplace=True)
 
         except Exception as e:
             self.log.error(f'ボリンジャーバンド計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -317,7 +321,8 @@ class Indicator():
 
             # RSIを計算
             if df_resampled['down_mean'].isna().all() or df_resampled['up_mean'].isna().all():
-                df_resampled[column_name] = -999
+                ##df_resampled[column_name] = -999
+                df_resampled[column_name] = None
             elif df_resampled['down_mean'].sum() == 0:
                 if df_resampled['up_mean'].sum() == 0:
                     df_resampled[column_name] = 50
@@ -327,7 +332,7 @@ class Indicator():
                 df_resampled[column_name] = (100 - 100 / (1 + df_resampled['up_mean'] / df_resampled['down_mean'])).round(2)
 
             # 先頭の要素を-999で埋める
-            df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
+            ##df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
@@ -371,7 +376,7 @@ class Indicator():
             df_resampled[column_name].fillna(method='ffill', inplace=True)
 
             # 先頭の要素を-999で埋める
-            df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
+            ##df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
@@ -457,6 +462,9 @@ class Indicator():
 
             # MACDとMACDシグナルの傾きを計算
             for count in [1, 3, 5, 10]:
+                # 幅が長すぎるとデータが取れないのでスキップ
+                if interval * count >= 300:
+                    continue
                 df_resampled[f'{macd}_{count}_slope'] = df_resampled[macd].diff(count)
                 df_resampled[f'{macd_signal}_{count}_slope'] = df_resampled[macd_signal].diff(count)
                 add_columns.extend([f'{macd}_{count}_slope', f'{macd_signal}_{count}_slope'])
@@ -471,7 +479,7 @@ class Indicator():
             add_columns.append(f'{macd}_mismatch_count')
 
             # 先頭の要素を-999で埋める
-            df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -999
+            ##df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -999
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
@@ -520,7 +528,7 @@ class Indicator():
             df_resampled[column_name] = (df_resampled['up'].rolling(window = window_size).sum() / window_size * 100).round(1)
 
             # 先頭の要素を-999で埋める
-            df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
+            ##df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
@@ -889,7 +897,7 @@ class Indicator():
             df_resampled.loc[df_resampled[price_cloud_cross] == 3, price_cloud_cross_dc_after2] = 0
 
             # 先頭の要素を-9999999で埋める
-            df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -9999999
+            ##df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -9999999
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
@@ -932,11 +940,12 @@ class Indicator():
             # 変動価格・変動率・変動フラグ(0:変動なし, 1:上昇, -1:下落)の計算
             df_resampled[change_price] = df_resampled['current_price'].shift(-interval) - df_resampled['current_price']
             df_resampled[change_rate] = df_resampled[change_price] / df_resampled['current_price']
-            df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: -999 if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
+            ##df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: -999 if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
+            df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: None if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
 
             # データの末尾周囲の計算できない要素は-999で埋める
-            for column in add_columns:
-                df_resampled[column].fillna(-999, inplace=True)
+            ##for column in add_columns:
+            ##    df_resampled[column].fillna(-999, inplace=True)
 
             # 元のデータに計算で追加したデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
