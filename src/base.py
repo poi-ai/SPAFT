@@ -51,11 +51,11 @@ class Base():
         # KabuStation APIの操作に関連するクラス
         if use_api:
             api = KabusApi()
-            api_url, api_headers = api.controller_init(log = self.log,
-                                                        api_password = config.API_PASSWORD,
-                                                        production = config.API_PRODUCTION)
+            api_url, ws_api, api_headers = api.controller_init(log = self.log,
+                                                               api_password = config.API_PASSWORD,
+                                                               production = config.API_PRODUCTION)
         else:
-            api_url, api_headers = False, False
+            api_url, ws_api, api_headers = False, False, False
 
         # データベースの操作に関連するクラス
         if use_db:
@@ -78,6 +78,7 @@ class Base():
         # Serviceクラス
         self.service = Service(api_headers = api_headers,
                                api_url = api_url,
+                               ws_url = ws_api,
                                conn = conn)
 
 

@@ -21,7 +21,7 @@ class Errors():
         エラーテーブル(errors)からx分以内に追加されたレコード数を取得する
 
         Args:
-            minite(int): 何分以内か
+            minute(int): 何分以内か
 
         Returns:
             count(int): x分以内のエラー発生数
@@ -31,9 +31,9 @@ class Errors():
             one_minute_ago = datetime.now() - timedelta(minutes = minute)
 
             with self.conn.cursor(self.dict_return) as cursor:
-                sql = ''''
+                sql = '''
                     SELECT
-                        CONUT(1)
+                        COUNT(1)
                     FROM
                         errors
                     WHERE

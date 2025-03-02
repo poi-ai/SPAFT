@@ -4,8 +4,8 @@ from service_base import ServiceBase
 
 class Simulation(ServiceBase):
     '''データ取得に関するServiceクラス'''
-    def __init__(self, api_headers, api_url, conn):
-        super().__init__(api_headers, api_url, conn)
+    def __init__(self, api_headers, api_url, ws_url, conn):
+        super().__init__(api_headers, api_url, ws_url, conn)
 
     def param_check(self, config):
         '''シミュレーション設定ファイルで設定したパラメータのチェック'''

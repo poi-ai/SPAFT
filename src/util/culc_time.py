@@ -9,6 +9,7 @@ class CulcTime():
 
     def __init__(self, log):
         self.log = log
+        self.ntp_server = 1
 
     def exchange_date(self):
         '''
@@ -19,7 +20,7 @@ class CulcTime():
                 True: 取引所営業日、False: 取引所非営業日
         '''
         # NTPサーバーから現在の時刻を取得
-        now = self.get_now()
+        now = self.get_now(accurate = False)
 
         # 営業日判定
         if self.is_exchange_workday(now):
@@ -27,23 +28,30 @@ class CulcTime():
 
         return False
 
-    def exchange_time(self):
+    def exchange_time(self, now = None):
         '''
-        現在の時間から取引時間の種別を判定する
+        現在の時間か指定した時間から取引時間の種別を判定する
+
+        Args:
+            now(datetime): 判定対象の時間 省略可
 
         Returns:
             time_type(int): 時間種別
-                1: 前場取引時間、2: 後場取引時間、
-                3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引け後)
+                1: 前場取引時間、2: 後場取引時間(クロージング・オークション除く)、
+                3: 取引時間外(寄り付き前)、4: 取引時間外(お昼休み)、5: 取引時間外(大引け後)、6: クロージング・オークション
         '''
-        # NTPサーバーから現在の時刻を取得
-        now = self.get_now()
+        # 時間が指定されていない場合はNTPサーバーから現在の時刻を取得
+        if now == None:
+            now = self.get_now()
 
         # 前場
         if 9 <= now.hour < 11 or (now.hour == 11 and now.minute < 30):
             return 1
+        # クロージング・オークション
+        elif 15 == now.hour and (25 <= now.minute < 30):
+            return 6
         # 後場
-        elif 12 < now.hour < 15 or (now.hour == 12 and now.minute >= 30):
+        elif 12 < now.hour < 15 or (now.hour == 12 and now.minute >= 30) or (now.hour == 15 and now.minute < 25):
             return 2
         # 寄り前
         elif now.hour < 9:
@@ -326,20 +334,50 @@ class CulcTime():
 
         return False
 
-    def get_now(self):
-        '''現在の正確な時刻を取得する'''
-        result, now = self.ntp(server_id = 1)
-        if result == True:
-            return now
-        self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+    def get_now(self, accurate = True):
+        '''
+        現在の時刻を取得する
 
-        result, now = self.ntp(server_id = 2)
-        if result == True:
-            return now
-        self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+        Args:
+            accurate(bool): 正確な時刻が欲しいか デフォルト: True
+                True: NTPサーバーから取得、False: datetimeから取得
 
-        # どちらからも取れなかった場合はdatetimeから取得
+        Returns:
+            now(datetime): 現在時刻
+        '''
+
+        # 正確な時刻が欲しい場合のみ
+        if accurate:
+            result, now = self.ntp(server_id = self.ntp_server)
+            self.server_id_management()
+            if result == True:
+                return now
+            self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+
+            result, now = self.ntp(server_id = self.ntp_server)
+            self.server_id_management()
+            if result == True:
+                return now
+            self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+
+            result, now = self.ntp(server_id = self.ntp_server)
+            self.server_id_management()
+            if result == True:
+                return now
+            self.log.error(f'NTPサーバーからの時刻取得処理に失敗しました\n{now}')
+
+        # どのNTPサーバーからも取れなかった場合か正確な時刻が要求されていない場合はdatetimeから取得
         return datetime.now()
+
+    def server_id_management(self):
+        '''インスタンス変数のサーバーIDの管理を行う'''
+        if self.ntp_server == 1:
+            self.ntp_server = 2
+        elif self.ntp_server == 2:
+            self.ntp_server = 3
+        elif self.ntp_server == 3:
+            self.ntp_server = 1
+        return
 
     def wait_time(self, hour, minute, second = None):
         '''
@@ -373,18 +411,21 @@ class CulcTime():
         self.log.info('待機終了')
         return True
 
-    def wait_time_next_second(self):
+    def wait_time_next_second(self, accurate = True):
         '''
         次の秒まで待機する
 
+        Args:
+            accurate(bool): 正確な時刻が欲しいか
+
         '''
         # 現在の時刻を取得する
-        now = self.get_now()
+        now = self.get_now(accurate)
 
         # 次の秒の00(≒1秒後)
         next_minute = (now + timedelta(seconds = 1)).replace(microsecond = 0)
 
-        # 待機する時間(マイクロ秒)を計る
+        # 待機する時間(マイクロ秒単位)を計る
         wait_seconds = (next_minute - now).total_seconds()
 
         self.log.info(f'{wait_seconds}秒待機します')
@@ -392,6 +433,59 @@ class CulcTime():
         self.log.info('待機終了')
         return True
 
+    def wait_time_next_minute(self, accurate = True):
+        '''
+        次の分まで待機する
+
+        Args:
+            accurate(bool): 正確な時刻が欲しいか
+
+        '''
+        # 現在の時刻を取得する
+        now = self.get_now(accurate)
+
+        # 次の分の00秒(≒1分後)
+        next_minute = (now + timedelta(minutes = 1)).replace(second = 0, microsecond = 0)
+
+        # 待機する時間(マイクロ秒単位)を計る
+        wait_seconds = (next_minute - now).total_seconds()
+
+        self.log.info(f'{wait_seconds}秒待機します')
+        time.sleep(wait_seconds)
+        self.log.info('待機終了')
+        return True
+
+    def get_trade_end_time_seconds(self, accurate = False):
+        '''
+        引け(クロージング・オークション)の時間までの秒数を取得する
+
+        Args:
+            accurate(bool): 正確な時刻が欲しいか
+                True: NTPサーバーから取得、False: datetimeから取得
+
+        Returns:
+            time_out(float): 引け(クロージング・オークション)の時間までの秒数
+        '''
+        # 現時刻を取得
+        now = self.get_now(accurate)
+        # 前場・前場前の場合
+        if now.hour < 11 or (now.hour == 11 and now.minute < 30):
+            # 昼休みになったらタイムアウトするように
+            time_out = (now.replace(hour = 11, minute = 30, second = 0) - now).total_seconds()
+        # 昼休み・後場(クロージング・オークション除く)の場合
+        elif now.hour < 15 or (now.hour == 15 and now.minute < 25):
+            # クロージング・オークション時間に突入したらタイムアウトするように
+            time_out = (now.replace(hour = 15, minute = 25, second = 0) - now).total_seconds()
+        # クロージング・オークションの場合
+        elif now.hour == 15 and (25 <= now.minute < 30):
+            # 大引けになったらタイムアウトするように
+            time_out = (now.replace(hour = 15, minute = 30, second = 0) - now).total_seconds()
+        # その他(デバッグモードなど)の場合
+        else:
+            # 処理の都合上なんかしらの数値を設定する必要がある場合のために99999をセット
+            time_out = 99999
+
+        return time_out
 
     def ntp(self, server_id = 1):
         '''NTPサーバーから現在の時刻を取得する'''
@@ -399,6 +493,8 @@ class CulcTime():
             server = 'ntp.jst.mfeed.ad.jp' # stratum2
         elif server_id == 2:
             server = 'time.cloudflare.com' # stratum3
+        elif server_id == 3:
+            server = 'time.aws.com' # stratum4
         else:
             return False, 'サーバーID不正'
 

@@ -4,19 +4,76 @@ class StockPrice():
 
     def __init__(self, log):
         self.log = log
+        self.yobine_group = 0
+        self.yobine_list = []
 
-    def get_price_range(self, stock_type, price):
+    def set_yobine_group(self, yobine_group):
+        '''
+        KabusAPIで設定している独自の呼値グループIDをインスタンス変数に設定する
+
+        Args:
+            yobine_group(int or str): 銘柄の種類 ※エンドポイント /symbol/{証券コード} から取得可
+
+        '''
+        self.yobine_group = yobine_group
+
+    def set_yobine_list(self, lower_price, upper_price, yobine_group = None):
+        '''
+        指定した銘柄の値幅上限から下限までの価格をlistにする
+
+        Args:
+            lower_price(float): 値幅下限(S安価格)
+            upper_price(float): 値幅上限(S高価格)
+            yobine_group(int or str): 呼値グループ
+
+        Returns:
+            result(bool): 実行結果
+            error_message(str): エラーメッセージ
+        '''
+        # 引数に指定がなければインスタンス変数から取得
+        if yobine_group == None:
+            yobine_group = self.yobine_group
+
+        # 値幅下限をリストにセット
+        yobine_list = [lower_price]
+        tmp_price = lower_price
+
+        while True:
+            # 基準価格の呼値を取得
+            yobine = self.get_price_range(yobine_group, tmp_price)
+            # 基準価格 + 呼値を計算してリストに挿入
+            next_price = tmp_price + yobine
+
+            # 丸め誤差修正
+            next_price = self.polish_price(next_price, yobine)
+
+            if next_price == False:
+                return False, f'呼値計算に失敗しました。呼値グループ: {yobine_group}、基準価格: {tmp_price}'
+
+            if next_price < upper_price:
+                yobine_list.append(next_price)
+                tmp_price = next_price
+            elif next_price == upper_price:
+                yobine_list.append(next_price)
+                break
+            else:
+                break
+
+        self.yobine_list = yobine_list
+        return True, None
+
+    def get_price_range(self, yobine_group, price):
         '''
         指定した銘柄の呼値を取得する
 
         Args:
-            stock_type(int or str): 銘柄の種類 ※エンドポイント /symbol/{証券コード} から取得可
+            yobine_group(int or str): 銘柄の種類 ※エンドポイント /symbol/{証券コード} から取得可
             price(float): 判定したい株価
 
-            price_range(float)or False: 呼値
+            price_range(float) or False: 呼値
         '''
         # エンドポイントの返り値をそのまま引数に充てるとstrなのでintに変換する
-        stock_type = int(stock_type)
+        yobine_group = int(yobine_group)
 
         price_ranges = {
             10000: [
@@ -44,12 +101,12 @@ class StockPrice():
             17163: [(float('inf'), 0.5)],
         }
 
-        # stock_typeが見つからない場合
-        if stock_type not in price_ranges:
+        # yobine_groupが見つからない場合
+        if yobine_group not in price_ranges:
             return False
 
-        for limit, range_value in price_ranges[stock_type]:
-            if price <= limit:
+        for limit, range_value in price_ranges[yobine_group]:
+            if price + 0.1 <= limit:
                 return range_value
 
         return False
@@ -66,9 +123,13 @@ class StockPrice():
         Returns:
             integrity(bool): 整合性が取れているか 呼値10円なのに価格差15円とかになってないか
             board_num(int): 最良[売値/買値]価格間の間の板の枚数
-                ※指定価格の板はカウントしない
+                ※指定価格の板はカウントしない 同一価格が指定された場合は-1を返す
 
         '''
+        # 同価格チェック
+        if upper_price == lower_price:
+            return True, -1
+
         # 間に挟まる板の数をカウント
         board_num = -1
 
@@ -82,11 +143,7 @@ class StockPrice():
             tmp_lower_price += sell_yobine
 
             # 丸め誤差修正
-            # 呼値が小数の場合は小数点下2桁で四捨五入
-            if sell_yobine < 1:
-                tmp_lower_price = round(tmp_lower_price, 1)
-            else:
-                tmp_lower_price = round(tmp_lower_price, 0)
+            tmp_lower_price = self.polish_price(tmp_lower_price, sell_yobine)
 
             board_num += 1
 
@@ -99,83 +156,67 @@ class StockPrice():
                 error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、呼値: {sell_yobine}円、最高価格: {upper_price}円、最低価格: {lower_price}円'
                 return False, error_message
 
-    def get_updown_price(self, yobine_group, stock_price, pips, updown):
+    def get_updown_price(self, stock_price, pips, updown, yobine_group = None):
         '''
         指定した価格のXpips上/下の価格を返す
 
         Args:
-            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
             stock_price(float): 基準価格
             pips(int): 何pips上/下の価格を返すか
             updown(int): 上を返すか下を返すか
                 1: 上、0: 下
+            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
 
         Returns:
             result(bool): 不整合がないか
             stock_price: Xpips上/下の価格
-
-        MEMO:
-            思ったけどこれトレード開始前のinitに入れて値幅内全株価リストに持たせとくのもありだな
         '''
-        # 計算用変数
-        culc_stock_price = stock_price
+        # 引数に指定がなければインスタンス変数から取得
+        if yobine_group == None:
+            yobine_group = self.yobine_group
 
-        # 1pipごと上げ下げして計算する
-        for pip in range(pips):
-            # 呼値の取得
-            yobine = self.get_price_range(yobine_group, culc_stock_price)
+        # 注文可能価格のリストから一致する要素番号を取得
+        try:
+            index = yobine_group.index(stock_price)
+        except ValueError:
+            return False, f'基準価格が注文可能価格内に見つかりません。基準価格: {stock_price}、注文可能価格: {yobine_group}'
 
-            # 1pips上/下の価格に書き換え
-            if updown == 1:
-                culc_stock_price += yobine
-            else:
-                culc_stock_price -= yobine
-
-            # 丸め誤差修正
-            # 呼値が小数の場合は小数点下2桁で四捨五入
-            if yobine < 1:
-                culc_stock_price = round(culc_stock_price, 1)
-            else:
-                culc_stock_price = round(culc_stock_price, 0)
-
-        # 上の計算の場合はこのまま返せる
         if updown == 1:
-            return True, culc_stock_price
-
-        # 下の場合は再計算が必要 ここでの呼値は上に何円空くか で下に何円空くかは判定できない
-        # 基本的には価格は高くなるほど呼値も広がるので、上の呼値のpips下げれば包含はできている
-        # また、呼値の上がり方は整数倍なのでありえない株価になることもない
-        price_list = [culc_stock_price]
-
-        while True:
-            # 呼値の取得
-            yobine = self.get_price_range(yobine_group, culc_stock_price)
-
-            # 呼値を足していき、リストに追加する
-            culc_stock_price += yobine
-
-            # 丸め誤差修正
-            # 呼値が小数の場合は小数点下2桁で四捨五入
-            if yobine < 1:
-                culc_stock_price = round(culc_stock_price, 1)
-            else:
-                culc_stock_price = round(culc_stock_price, 0)
-
-            price_list.append(culc_stock_price)
-
-            # 基準価格を超えたら終了
-            if culc_stock_price > stock_price:
-                break
-
-        # 株価を列挙したリストから検索する
-        # リストの中に基準価格が存在するかチェック 存在しないことはないはずだが一応
-        if stock_price in price_list:
-            index = price_list.index(stock_price)
-            # リストの要素数が足りなくてpips個下の株価が取得できないかのチェック ここもありえないはず
-            if index >= pips:
-                return True, price_list[index - pips]
-            else:
-                return False, f'リストの要素数が足りません\n呼値グループ: {yobine_group}/基準価格: {stock_price}/pips {pips}/updown: {updown}'
-        # リストに基準価格がない場合
+            new_index = index + pips
         else:
-            return False, f'リストに基準価額が存在しません\n呼値グループ: {yobine_group}/基準価格: {stock_price}/pips {pips}/updown: {updown}'
+            new_index = index - pips
+
+        # 気配の上限を超える場合は上限を返す TODO 引数で制御できるように
+        if new_index >= len(yobine_group):
+            return True, yobine_group[-1]
+
+        # 気配の下限を下回る場合は下限を返すように TODO 引数で制御できるように
+        if new_index < 0:
+            return True, yobine_group[0]
+
+        return True, yobine_group[new_index]
+
+    def polish_price(self, price, yobine):
+        '''
+        計算結果の丸め誤差などを修正する
+
+        Args:
+            price(int or float): 修正対象の株価
+            yobine(int or float): 呼値
+
+        Return:
+            accurate_price(int or float): 正確な株価
+        '''
+        # 丸め誤差修正
+        # 呼値が小数の場合は小数点下2桁で四捨五入
+        if yobine < 1:
+            accurate_price = round(price, 1)
+        else:
+            accurate_price = round(price, 0)
+
+        # データ型修正
+        # int変換可能な値の場合は変換する
+        if isinstance(accurate_price, float) and accurate_price.is_integer():
+            accurate_price = int(accurate_price)
+
+        return accurate_price
