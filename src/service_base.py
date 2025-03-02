@@ -29,7 +29,7 @@ class ServiceBase():
 
     '''
 
-    def __init__(self, api_headers, api_url, ws_url, conn):
+    def __init__(self, api_headers = False, api_url = False, ws_url = False, conn = False):
         '''
         Utilクラス、Dbクラス、Apiクラスのインスタンスを生成する
         Serviceクラスから呼び出す初期処理

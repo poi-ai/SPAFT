@@ -1,10 +1,13 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from .trade import Trade
+from .board_mold import BoardMold
+from .mold_past_record import MoldPastRecord
+from .past_record import PastRecord
 from .record import Record
 from .simulation import Simulation
-from .board_mold import BoardMold
+from .trade import Trade
+
 
 class Service():
     def __init__(self, api_headers, api_url, ws_url, conn):
@@ -20,6 +23,12 @@ class Service():
         '''
         # 情報取得/記録に関するクラス
         self.record = Record(api_headers, api_url, ws_url, conn)
+
+        # 過去の四本値の情報取得/記録に関するクラス
+        self.past_record = PastRecord()
+
+        # 過去の四本値の情報を成形するクラス
+        self.mold_past_record = MoldPastRecord()
 
         # 取引/注文に関するクラス
         self.trade = Trade(api_headers, api_url, ws_url, conn)
