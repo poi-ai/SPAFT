@@ -2,6 +2,7 @@ import custom_loss as cl
 import os
 import pandas as pd
 import re
+import time
 from catboost import CatBoostRegressor, Pool
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
 
@@ -37,8 +38,63 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
                     'change_90min_price', 'change_90min_rate', 'change_90min_flag'
     ]
 
+    ### 重要度の低かったカラム
+    low_related_columns = [
+        'ema_10min_10to15piece_dead_cross', 'ema_10min_3to10piece_dead_cross', 'ema_10min_3to10piece_golden_cross',
+        'ema_10min_3to15piece_dead_cross', 'ema_10min_3to15piece_golden_cross', 'ema_10min_3to5piece_golden_cross',
+        'ema_10min_5to10piece_dead_cross', 'ema_10min_5to15piece_dead_cross', 'ema_15min_3to10piece_dead_cross',
+        'ema_15min_3to10piece_golden_cross', 'ema_15min_3to5piece_dead_cross', 'ema_15min_5to10piece_dead_cross',
+        'ema_1min_10to15piece_dead_cross', 'ema_1min_10to15piece_golden_cross', 'ema_1min_3to10piece_dead_cross',
+        'ema_1min_3to10piece_golden_cross', 'ema_1min_3to15piece_dead_cross', 'ema_1min_3to15piece_golden_cross',
+        'ema_1min_3to5piece_dead_cross', 'ema_1min_3to5piece_golden_cross', 'ema_1min_5to10piece_dead_cross',
+        'ema_1min_5to10piece_golden_cross', 'ema_1min_5to15piece_dead_cross', 'ema_1min_5to15piece_golden_cross',
+        'ema_30min_3to5piece_golden_cross', 'ema_3min_10to15piece_dead_cross', 'ema_3min_3to10piece_golden_cross',
+        'ema_3min_3to15piece_dead_cross', 'ema_3min_3to15piece_golden_cross', 'ema_3min_3to5piece_dead_cross',
+        'ema_3min_3to5piece_golden_cross', 'ema_3min_5to10piece_dead_cross', 'ema_3min_5to10piece_golden_cross',
+        'ema_3min_5to15piece_dead_cross', 'ema_3min_5to15piece_golden_cross', 'ema_5min_10to15piece_dead_cross',
+        'ema_5min_3to10piece_golden_cross', 'ema_5min_3to15piece_dead_cross', 'ema_5min_3to15piece_golden_cross',
+        'ema_5min_3to5piece_dead_cross', 'ema_5min_5to10piece_dead_cross', 'ema_5min_5to15piece_dead_cross',
+        'ema_5min_5to15piece_golden_cross', 'ichimoku_1min_bc_cross', 'ichimoku_1min_ls_cross', 'ichimoku_1min_ls_position',
+        'ichimoku_3min_bc_cross', 'ichimoku_5min_bc_cross', 'ichimoku_5min_bc_position', 'ichimoku_5min_cloud_cross',
+        'ichimoku_5min_cloud_high_diff', 'ichimoku_5min_cloud_low_diff', 'ichimoku_5min_cloud_position',
+        'ichimoku_5min_leading_span_b', 'ichimoku_5min_ls_cross', 'ichimoku_5min_ls_diff', 'ichimoku_5min_ls_position',
+        'macd_10min_diff_flag', 'macd_10min_mismatch', 'macd_15min_diff_flag', 'macd_15min_mismatch', 'macd_1min_mismatch',
+        'macd_30min_diff_flag', 'macd_3min_cross', 'macd_3min_mismatch', 'macd_5min_mismatch', 'macd_60min_diff_flag',
+        'sar_10min_0.01_0.1af_flag', 'sar_10min_0.02_0.2af_flag', 'sar_10min_0.05_0.5af_flag', 'sar_10min_0.05_0.5af_reverse_flag',
+        'sar_10min_0.1_1af_flag', 'sar_15min_0.01_0.1af_flag', 'sar_15min_0.01_0.1af_reverse_flag', 'sar_15min_0.02_0.2af_flag',
+        'sar_15min_0.05_0.5af_flag', 'sar_15min_0.05_0.5af_reverse_flag', 'sar_1min_0.02_0.2af_flag',
+        'sar_1min_0.02_0.2af_reverse_flag', 'sar_30min_0.01_0.1af_reverse_flag', 'sar_30min_0.02_0.2af_flag',
+        'sar_30min_0.02_0.2af_reverse_flag', 'sar_30min_0.05_0.5af_flag', 'sar_5min_0.01_0.1af_flag', 'sar_5min_0.1_1af_flag',
+        'sar_60min_0.01_0.1af_flag', 'sar_60min_0.01_0.1af_reverse_flag', 'sar_60min_0.02_0.2af_flag',
+        'sar_60min_0.02_0.2af_reverse_flag', 'sar_60min_0.05_0.5af_flag', 'sar_60min_0.05_0.5af_reverse_flag',
+        'sar_60min_0.1_1af_flag', 'sar_60min_0.1_1af_reverse_flag', 'sma_10min_3to15piece_dead_cross',
+        'sma_10min_3to5piece_dead_cross', 'sma_10min_3to5piece_golden_cross', 'sma_10min_5to10piece_dead_cross',
+        'sma_10min_5to15piece_dead_cross', 'sma_15min_3to5piece_dead_cross', 'sma_15min_3to5piece_golden_cross',
+        'sma_1min_10to15piece_dead_cross', 'sma_1min_10to15piece_golden_cross', 'sma_1min_3to10piece_dead_cross',
+        'sma_1min_3to10piece_golden_cross', 'sma_1min_3to15piece_dead_cross', 'sma_1min_3to15piece_golden_cross',
+        'sma_1min_3to5piece_dead_cross', 'sma_1min_3to5piece_golden_cross', 'sma_1min_5to10piece_dead_cross',
+        'sma_1min_5to15piece_dead_cross', 'sma_30min_3to5piece_dead_cross', 'sma_3min_10to15piece_dead_cross',
+        'sma_3min_10to15piece_golden_cross', 'sma_3min_3to10piece_dead_cross', 'sma_3min_3to10piece_golden_cross',
+        'sma_3min_3to15piece_dead_cross', 'sma_3min_3to15piece_golden_cross', 'sma_3min_3to5piece_golden_cross',
+        'sma_3min_5to10piece_dead_cross', 'sma_3min_5to10piece_golden_cross', 'sma_3min_5to15piece_dead_cross',
+        'sma_5min_10to15piece_dead_cross', 'sma_5min_3to10piece_dead_cross', 'sma_5min_3to10piece_golden_cross',
+        'sma_5min_3to15piece_dead_cross', 'sma_5min_3to5piece_dead_cross', 'sma_5min_5to10piece_golden_cross',
+        'sma_5min_5to15piece_dead_cross', 'wma_10min_3to10piece_dead_cross', 'wma_10min_3to5piece_dead_cross',
+        'wma_10min_3to5piece_golden_cross', 'wma_10min_5to10piece_dead_cross', 'wma_10min_5to15piece_dead_cross',
+        'wma_1min_10to15piece_dead_cross', 'wma_1min_10to15piece_golden_cross', 'wma_1min_3to10piece_dead_cross',
+        'wma_1min_3to15piece_dead_cross', 'wma_1min_3to15piece_golden_cross', 'wma_1min_3to5piece_dead_cross',
+        'wma_1min_3to5piece_golden_cross', 'wma_1min_5to10piece_dead_cross', 'wma_1min_5to15piece_dead_cross',
+        'wma_30min_3to5piece_dead_cross', 'wma_3min_10to15piece_dead_cross', 'wma_3min_10to15piece_golden_cross',
+        'wma_3min_3to10piece_dead_cross', 'wma_3min_3to10piece_golden_cross', 'wma_3min_3to15piece_dead_cross',
+        'wma_3min_3to15piece_golden_cross', 'wma_3min_3to5piece_golden_cross', 'wma_3min_5to10piece_dead_cross',
+        'wma_3min_5to10piece_golden_cross', 'wma_3min_5to15piece_golden_cross', 'wma_5min_10to15piece_dead_cross',
+        'wma_5min_3to10piece_dead_cross', 'wma_5min_3to15piece_dead_cross', 'wma_5min_3to15piece_golden_cross',
+        'wma_5min_3to5piece_dead_cross', 'wma_5min_3to5piece_golden_cross', 'wma_5min_5to10piece_dead_cross',
+        'wma_5min_5to10piece_golden_cross', 'wma_5min_5to15piece_dead_cross', 'wma_5min_5to15piece_golden_cross'
+    ]
+
     #### 説明変数として使えないカラム
-    cant_use_columns = not_related_columns + leak_columns
+    cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
     # 学習済みのモデルがあるか
     model = CatBoostRegressor(iterations = 100, learning_rate = 0.01, depth = 6, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 10, l2_leaf_reg = 5)
@@ -48,8 +104,16 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
         print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1}')
         # メモリ開放
         train_df = None
+
         # 訓練用データの読み込み
-        train_df = pd.read_csv(os.path.join(data_dir, train_csv_name))
+        while True:
+            try:
+                train_df = pd.read_csv(os.path.join(data_dir, train_csv_name))
+                break
+            except Exception as e:
+                print(e)
+                print('Retry reading csv file')
+                time.sleep(10)
 
         # 9:30以前と15:00以降のデータを削除
         train_df = train_df[30:-25]
@@ -90,7 +154,15 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
 
     # テスト用データの読み込み
     print(f'テストデータ: {test_csv_name}')
-    test_df = pd.read_csv(os.path.join(data_dir, test_csv_name))
+
+    while True:
+        try:
+            test_df = pd.read_csv(os.path.join(data_dir, test_csv_name))
+            break
+        except Exception as e:
+            print(e)
+            print('Retry reading csv file')
+            time.sleep(10)
 
     # 9:30以前と15:00以降のデータを削除
     test_df = test_df[30:-25]
@@ -130,6 +202,10 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     # 重要度を出力
     for importance in importance_list:
         print(importance)
+
+    # 予測結果と実際の値を出力
+    result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred})
+    result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{minute}min.csv'), index=False)
 
 '''
 # 重要度を降順にソートして上位10件を表示
