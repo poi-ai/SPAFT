@@ -14,7 +14,7 @@ for file in csv_files:
     df = pd.read_csv(os.path.join(data_dir, file))
     for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
         # 変動率を1000倍にしてint型に変換
-        df[f'change_{minute}min_rate'] = df[f'change_{minute}min_rate'].fillna(-99999).apply(lambda x: int(x * 1000)).replace(-99999, np.nan)
+        df[f'change_{minute}min_rate'] = df[f'change_{minute}min_rate'].fillna(-99999).apply(lambda x: int(x * 1000)).replace(-99999000, np.nan)
     df.to_csv(os.path.join(data_dir, file.replace('formatted', 'formatted2')), index=False)
 
 notification.notify(title='実行完了', message='スクリプトの実行が終了しました。', timeout=50)
