@@ -6,21 +6,21 @@ import time
 from catboost import CatBoostRegressor, Pool
 from plyer import notification
 from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from bayes_opt import BayesianOptimization
 
 # データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
 data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
 csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_\d{8}.csv', csv_file)]
 
-# 最後のデータはテストデータとして使用するので分割
-train_csv_names = csv_files[:-1]
+# 最後のデータはテストデータとして使用するので分割 軽量化のためデータ量は5日分で
+train_csv_names = csv_files[:5]
 test_csv_name = csv_files[-1]
 
-for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
-
-    # x分後の数値予測を行う
+def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
+    print(f'パラメータ iterations: {iterations}, learning_rate: {learning_rate}, depth: {depth}, l2_leaf_reg: {l2_leaf_reg}')
 
     #### 目的変数 ####
-    target_column = f'change_{minute}min_rate'
+    target_column = f'change_{minute_list[minute_index]}min_rate'
 
     print(f'目的変数: {target_column}')
 
@@ -98,11 +98,10 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
     # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = 100, learning_rate = 0.01, depth = 6, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 10, l2_leaf_reg = 5)
+    model = CatBoostRegressor(iterations = int(iterations), learning_rate = learning_rate, depth = int(depth), loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 0, l2_leaf_reg = l2_leaf_reg)
     model_flag = False
 
     for index, train_csv_name in enumerate(train_csv_names):
-        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1}')
         # メモリ開放
         train_df = None
 
@@ -143,18 +142,14 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
         y_train_pred = model.predict(train_pool)
 
         # 訓練データの評価
-        print('Train RMSE:', round(mean_squared_error(y_train, y_train_pred, squared=False), 2))
-        print('Train RMSE(Sign diff Pena):', round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2))
-        print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
-        print('Train R2:', round(r2_score(y_train, y_train_pred), 2))
+        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {round(mean_squared_error(y_train, y_train_pred, squared=False), 2)} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
+        #print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
+        #print('Train R2:', round(r2_score(y_train, y_train_pred), 2))
 
-        print()
-        print()
+        #print()
+        #print()
 
     #### テストデータでの予測
-
-    # テスト用データの読み込み
-    print(f'テストデータ: {test_csv_name}')
 
     while True:
         try:
@@ -185,14 +180,17 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     y_pred = model.predict(test_pool)
 
     # テストデータの評価
-    print('Test RMSE:', round(mean_squared_error(y_test, y_pred, squared=False), 2))
-    print('Train RMSE(Sign diff Pena):', round(cl.evaluation_rmse_sign_penalty(y_test.values, y_pred), 2))
-    print('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
-    print('Test R2:', round(r2_score(y_test, y_pred), 2))
+    custom_rmse = cl.evaluation_rmse_sign_penalty(y_test.values, y_pred)
+    print(f'テストデータ: {test_csv_name} Test RMSE: {round(mean_squared_error(y_test, y_pred, squared=False), 2)} Test RMSE(Sign diff Pena): {round(custom_rmse, 2)}')
+    #print('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
+    #print('Test R2:', round(r2_score(y_test, y_pred), 2))
 
-    print()
-    print()
+    return -custom_rmse
 
+    #print()
+    #print()
+
+    '''
     # 特徴量の重要度
     feature_importance = model.get_feature_importance(train_pool)
     feature_name = X_train.columns
@@ -205,20 +203,54 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
         print(importance)
 
     # 予測結果と実際の値を出力
-    result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred})
-    result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{minute}min.csv'), index=False)
+    #result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred})
+    #result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{minute}min.csv'), index=False)
 
-'''
-# 重要度を降順にソートして上位10件を表示
-importance_list = sorted(importance_list, key=lambda x: x['score'], reverse=True)
-for i in range(10):
-    print(importance_list[i])
-'''
 
-# 特徴量の重要度を可視化
-#import matplotlib.pyplot as plt
-#import seaborn as sns
-#sns.barplot(x=feature_importance, y=feature_name)
-#plt.show()
+    # 重要度を降順にソートして上位10件を表示
+    importance_list = sorted(importance_list, key=lambda x: x['score'], reverse=True)
+    for i in range(10):
+        print(importance_list[i])
+
+    # 特徴量の重要度を可視化
+    #import matplotlib.pyplot as plt
+    #import seaborn as sns
+    #sns.barplot(x=feature_importance, y=feature_name)
+    #plt.show()
+    '''
+
+minute_list = [1, 2, 3, 5, 10, 15, 30, 60, 90]
+minute_index = 0
+
+for i in range(len(minute_list)):
+    minute_index = i
+    print(f'{minute_list[minute_index]}分足の予測')
+
+    # ベイズ最適化で探索を行う範囲
+    pbounds = {
+        'iterations': (10, 100),
+        'learning_rate': (0.01, 0.5),
+        'depth': (4, 20),
+        'l2_leaf_reg': (1, 30)
+    }
+
+    # ベイズ最適化のパラメータ設定
+    optimizer = BayesianOptimization(
+        f=catboost_cv,
+        pbounds=pbounds,
+        random_state=42
+    )
+
+    # ベイズ最適化の実行
+    while True:
+        try:
+            optimizer.maximize(init_points=5, n_iter=25)
+            break
+        except Exception as e:
+            print(e)
+            print('Retry BayesianOptimization')
+            time.sleep(10)
+
+
 
 notification.notify(title='実行完了', message='スクリプトの実行が終了しました。', timeout=50)
