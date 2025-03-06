@@ -5,7 +5,7 @@ import re
 import time
 from catboost import CatBoostRegressor, Pool
 from plyer import notification
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
 from bayes_opt import BayesianOptimization
 
 # データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
@@ -17,7 +17,7 @@ train_csv_names = csv_files[:5]
 test_csv_name = csv_files[-1]
 
 def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
-    print(f'パラメータ iterations: {iterations}, learning_rate: {learning_rate}, depth: {depth}, l2_leaf_reg: {l2_leaf_reg}')
+    print(f'パラメータ iterations: {int(iterations)}, learning_rate: {round(learning_rate, 3)}, depth: {int(depth)}, l2_leaf_reg: {round(l2_leaf_reg, 2)}')
 
     #### 目的変数 ####
     target_column = f'change_{minute_list[minute_index]}min_rate'
@@ -126,7 +126,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         y_train = train_df[target_column]
 
         # stock_codeはカテゴリ変数なので、文字列型に変換
-        X_train.loc[:, 'stock_code'] = X_train['stock_code'].astype(str)
+        X_train['stock_code'] = X_train['stock_code'].astype('category')
 
         # CatBoost用のデータセットを作成
         train_pool = Pool(X_train, y_train, cat_features=['stock_code'])
@@ -142,7 +142,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         y_train_pred = model.predict(train_pool)
 
         # 訓練データの評価
-        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {round(mean_squared_error(y_train, y_train_pred, squared=False), 2)} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
+        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {round(root_mean_squared_error(y_train, y_train_pred), 2)} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
         #print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
         #print('Train R2:', round(r2_score(y_train, y_train_pred), 2))
 
@@ -171,7 +171,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     y_test = test_df[target_column]
 
     # stock_codeはカテゴリ変数なので、文字列型に変換
-    X_test.loc[:, 'stock_code'] = X_test['stock_code'].astype(str)
+    X_test['stock_code'] = X_test['stock_code'].astype('category')
 
     # CatBoost用のデータセットを作成
     test_pool = Pool(X_test, y_test, cat_features=['stock_code'])
@@ -181,7 +181,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
 
     # テストデータの評価
     custom_rmse = cl.evaluation_rmse_sign_penalty(y_test.values, y_pred)
-    print(f'テストデータ: {test_csv_name} Test RMSE: {round(mean_squared_error(y_test, y_pred, squared=False), 2)} Test RMSE(Sign diff Pena): {round(custom_rmse, 2)}')
+    print(f'テストデータ: {test_csv_name} Test RMSE: {round(root_mean_squared_error(y_test, y_pred), 2)} Test RMSE(Sign diff Pena): {round(custom_rmse, 2)}')
     #print('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
     #print('Test R2:', round(r2_score(y_test, y_pred), 2))
 
