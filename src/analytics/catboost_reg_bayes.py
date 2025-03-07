@@ -4,6 +4,7 @@ import pandas as pd
 import re
 import time
 from catboost import CatBoostRegressor, Pool
+from datetime import datetime
 from plyer import notification
 from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
 from bayes_opt import BayesianOptimization
@@ -17,6 +18,7 @@ train_csv_names = csv_files[:5]
 test_csv_name = csv_files[-1]
 
 def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
+    print(datetime.now())
     print(f'パラメータ iterations: {int(iterations)}, learning_rate: {round(learning_rate, 3)}, depth: {int(depth)}, l2_leaf_reg: {round(l2_leaf_reg, 2)}')
 
     #### 目的変数 ####
@@ -131,12 +133,14 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         # CatBoost用のデータセットを作成
         train_pool = Pool(X_train, y_train, cat_features=['stock_code'])
 
+        print(f'モデル作成開始: {datetime.now()}')
         # モデルの作成
         if model_flag:
             model.fit(train_pool, init_model = model)
         else:
             model.fit(train_pool)
             model_flag = True
+        print(f'モデル作成終了: {datetime.now()}')
 
         # 訓練データで予測
         y_train_pred = model.predict(train_pool)
@@ -228,9 +232,9 @@ for i in range(len(minute_list)):
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
-        'iterations': (10, 100),
-        'learning_rate': (0.01, 0.5),
-        'depth': (4, 20),
+        'iterations': (30, 80),
+        'learning_rate': (0.05, 0.3),
+        'depth': (6, 10),
         'l2_leaf_reg': (1, 30)
     }
 
@@ -244,7 +248,7 @@ for i in range(len(minute_list)):
     # ベイズ最適化の実行
     while True:
         try:
-            optimizer.maximize(init_points=5, n_iter=25)
+            optimizer.maximize(init_points=10, n_iter=30)
             break
         except Exception as e:
             print(e)
