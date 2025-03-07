@@ -342,9 +342,9 @@ class MoldPastRecord(ServiceBase):
                 # n分後の株価変化フラグ(1:上昇, 0:同値・下落)
                 df[f'change_{minute}min_flag'] = (df['close'].shift(-minute) > df['close']).astype(int)
                 # n分後の株価変化額 単純引き算だと丸め誤差が出るため、小数点第2位で丸める
-                df[f'change_{minute}min_price'] = round(df['close'].shift(-minute) - df['close'], 2)
-                # n分後の株価変化率(%) 細かすぎると計算量が増えるため丸める 最小はTOPIX銘柄の1000円→999.9円(-0.01%)
-                df[f'change_{minute}min_rate'] = round(df[f'change_{minute}min_price'] / df['close'] * 100, 3)
+                df[f'change_{minute}min_price'] = (df['close'].shift(-minute) - df['close']).round(2)
+                # n分後の株価変化率(%)を1000倍した値 小数点以下は丸める 最小絶対値はTOPIX銘柄の1000円→999.9円(-0.01%x1000=10)
+                df[f'change_{minute}min_rate'] = (df[f'change_{minute}min_price'] / df['close'] * 100000).round(0)
         except Exception as e:
             self.log.error(f'目的変数の計算に失敗しました')
             self.log.error(f'{e}\n{traceback.format_exc()}')
