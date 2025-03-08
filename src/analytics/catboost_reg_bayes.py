@@ -146,7 +146,13 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         y_train_pred = model.predict(train_pool)
 
         # 訓練データの評価
-        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {round(root_mean_squared_error(y_train, y_train_pred), 2)} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
+        train_rmse = round(root_mean_squared_error(y_train, y_train_pred), 2)
+        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
+        
+        # RMSEが10万以上の場合は継続学習を行ってもよくならないと判断してこの時点で学習を打ち切る
+        if train_rmse > 100000:
+            break
+
         #print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
         #print('Train R2:', round(r2_score(y_train, y_train_pred), 2))
 
@@ -233,9 +239,9 @@ for i in range(len(minute_list)):
     # ベイズ最適化で探索を行う範囲
     pbounds = {
         'iterations': (30, 80),
-        'learning_rate': (0.05, 0.3),
-        'depth': (6, 10),
-        'l2_leaf_reg': (1, 30)
+        'learning_rate': (0.06, 0.1),
+        'depth': (8, 15),
+        'l2_leaf_reg': (1, 20)
     }
 
     # ベイズ最適化のパラメータ設定
