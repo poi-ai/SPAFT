@@ -3,11 +3,17 @@ import os
 import pandas as pd
 import re
 import time
+import sys
 from catboost import CatBoostRegressor, Pool
 from datetime import datetime
 from plyer import notification
 from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
 from bayes_opt import BayesianOptimization
+
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from util.log import Log
+
+log = Log()
 
 # データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
 data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
@@ -18,13 +24,13 @@ train_csv_names = csv_files[:5]
 test_csv_name = csv_files[-1]
 
 def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
-    print(datetime.now())
-    print(f'パラメータ iterations: {int(iterations)}, learning_rate: {round(learning_rate, 3)}, depth: {int(depth)}, l2_leaf_reg: {round(l2_leaf_reg, 2)}')
+    log.info(datetime.now())
+    log.info(f'パラメータ iterations: {int(iterations)}, learning_rate: {round(learning_rate, 3)}, depth: {int(depth)}, l2_leaf_reg: {round(l2_leaf_reg, 2)}')
 
     #### 目的変数 ####
     target_column = f'change_{minute_list[minute_index]}min_rate'
 
-    print(f'目的変数: {target_column}')
+    log.info(f'目的変数: {target_column}')
 
     #### 関連のないカラム ####
     not_related_columns = ['timestamp', 'date', 'minute', 'get_minute']
@@ -100,7 +106,18 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
     # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = int(iterations), learning_rate = learning_rate, depth = int(depth), loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 0, l2_leaf_reg = l2_leaf_reg)
+    model = CatBoostRegressor(iterations = int(iterations), 
+                              learning_rate = learning_rate,
+                              depth = int(depth), 
+                              loss_function = cl.RMSESignPenalty(), 
+                              eval_metric = 'RMSE', 
+                              verbose = 0, 
+                              l2_leaf_reg = l2_leaf_reg,
+                              thread_count = -1, # CPUスレッドの最大利用
+                              use_best_model = False, # 最良モデル記録の計算割愛
+                              sampling_frequency = 'PerTree', # レベルごとのサンプリング→ツリーごとのサンプリング
+                              border_count = 128 # カテゴリ変数なの分割数を行う デフォルト: 256
+    )
     model_flag = False
 
     for index, train_csv_name in enumerate(train_csv_names):
@@ -113,8 +130,8 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
                 train_df = pd.read_csv(os.path.join(data_dir, train_csv_name))
                 break
             except Exception as e:
-                print(e)
-                print('Retry reading csv file')
+                log.info(e)
+                log.info('Retry reading csv file')
                 time.sleep(10)
 
         # 9:30以前と15:00以降のデータを削除
@@ -133,24 +150,24 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         # CatBoost用のデータセットを作成
         train_pool = Pool(X_train, y_train, cat_features=['stock_code'])
 
-        print(f'モデル作成開始: {datetime.now()}')
+        log.info(f'モデル作成開始: {datetime.now()}')
         # モデルの作成
         if model_flag:
             model.fit(train_pool, init_model = model)
         else:
             model.fit(train_pool)
             model_flag = True
-        print(f'モデル作成終了: {datetime.now()}')
+        log.info(f'モデル作成終了: {datetime.now()}')
 
         # 訓練データで予測
         y_train_pred = model.predict(train_pool)
 
         # 訓練データの評価
         train_rmse = round(root_mean_squared_error(y_train, y_train_pred), 2)
-        print(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
+        log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
         
-        # RMSEが10万以上の場合は継続学習を行ってもよくならないと判断してこの時点で学習を打ち切る
-        if train_rmse > 100000:
+        # RMSEが1万以上の場合は継続学習を行ってもよくならないと判断してこの時点で学習を打ち切る
+        if train_rmse > 10000:
             break
 
         #print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
@@ -166,8 +183,8 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
             test_df = pd.read_csv(os.path.join(data_dir, test_csv_name))
             break
         except Exception as e:
-            print(e)
-            print('Retry reading csv file')
+            log.info(e)
+            log.info('Retry reading csv file')
             time.sleep(10)
 
     # 9:30以前と15:00以降のデータを削除
@@ -191,7 +208,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
 
     # テストデータの評価
     custom_rmse = cl.evaluation_rmse_sign_penalty(y_test.values, y_pred)
-    print(f'テストデータ: {test_csv_name} Test RMSE: {round(root_mean_squared_error(y_test, y_pred), 2)} Test RMSE(Sign diff Pena): {round(custom_rmse, 2)}')
+    log.info(f'テストデータ: {test_csv_name} Test RMSE: {round(root_mean_squared_error(y_test, y_pred), 2)} Test RMSE(Sign diff Pena): {round(custom_rmse, 2)}')
     #print('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
     #print('Test R2:', round(r2_score(y_test, y_pred), 2))
 
@@ -229,12 +246,12 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     #plt.show()
     '''
 
-minute_list = [1, 2, 3, 5, 10, 15, 30, 60, 90]
+minute_list = [10, 15, 30, 60, 90]
 minute_index = 0
 
 for i in range(len(minute_list)):
     minute_index = i
-    print(f'{minute_list[minute_index]}分足の予測')
+    log.info(f'{minute_list[minute_index]}分足の予測')
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
@@ -257,8 +274,8 @@ for i in range(len(minute_list)):
             optimizer.maximize(init_points=10, n_iter=30)
             break
         except Exception as e:
-            print(e)
-            print('Retry BayesianOptimization')
+            log.info(e)
+            log.info('Retry BayesianOptimization')
             time.sleep(10)
 
 
