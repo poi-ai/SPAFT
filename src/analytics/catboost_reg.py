@@ -17,11 +17,13 @@ log = Log()
 data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
 csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_\d{8}.csv', csv_file)]
 
+csv_counter = 0
+
 # 最後のデータはテストデータとして使用するので分割
 train_csv_names = csv_files[:-1]
 test_csv_name = csv_files[-1]
 
-for minute in [5, 10, 15, 30, 60, 90]:
+for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
 
     # x分後の数値予測を行う
 
@@ -104,7 +106,7 @@ for minute in [5, 10, 15, 30, 60, 90]:
     cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
     # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = 40, learning_rate = 0.07, depth = 12, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 10, l2_leaf_reg = 7)
+    model = CatBoostRegressor(iterations = 45, learning_rate = 0.07, depth = 8, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 10, l2_leaf_reg = 1.1)
     model_flag = False
 
     for index, train_csv_name in enumerate(train_csv_names):
@@ -150,7 +152,12 @@ for minute in [5, 10, 15, 30, 60, 90]:
         # 訓練データの評価
         train_rmse = round(root_mean_squared_error(y_train, y_train_pred), 2)
         log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
-        
+
+        # 予測結果と実際の値を出力
+        csv_counter += 1
+        result_df = pd.DataFrame({'y_train': y_train, 'y_train_pred': y_train_pred})
+        result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'error_catboost_{minute}min_{csv_counter}.csv'), index=False)
+
         if train_rmse > 5000:
             log.info('精度が悪すぎるので強制終了します')
             break

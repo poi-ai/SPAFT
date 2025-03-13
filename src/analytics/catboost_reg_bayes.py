@@ -106,12 +106,12 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
     # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = int(iterations), 
+    model = CatBoostRegressor(iterations = int(iterations),
                               learning_rate = learning_rate,
-                              depth = int(depth), 
-                              loss_function = cl.RMSESignPenalty(), 
-                              eval_metric = 'RMSE', 
-                              verbose = 0, 
+                              depth = int(depth),
+                              loss_function = cl.RMSESignPenalty(),
+                              eval_metric = 'RMSE',
+                              verbose = 0,
                               l2_leaf_reg = l2_leaf_reg,
                               thread_count = -1, # CPUスレッドの最大利用
                               use_best_model = False, # 最良モデル記録の計算割愛
@@ -165,7 +165,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         # 訓練データの評価
         train_rmse = round(root_mean_squared_error(y_train, y_train_pred), 2)
         log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
-        
+
         # RMSEが1万以上の場合は継続学習を行ってもよくならないと判断してこの時点で学習を打ち切る
         if train_rmse > 10000:
             break
@@ -246,7 +246,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     #plt.show()
     '''
 
-minute_list = [10, 15, 30, 60, 90]
+minute_list = [1, 2, 3, 5, 10, 15, 30, 60, 90]
 minute_index = 0
 
 for i in range(len(minute_list)):
@@ -255,10 +255,10 @@ for i in range(len(minute_list)):
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
-        'iterations': (30, 80),
-        'learning_rate': (0.06, 0.1),
+        'iterations': (20, 150),
+        'learning_rate': (0.05, 0.09),
         'depth': (8, 15),
-        'l2_leaf_reg': (1, 20)
+        'l2_leaf_reg': (1, 5)
     }
 
     # ベイズ最適化のパラメータ設定
@@ -277,7 +277,5 @@ for i in range(len(minute_list)):
             log.info(e)
             log.info('Retry BayesianOptimization')
             time.sleep(10)
-
-
 
 notification.notify(title='実行完了', message='スクリプトの実行が終了しました。', timeout=50)
