@@ -255,10 +255,10 @@ for i in range(len(minute_list)):
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
-        'iterations': (20, 150),
-        'learning_rate': (0.05, 0.09),
-        'depth': (8, 15),
-        'l2_leaf_reg': (1, 5)
+        'iterations': (40, 300),
+        'learning_rate': (0.07, 0.08),
+        'depth': (4, 9),
+        'l2_leaf_reg': (1.0, 1.5)
     }
 
     # ベイズ最適化のパラメータ設定

@@ -30,7 +30,7 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     #### 目的変数 ####
     target_column = f'change_{minute}min_rate'
 
-    print(f'目的変数: {target_column}')
+    log.info(f'目的変数: {target_column}')
 
     #### 関連のないカラム ####
     not_related_columns = ['timestamp', 'date', 'minute', 'get_minute']
@@ -106,7 +106,7 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
     # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = 45, learning_rate = 0.07, depth = 8, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 10, l2_leaf_reg = 1.1)
+    model = CatBoostRegressor(iterations = 60, learning_rate = 0.07, depth = 4, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 0, l2_leaf_reg = 1.2)
     model_flag = False
 
     for index, train_csv_name in enumerate(train_csv_names):
