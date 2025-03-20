@@ -14,7 +14,8 @@ class Record(ServiceBase):
         super().__init__(api_headers, api_url, ws_url, conn)
 
         # 今日の年月をyyyymm形式で取得
-        self.today = self.util.culc_time.get_now(accurate = False).strftime('%Y%m%d')
+        self.today_datetime = self.util.culc_time.get_now(accurate = False)
+        self.today = self.today_datetime.strftime('%Y%m%d')
 
         # 記録対象の銘柄リスト
         self.target_code_list = []
@@ -120,6 +121,7 @@ class Record(ServiceBase):
                 try:
                     # デバッグモードでない場合のみ時間チェック
                     if self.config.BOARD_RECORD_DEBUG == False:
+                        # 時間の種別を取得
                         time_type = self.util.culc_time.exchange_time(datetime.now())
                         # お昼休み
                         if time_type == 4:
@@ -133,7 +135,6 @@ class Record(ServiceBase):
                     time_out = self.util.culc_time.get_trade_end_time_seconds(accurate = False)
 
                     self.log.info('PUSHメッセージ配信の待機')
-                    # PUSHメッセージ配信の待機
                     message = await asyncio.wait_for(ws.recv(), timeout = time_out)
                     self.log.info('PUSHメッセージ配信を受信')
 
@@ -149,6 +150,15 @@ class Record(ServiceBase):
                     continue
 
         self.log.info('WebSocket接続処理終了')
+
+        # 最後にメモリに残っている四本値データをDBに登録
+        for ohlc in self.ohlc_list:
+            result = self.db.ohlc.upsert(ohlc)
+            if result != True:
+                self.log.error(f'四本値テーブルへの記録処理でエラー\n{result}')
+                self.log.error(f'記録に失敗したデータ: {ohlc}')
+                continue
+
         return True
 
     async def operate_ohlc(self, reception_data):
@@ -167,12 +177,12 @@ class Record(ServiceBase):
         # 直近の取引の秒を切り捨て
         reception_data['CurrentPriceMinute'] = reception_data['CurrentPriceTime'].replace(second = 0, microsecond = 0)
 
-        # 受信データと同一分のデータが既に存在するか
+        # 受信データと同一時分のデータが既に存在するか
         # 一時保存用のメモリをチェック
         if len(self.ohlc_list) > 0:
             for ohlc in self.ohlc_list:
-                # メモリに存在する場合
                 try:
+                    # メモリに存在する場合
                     if ohlc['symbol'] == reception_data['Symbol'] and ohlc['trade_time'] == reception_data['CurrentPriceMinute']:
                         recorded_ohlc_data = ohlc
                         break
@@ -182,6 +192,7 @@ class Record(ServiceBase):
                     self.log.error(f'reception_data[CurrentPriceMinute]: {reception_data["CurrentPriceMinute"]}')
                     continue
 
+        '''
         # メモリに存在しない場合はDBをチェック
         if recorded_ohlc_data == {}:
             recorded_ohlc_data = self.db.ohlc.select_time(reception_data['Symbol'], reception_data['CurrentPriceMinute'])
@@ -189,24 +200,29 @@ class Record(ServiceBase):
                 self.log.error('四本値テーブルの記録済みデータ取得処理でエラー')
                 recorded_ohlc_data == {}
                 # TODO エラーカウント追加
+        '''
 
-        # 記録済のデータがない場合は直近の累計出来高を取得
+        # 記録済のデータがない場合は直近の時分から累計出来高を取得
         total_volume = -999
+        latest_trade_time = None
         if recorded_ohlc_data == {}:
             # まずはメモリからチェック
-            total_volume = self.get_latest_total_volume(reception_data)
+            latest_trade_time, total_volume = self.get_latest_total_volume(reception_data)
+            '''
             # メモリに存在しない場合はDBをチェック
             if total_volume == -999:
                 total_volume = self.db.ohlc.select_latest_total_volume(reception_data['Symbol'], reception_data['CurrentPriceMinute'].date())
                 if total_volume == False:
                     self.log.error('四本値テーブルの累計出来高取得処理でエラー')
                     total_volume = -999
+            '''
 
         # レコード未存在/エラーで-999としていたデータを0に変更
         if total_volume == -999:
             total_volume = 0
 
-        # 受信したデータと記録済みのOHLCデータをもとに、DBテーブル用のフォーマットに成形
+        # 受信したデータとメモリに記録済OHLCデータをもとに、DBテーブル用のフォーマットに成形
+        # メモリにデータがない場合は新規で追加
         result, new_ohlc_data = self.util.mold.response_to_ohlc(reception_data, recorded_ohlc_data, total_volume)
         if result == False:
             self.log.error(new_ohlc_data)
@@ -216,6 +232,7 @@ class Record(ServiceBase):
         # 先にメモリを更新
         for ohlc in self.ohlc_list[:]:
             try:
+                # 同じ証券コードで同じ取引時間のデータがある場合は更新前のを削除
                 if ohlc['symbol'] == new_ohlc_data['symbol'] and ohlc['trade_time'] == new_ohlc_data['trade_time']:
                     self.ohlc_list.remove(ohlc)
                     break
@@ -224,10 +241,12 @@ class Record(ServiceBase):
                 self.log.error(f'ohlc[trade_time]: {ohlc["trade_time"]}')
                 self.log.error(f'new_ohlc_data[trade_time]: {new_ohlc_data["trade_time"]}')
                 continue
+        # 更新後のデータ/新規データを追加
         self.ohlc_list.append(new_ohlc_data)
 
-        # 既に記録済み/使用しないためメモリにいらないデータは削除する
-        result = self.memory_cleaning()
+        # メモリに過去時分データがある場合のみ、そのデータをDBに登録してメモリから削除
+        if latest_trade_time != None and latest_trade_time.hour != 0 and latest_trade_time.minute != 0:
+            result = self.memory_cleaning(new_ohlc_data['symbol'], latest_trade_time)
 
         # DBを更新 TODO 3,4回/秒x銘柄数分upsertするので、頻度を減らしたい
         result = self.db.ohlc.upsert(new_ohlc_data)
@@ -351,45 +370,51 @@ class Record(ServiceBase):
             reception_data(dict): 受信したデータ
 
         Returns:
-            int: 最新の累計出来高
+            latest_datetime(datetime): 最新の取引時間 ※取得対象が存在しない場合は0:00のデータが返る
+            latest_total_volume(int): 最新の累計出来高 ※取得対象が存在しない場合は-999が返る
         '''
-        latest_date, latest_total_volume = self.jst.localize(self.util.culc_time.get_now(accurate = False).replace(hour = 23, minute = 59)), -999
-        for ohlc in self.ohlc_list:
-            if ohlc['symbol'] == reception_data['Symbol']:
-                if latest_date <= ohlc['trade_time']:
-                    latest_date, latest_total_volume = ohlc['trade_time'], ohlc['total_volume']
-        return latest_total_volume
+        # タイムゾーン付きの今日の0:00を取得
+        latest_datetime, latest_total_volume = self.today_datetime.replace(hour = 0, minute = 0), -999
 
-    def memory_cleaning(self):
+        # 全メモリのチェック
+        for ohlc in self.ohlc_list:
+            # 証券コードが一致していて取引時間が最新の場合
+            if ohlc['symbol'] == reception_data['Symbol']:
+                if latest_datetime < ohlc['trade_time']:
+                    # 最新取引時間と累計出来高を更新
+                    latest_datetime, latest_total_volume = ohlc['trade_time'], ohlc['total_volume']
+        return latest_datetime, latest_total_volume
+
+    def memory_cleaning(self, symbol, latest_trade_time):
         '''
-        メモリで保持しているデータの中からいらないものを取り除く
+        メモリで保持しているデータの中からもう更新されなくなったものをDBに登録しメモリから取り除く
+
+        Args:
+            symbol(str): 銘柄コード
+            latest_trade_time(datetime): 削除可能な取引時間
 
         Returns:
             bool: 処理結果
         '''
-        # 管理用の連想配列
-        memory_dict = {}
         # 削除する要素を一時的に保持するリスト
         to_remove = []
 
         # メモリの中から取引情報をチェック
         for index, ohlc in enumerate(self.ohlc_list):
-            # 銘柄コードが管理用の連想配列に存在しない場合は追加
-            if ohlc['symbol'] not in memory_dict:
-                memory_dict[ohlc['symbol']] = (ohlc['trade_time'], index)
-            else:
-                # 同じ銘柄コードで取引時間が古いものはいらないので削除リストに追加
-                if memory_dict[ohlc['symbol']][0] > ohlc['trade_time']:
-                    to_remove.append(index)
-                else:
-                    to_remove.append(memory_dict[ohlc['symbol']][1])
-                    memory_dict[ohlc['symbol']] = (ohlc['trade_time'], index)
+            # 証券コードが一致していて取引時間が削除しても良い時間(含む)より前の場合
+            if ohlc['symbol'] == symbol and ohlc['trade_time'] <= latest_trade_time:
+                # DBに登録
+                result = self.db.ohlc.upsert(ohlc)
+                if result != True:
+                    self.log.error(f'四本値テーブルへの登録処理でエラー\n{result}')
+                    continue
 
-        # 一括で削除 削除してインデックス番号がずれるのを防ぐために逆順で削除
+                # 削除対象のインデックスを追加
+                to_remove.append(index)
+
+        # DBに登録済みのデータをメモリから一括で削除
+        # 複数削除の場合にインデックス番号がずれて違うデータが削除されるのを防ぐために逆順で削除
         for index in sorted(to_remove, reverse = True):
-            # TODO DBに登録されているかのチェック
-            
-            # 登録されていたら本当に削除
             del self.ohlc_list[index]
 
         return True
