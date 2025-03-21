@@ -6,7 +6,7 @@ import time
 import websockets
 import pytz
 from service_base import ServiceBase
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 class Record(ServiceBase):
     '''データ取得に関するServiceクラス'''
@@ -14,7 +14,7 @@ class Record(ServiceBase):
         super().__init__(api_headers, api_url, ws_url, conn)
 
         # 今日の年月をyyyymm形式で取得
-        self.today_datetime = self.util.culc_time.get_now(accurate = False)
+        self.today_datetime = datetime.now(timezone(timedelta(hours=9)))
         self.today = self.today_datetime.strftime('%Y%m%d')
 
         # 記録対象の銘柄リスト
@@ -127,14 +127,13 @@ class Record(ServiceBase):
                         if time_type == 4:
                             # 後場開始1秒前まで待機
                             _ = self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59)
-                        elif time_type in [5, 6]:
-                            self.log.info('クロージング・オークション/大引け後のためPUSH配信受信を終了します')
+                        elif time_type in [5]:
+                            self.log.info('大引け後のためPUSH配信受信を終了します')
                             break
 
                     # タイムアウト(=PUSH配信が来なくなるまで)の時間を計算
                     time_out = self.util.culc_time.get_trade_end_time_seconds(accurate = False)
 
-                    self.log.info('PUSHメッセージ配信の待機')
                     message = await asyncio.wait_for(ws.recv(), timeout = time_out)
                     self.log.info('PUSHメッセージ配信を受信')
 
@@ -152,12 +151,15 @@ class Record(ServiceBase):
         self.log.info('WebSocket接続処理終了')
 
         # 最後にメモリに残っている四本値データをDBに登録
+        upsert_count = 0
         for ohlc in self.ohlc_list:
-            result = self.db.ohlc.upsert(ohlc)
+            result, operate_type = self.db.ohlc.upsert(ohlc)
             if result != True:
                 self.log.error(f'四本値テーブルへの記録処理でエラー\n{result}')
                 self.log.error(f'記録に失敗したデータ: {ohlc}')
                 continue
+            upsert_count += 1
+        self.log.info(f'メモリに残っている四本値データのDB登録完了 登録レコード数: {upsert_count}')
 
         return True
 
@@ -168,9 +170,14 @@ class Record(ServiceBase):
         Args:
             reception_data(dict): 受信したデータ
         '''
-        self.log.info('四本値テーブルへの記録処理開始')
         # 既に記録済の同一分のデータを詰めるために使用
         recorded_ohlc_data = {}
+
+        # 現値データがない場合
+        if reception_data['CurrentPriceTime'] is None:
+            self.log.warning('現値データが取れません')
+            self.log.warning(reception_data)
+            return False
 
         # 直近の取引時間のdatetime型に変換
         reception_data['CurrentPriceTime'] = datetime.strptime(reception_data['CurrentPriceTime'], '%Y-%m-%dT%H:%M:%S%z')
@@ -248,12 +255,6 @@ class Record(ServiceBase):
         if latest_trade_time != None and latest_trade_time.hour != 0 and latest_trade_time.minute != 0:
             result = self.memory_cleaning(new_ohlc_data['symbol'], latest_trade_time)
 
-        # DBを更新 TODO 3,4回/秒x銘柄数分upsertするので、頻度を減らしたい
-        result = self.db.ohlc.upsert(new_ohlc_data)
-        if result != True:
-            return False
-
-        self.log.info('四本値テーブルへの記録終了')
         return True
 
     def insert_board(self, board_info):
@@ -404,10 +405,12 @@ class Record(ServiceBase):
             # 証券コードが一致していて取引時間が削除しても良い時間(含む)より前の場合
             if ohlc['symbol'] == symbol and ohlc['trade_time'] <= latest_trade_time:
                 # DBに登録
-                result = self.db.ohlc.upsert(ohlc)
+                result, operate_type = self.db.ohlc.upsert(ohlc)
                 if result != True:
                     self.log.error(f'四本値テーブルへの登録処理でエラー\n{result}')
                     continue
+                    
+                self.log.info(f'四本値テーブルへの登録処理完了 記録した取引時間: {ohlc["trade_time"]}、証券コード: {ohlc["symbol"]}')
 
                 # 削除対象のインデックスを追加
                 to_remove.append(index)
