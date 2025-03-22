@@ -184,9 +184,9 @@ for i in range(len(minute_list)):
     # ベイズ最適化で探索を行う範囲
     pbounds = {
         'iterations': (40, 300),
-        'learning_rate': (0.07, 0.08),
-        'depth': (4, 9),
-        'l2_leaf_reg': (1.0, 1.5)
+        'learning_rate': (0.01, 0.9),
+        'depth': (4, 12),
+        'l2_leaf_reg': (1.0, 2.5)
     }
 
     # ベイズ最適化のパラメータ設定
@@ -199,7 +199,7 @@ for i in range(len(minute_list)):
     # ベイズ最適化の実行
     while True:
         try:
-            optimizer.maximize(init_points=10, n_iter=30)
+            optimizer.maximize(init_points=15, n_iter=40)
             break
         except Exception as e:
             log.info(e)
