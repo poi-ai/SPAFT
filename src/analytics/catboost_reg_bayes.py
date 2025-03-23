@@ -18,10 +18,39 @@ log = Log()
 
 # データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
 data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
-csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_202502\d{2}.csv', csv_file)]
+csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_20250\d{3}.csv', csv_file)]
+
+# どの程度のデータサイズまでメモリが耐えられるかの確認
+enable_file_num = 0
+log.info('結合可能ファイル数チェック開始')
+try:
+    log.info(f'チェックCSVファイル {csv_files[0]} ファイル数: {enable_file_num + 1}')
+    check_df = pd.read_csv(os.path.join(data_dir, csv_files[0]))
+    enable_file_num += 1
+except Exception as e:
+    log.info(e)
+    log.info('first csv file read error')
+    exit()
+
+for csv_name in csv_files[1:]:
+    try:
+        log.info(f'チェックCSVファイル {csv_name} ファイル数: {enable_file_num + 1}')
+        check_df = pd.concat([check_df, pd.read_csv(os.path.join(data_dir, csv_name))], ignore_index=True)
+        enable_file_num += 1
+    except Exception as e:
+        log.info(e)
+        log.info(f'csv file read error. file count: {enable_file_num}')
+        break
+
+# 余裕をもって可能なファイル数-1にする
+enable_file_num -= 1
+log.info(f'結合可能ファイル数: {enable_file_num}')
+
+# メモリ開放
+check_df = None
 
 # 最後のデータはテストデータとして使用するので分割 軽量化のためデータ量は5日分で
-train_csv_names = csv_files[:5]
+train_csv_names = csv_files[:-1]
 test_csv_name = csv_files[-1]
 
 def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
@@ -48,19 +77,35 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     )
     model_flag = False
 
+    # 複数ファイルまとめて学習させる場合の管理用変数
+    read_file_index = 0
+    train_df = None
+
     for index, train_csv_name in enumerate(train_csv_names):
-        # メモリ開放
-        train_df = None
+
+        read_error_count = 0
 
         # 訓練用データの読み込み
         while True:
             try:
-                train_df = pd.read_csv(os.path.join(data_dir, train_csv_name))
+                if read_file_index == 0:
+                    train_df = pd.read_csv(os.path.join(data_dir, train_csv_name))
+                else:
+                    train_df = pd.concat([train_df, pd.read_csv(os.path.join(data_dir, train_csv_name))], ignore_index=True)
+                read_file_index += 1
                 break
             except Exception as e:
                 log.info(e)
                 log.info('Retry reading csv file')
+                read_error_count += 1
+                if read_error_count > 20:
+                    log.info('Retry count over 20')
+                    exit()
                 time.sleep(10)
+
+        if read_file_index < enable_file_num:
+            log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} 残り結合数: {enable_file_num - read_file_index}')
+            continue
 
         # 9:30以前と15:00以降のデータを削除
         train_df = train_df[30:-25]
@@ -97,6 +142,9 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         # RMSEが1万以上の場合は継続学習を行ってもよくならないと判断してこの時点で学習を打ち切る
         if train_rmse > 10000:
             break
+
+        # メモリ開放
+        train_df = None
 
         #print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
         #print('Train R2:', round(r2_score(y_train, y_train_pred), 2))
@@ -174,7 +222,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     #plt.show()
     '''
 
-minute_list = [1, 2, 3, 5, 10, 15, 30, 60, 90]
+minute_list = [15, 5, 3, 60, 90, 1, 2, 30, 10]
 minute_index = 0
 
 for i in range(len(minute_list)):
@@ -183,10 +231,10 @@ for i in range(len(minute_list)):
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
-        'iterations': (40, 300),
-        'learning_rate': (0.01, 0.9),
-        'depth': (4, 12),
-        'l2_leaf_reg': (1.0, 2.5)
+        'iterations': (40, 140),
+        'learning_rate': (0.01, 0.03),
+        'depth': (4, 10),
+        'l2_leaf_reg': (1.0, 1.5)
     }
 
     # ベイズ最適化のパラメータ設定
@@ -199,7 +247,7 @@ for i in range(len(minute_list)):
     # ベイズ最適化の実行
     while True:
         try:
-            optimizer.maximize(init_points=15, n_iter=40)
+            optimizer.maximize(init_points=10, n_iter=30)
             break
         except Exception as e:
             log.info(e)
