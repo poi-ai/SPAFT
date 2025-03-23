@@ -145,6 +145,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
 
         # メモリ開放
         train_df = None
+        read_file_index = 0
 
         #print('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
         #print('Train R2:', round(r2_score(y_train, y_train_pred), 2))
