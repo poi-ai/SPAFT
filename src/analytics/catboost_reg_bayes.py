@@ -52,6 +52,7 @@ check_df = None
 # 最後のデータはテストデータとして使用するので分割 軽量化のためデータ量は5日分で
 train_csv_names = csv_files[:-1]
 test_csv_name = csv_files[-1]
+output_count = 0
 
 def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     log.info(datetime.now())
@@ -98,20 +99,21 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
                 log.info(e)
                 log.info('Retry reading csv file')
                 read_error_count += 1
-                if read_error_count > 20:
-                    log.info('Retry count over 20')
-                    exit()
-                time.sleep(10)
-
-        if read_file_index < enable_file_num:
-            log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} 残り結合数: {enable_file_num - read_file_index}')
-            continue
+                if read_error_count > 5:
+                    log.info('Retry count over 5')
+                    break
+                time.sleep(3)
 
         # 9:30以前と15:00以降のデータを削除
         train_df = train_df[30:-25]
 
         # NaN値を含む行を削除
         train_df = train_df.dropna(subset=[target_column])
+
+        # メモリギリギリのデータ数に達していないか、最後のデータでない場合は次のファイルへ
+        if read_file_index < enable_file_num and index < len(train_csv_names) - 1:
+            log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} 残り結合数: {enable_file_num - read_file_index}')
+            continue
 
         # 特徴量と目的変数に分割
         X_train = train_df.drop(cm.cant_use_columns, axis=1)
@@ -189,6 +191,12 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     #print('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
     #print('Test R2:', round(r2_score(y_test, y_pred), 2))
 
+    # 予測結果と実際の値を出力
+    output_count += 1
+    log.info(f'出力回数: {output_count}')
+    result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred.round(3)})
+    result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{output_count}.csv'), index=False)
+
     return -custom_rmse
 
     #print()
@@ -205,11 +213,6 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     # 重要度を出力
     for importance in importance_list:
         print(importance)
-
-    # 予測結果と実際の値を出力
-    #result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred})
-    #result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{minute}min.csv'), index=False)
-
 
     # 重要度を降順にソートして上位10件を表示
     importance_list = sorted(importance_list, key=lambda x: x['score'], reverse=True)
@@ -232,10 +235,10 @@ for i in range(len(minute_list)):
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
-        'iterations': (40, 140),
-        'learning_rate': (0.01, 0.03),
-        'depth': (4, 10),
-        'l2_leaf_reg': (1.0, 1.5)
+        'iterations': (500, 2000),
+        'learning_rate': (0.005, 0.07),
+        'depth': (6, 12),
+        'l2_leaf_reg': (1.0, 20.0)
     }
 
     # ベイズ最適化のパラメータ設定
