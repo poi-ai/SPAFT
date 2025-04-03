@@ -379,7 +379,7 @@ class CulcTime():
             self.ntp_server = 1
         return
 
-    def wait_time(self, hour, minute, second = None):
+    def wait_time(self, hour, minute, second = None, microsecond = None):
         '''
         指定した時間まで待機する(日付は跨がない)
 
@@ -387,13 +387,15 @@ class CulcTime():
             hour(int): この時間(時)まで待機する[必須]
             minute(int): この時間(分)まで待機する[必須]
             second(int): この時間(秒)まで待機する[任意]
-
+            microsecond(int): この時間(マイクロ秒)まで待機する[任意]
         '''
         # 現在の時刻を取得する
         now = self.get_now()
 
         # この時間まで待つ
-        if second != None:
+        if second is not None and microsecond is not None:
+            schedule_time = now.replace(hour = hour, minute = minute, second = second, microsecond = microsecond)
+        elif second is not None:
             schedule_time = now.replace(hour = hour, minute = minute, second = second)
         else:
             schedule_time = now.replace(hour = hour, minute = minute)
@@ -403,7 +405,7 @@ class CulcTime():
             self.log.info(f'{hour}時{minute}分を過ぎているため待機しません')
             return True
 
-        # 待機する時間(マイクロ秒)を計る
+        # 待機する時間(秒)を計る
         wait_seconds = (schedule_time - now).total_seconds()
 
         self.log.info(f'{hour}時{minute}分まで{wait_seconds}秒待機します')

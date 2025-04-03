@@ -102,11 +102,11 @@ class Record(ServiceBase):
             # 寄り前
             if time_type == 3:
                 # 寄り1秒前まで待機
-                _ = self.util.culc_time.wait_time(hour = 8, minute = 59, second = 59)
+                _ = self.util.culc_time.wait_time(hour = 8, minute = 59, second = 59, microsecond = 990000)
             # お昼休み
             elif time_type == 4:
                 # 後場開始1秒前まで待機
-                _ = self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59)
+                _ = self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59, microsecond = 990000)
             # クロージング・オークション / 大引け後
             elif time_type in [5, 6]:
                 self.log.info('クロージング・オークション/大引け後のためPUSH配信受信を行いません')
@@ -125,8 +125,8 @@ class Record(ServiceBase):
                         time_type = self.util.culc_time.exchange_time(datetime.now())
                         # お昼休み
                         if time_type == 4:
-                            # 後場開始1秒前まで待機
-                            _ = self.util.culc_time.wait_time(hour = 12, minute = 29, second = 59)
+                            self.log.info('お昼休みなのでPUSH配信受信を行いません')
+                            break
                         elif time_type in [5]:
                             self.log.info('大引け後のためPUSH配信受信を終了します')
                             break
@@ -139,6 +139,11 @@ class Record(ServiceBase):
 
                     # メッセージを受信したらレコードを設定する処理をコールバック関数として実行
                     asyncio.create_task(self.operate_ohlc(json.loads(message)))
+
+                except TimeoutError:
+                    self.log.warning('WebSocket受信がタイムアウトしました')
+                    self.log.error('タイムアウトしたためWebSocket接続を終了します')
+                    break
 
                 except Exception as e:
                     self.log.error(f'PUSH配信の受信処理でエラー\n{e}')
