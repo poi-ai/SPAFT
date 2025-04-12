@@ -7,10 +7,10 @@ import pandas as pd
 import re
 import time
 import sys
-from catboost import CatBoostRegressor, Pool
+from catboost import CatBoostClassifier, Pool
 from datetime import datetime
 from plyer import notification
-from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
+from sklearn.metrics import log_loss, accuracy_score
 from bayes_opt import BayesianOptimization
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -52,7 +52,7 @@ log.info(f'結合可能ファイル数: {enable_file_num}')
 '''
 
 # 一度の学習で何ファイル分のデータを結合するか
-enable_file_num = 5
+enable_file_num = 10
 
 
 # メモリ開放
@@ -69,16 +69,15 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     log.info(f'パラメータ iterations: {int(iterations)}, learning_rate: {round(learning_rate, 3)}, depth: {int(depth)}, l2_leaf_reg: {round(l2_leaf_reg, 2)}')
 
     #### 目的変数 ####
-    target_column = f'change_{minute_list[minute_index]}min_rate'
+    target_column = f'change_{minute_list[minute_index]}min_flag'
 
     log.info(f'目的変数: {target_column}')
 
     # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = int(iterations),
+    model = CatBoostClassifier(iterations = int(iterations),
                               learning_rate = learning_rate,
                               depth = int(depth),
-                              loss_function = cl.RMSESignPenalty(),
-                              eval_metric = 'RMSE',
+                              loss_function = 'Logloss',
                               verbose = 0,
                               l2_leaf_reg = l2_leaf_reg,
                               thread_count = -1, # CPUスレッドの最大利用
@@ -130,7 +129,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
             continue
 
         # 特徴量と目的変数に分割
-        X_train = train_df.drop(cm.cant_use_columns, axis=1)
+        X_train = train_df.drop(cm.cant_use_columns_clf, axis=1)
         y_train = train_df[target_column]
 
         # stock_codeはカテゴリ変数なので、文字列型に変換
@@ -149,22 +148,21 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         log.info(f'モデル作成終了: {datetime.now()}')
 
         # 訓練データで予測
-        y_train_pred = model.predict(train_pool)
+        y_train_pred_proba = model.predict_proba(train_pool)[:, 1]  # クラス1の確率を取得
+        y_train_pred = (y_train_pred_proba > 0.5).astype(int)  # 確率を閾値0.5でクラスに変換
 
         # 訓練データの評価
-        train_rmse = round(root_mean_squared_error(y_train, y_train_pred), 2)
-        custom_rmse = round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)
-        # 二値分類と見なした場合の正解率を計算
-        correct_predictions = (np.sign(y_train_pred) == np.sign(y_train)).sum()
-        accuracy = round(correct_predictions / len(y_train), 4)
+        train_logloss = round(log_loss(y_train, y_train_pred_proba), 4)  # Loglossを計算
+        train_accuracy = round(accuracy_score(y_train, y_train_pred), 4)
+
         #log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {custom_rmse}')
 
         # 結果をCSVで出力
-        output_result(start_csv_name, train_csv_name, 0, train_num, iterations, learning_rate, depth, l2_leaf_reg, train_rmse, custom_rmse, accuracy)
+        output_result(start_csv_name, train_csv_name, 0, train_num, iterations, learning_rate, depth, l2_leaf_reg, train_logloss, train_accuracy)
         train_num += 1
         start_csv_name = None
         # RMSEが1万以上の場合は継続学習を行ってもよくならないと判断してこの時点で学習を打ち切る
-        if train_rmse > 10000:
+        if train_accuracy < 0.45:
             break
 
         # メモリ開放
@@ -195,7 +193,7 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         test_df = test_df.dropna(subset=[target_column])
 
         # 特徴量と目的変数に分割
-        X_test = test_df.drop(cm.cant_use_columns, axis=1)
+        X_test = test_df.drop(cm.cant_use_columns_clf, axis=1)
         y_test = test_df[target_column]
 
         # stock_codeはカテゴリ変数なので、文字列型に変換
@@ -205,34 +203,27 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
         test_pool = Pool(X_test, y_test, cat_features=['stock_code'])
 
         # テストデータで予測
-        y_pred = model.predict(test_pool)
+        y_test_pred_proba = model.predict_proba(test_pool)[:, 1]  # クラス1の確率を取得
+        y_test_pred = (y_test_pred_proba > 0.5).astype(int)  # 確率を閾値0.5でクラスに変換
 
         # テストデータの評価
-        test_rmse = round(root_mean_squared_error(y_test, y_pred), 2)
-        custom_rmse = round(cl.evaluation_rmse_sign_penalty(y_test.values, y_pred), 2)
-        correct_predictions = (np.sign(y_pred) == np.sign(y_test)).sum()
-        accuracy = round(correct_predictions / len(y_test), 4)
+        test_logloss = round(log_loss(y_test, y_test_pred_proba), 4)  # Loglossを計算
+        test_accuracy = round(accuracy_score(y_test, y_test_pred), 4)
 
         #log.info(f'テストデータ: {test_csv_name} Test RMSE: {test_rmse} Test RMSE(Sign diff Pena): {custom_rmse}')
         #print('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
         #print('Test R2:', round(r2_score(y_test, y_pred), 2))
 
         # 結果をCSVで出力
-        output_result(test_csv_name, None, 1, 1, iterations, learning_rate, depth, l2_leaf_reg, test_rmse, custom_rmse, accuracy)
+        output_result(test_csv_name, None, 1, 1, iterations, learning_rate, depth, l2_leaf_reg, test_logloss, test_accuracy)
 
         # 予測結果と実際の値を出力
         output_count += 1
         log.info(f'出力回数: {output_count}')
-        result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred.round(3)})
+        result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_test_pred.round(3)})
         result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{output_count}.csv'), index=False)
 
-        # メモリ開放
-        test_df = None
-        X_test = None
-        y_test = None
-        y_pred = None
-
-    return -custom_rmse
+    return -test_logloss
 
     #print()
     #print()
@@ -261,19 +252,19 @@ def catboost_cv(iterations, learning_rate, depth, l2_leaf_reg):
     #plt.show()
     '''
 
-def output_result(start_csv_name, end_csv_name, test_flag, training_num, iterations, learning_rate, depth, l2_leaf_reg, rmse, custom_rmse, accuracy):
+def output_result(start_csv_name, end_csv_name, test_flag, training_num, iterations, learning_rate, depth, l2_leaf_reg, logloss, accuracy):
     '''モデルの精度を出力する'''
     global minute_list, minute_index, enable_file_num
 
     # 出力先のCSVファイル名
-    output_csv_name = f'result_bayes.csv'
+    output_csv_name = f'result_clf_bayes.csv'
     output_csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', output_csv_name)
 
     # ファイルの存在チェック
     if not os.path.exists(output_csv_path):
         # ファイルが存在しない場合は新規作成してヘッダーを書き込む
         headers = ['datetime', 'minute', 'start_csv_name', 'end_csv_name', 'test_flag', 'training_num',
-                   'enable_file_num', 'iterations', 'learning_rate', 'depth', 'l2_leaf_reg', 'rmse', 'custom_rmse', 'accuracy']
+                   'enable_file_num', 'iterations', 'learning_rate', 'depth', 'l2_leaf_reg', 'logloss', 'accuracy']
 
         with open(output_csv_path, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -284,7 +275,7 @@ def output_result(start_csv_name, end_csv_name, test_flag, training_num, iterati
         writer = csv.writer(f)
         writer.writerow([datetime.now(), minute_list[minute_index], start_csv_name, end_csv_name, test_flag, training_num,
                          enable_file_num, int(iterations), round(learning_rate, 3), int(depth), round(l2_leaf_reg, 2),
-                         round(rmse, 2), round(custom_rmse, 2), accuracy])
+                         round(logloss, 4), accuracy])
 
 minute_list = [1, 2, 3, 5, 10, 15, 30, 60, 90]
 minute_index = 0
@@ -295,10 +286,10 @@ for i in range(len(minute_list)):
 
     # ベイズ最適化で探索を行う範囲
     pbounds = {
-        'iterations': (100, 1000),
+        'iterations': (50, 150),
         'learning_rate': (0.005, 0.07),
-        'depth': (6, 12),
-        'l2_leaf_reg': (1.0, 20.0)
+        'depth': (6, 10),
+        'l2_leaf_reg': (1.0, 1.5)
     }
 
     # ベイズ最適化のパラメータ設定
