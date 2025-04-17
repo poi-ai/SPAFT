@@ -19,10 +19,10 @@ class ReceptionWebsocket(Base):
         # WebSocket接続/PUSH配信の受信/データのDB登録
         try:
             # 前場
-            await self.service.record.websocket_main()
+            await self.service.record.websocket_main(1)
 
             # 後場
-            await self.service.record.websocket_main()
+            await self.service.record.websocket_main(2)
         except Exception as e:
             self.log.error(f'WebSocket接続でエラー\n{e}')
             return False

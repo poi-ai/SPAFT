@@ -81,9 +81,13 @@ class Record(ServiceBase):
 
         return True, target_code_list
 
-    async def websocket_main(self):
+    async def websocket_main(self, time_period):
         '''
         WebSocket接続/受信とDBへの登録処理を行う
+
+        Args:
+            time_period(int): 時間種別
+                1: 前場、2: 後場
 
         Returns:
             bool: 処理結果
@@ -123,11 +127,12 @@ class Record(ServiceBase):
                     if self.config.BOARD_RECORD_DEBUG == False:
                         # 時間の種別を取得
                         time_type = self.util.culc_time.exchange_time(datetime.now())
-                        # お昼休み
-                        if time_type == 4:
+                        # 前場処理中にお昼休みに入った場合
+                        if time_period == 1 and time_type == 4:
                             self.log.info('お昼休みなのでPUSH配信受信を行いません')
                             break
-                        elif time_type in [5]:
+                        # 後場処理中に大引けになった場合
+                        elif time_period == 2 and time_type in [5]:
                             self.log.info('大引け後のためPUSH配信受信を終了します')
                             break
 
