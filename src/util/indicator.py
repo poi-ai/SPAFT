@@ -35,13 +35,13 @@ class Indicator():
             df_resampled[column_name] = df_resampled[price_column_name].rolling(window=window_size).mean().round(1)
 
             # window_size - 1番目までのデータでは計算ができずNaNになるので-1で埋める
-            df_resampled[column_name].fillna(-1, inplace=True)
+            # df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # 2分足以上の場合は間の数値を前のSMAで埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'SMA計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -74,16 +74,16 @@ class Indicator():
                 df_resampled = df[[price_column_name]].copy()
 
             # EMAの計算・カラムを追加
-            df_resampled[column_name] = df_resampled[price_column_name].ewm(span = window_size).mean().round(1)
+            df_resampled[column_name] = df_resampled[price_column_name].ewm(span = window_size, min_periods = window_size).mean().round(1)
 
             # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
-            df_resampled[column_name].fillna(-1, inplace=True)
+            # df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # 2分足以上の場合は間の数値を前のEMAで埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'EMA計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -120,13 +120,13 @@ class Indicator():
             df_resampled[column_name] = df_resampled[price_column_name].rolling(window = window_size).apply(lambda x: np.dot(x, weights) / weights.sum(), raw = True).round(1)
 
             # window_size - 1番目までのデータでは計算ができずNaNになるので-1で埋める
-            df_resampled[column_name].fillna(-1, inplace=True)
+            # df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # 2分足以上の場合は間の数値を前のWMAで埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'WMA計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -140,11 +140,11 @@ class Indicator():
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-            interval(int): SMAを計算する間隔(何分足として計算するか)
+            interval(int): MAを計算する間隔(何分足として計算するか)
 
         Returns:
             bool: 実行結果
-            df(pandas.DataFrame): SMAクロスを追加したDataFrame
+            df(pandas.DataFrame): MAクロスを追加したDataFrame
 
         '''
         try:
@@ -183,10 +183,23 @@ class Indicator():
                         dead_cross = f'{line_type}_{interval}min_{short_piece}to{long_piece}piece_dead_cross'
                         dead_cross_after = f'{line_type}_{interval}min_{short_piece}to{long_piece}piece_dead_cross_after'
                         diff = f'{line_type}_{interval}min_{short_piece}to{long_piece}piece_diff'
+                        diff_rate = f'{diff}_rate'
 
                         # ゴールデンクロス・デッドクロスの判定
-                        df_resampled[golden_cross] = ((df_resampled[column_short].shift(1) <= df_resampled[column_long].shift(1)) & (df_resampled[column_short] > df_resampled[column_long])).astype(int)
-                        df_resampled[dead_cross] = ((df_resampled[column_short].shift(1) >= df_resampled[column_long].shift(1)) & (df_resampled[column_short] < df_resampled[column_long])).astype(int)
+                        short_shifted = df_resampled[column_short].shift(1)
+                        long_shifted = df_resampled[column_long].shift(1)
+
+                        # Nan行のマスクを作成
+                        nan_mask = pd.isna(short_shifted) | pd.isna(long_shifted)
+
+                        # ゴールデンクロス・デッドクロスの計算
+                        df_resampled[golden_cross] = np.where(
+                            nan_mask, np.nan, ((short_shifted <= long_shifted) & (df_resampled[column_short] > df_resampled[column_long])).astype(int)
+                        )
+
+                        df_resampled[dead_cross] = np.where(
+                            nan_mask, np.nan, ((short_shifted >= long_shifted) & (df_resampled[column_short] < df_resampled[column_long])).astype(int)
+                        )
 
                         # 直近でフラグが立ってからの経過時間
                         df_resampled['gc_id'] = df_resampled[golden_cross].cumsum()
@@ -194,16 +207,30 @@ class Indicator():
                         df_resampled['dc_id'] = df_resampled[dead_cross].cumsum()
                         df_resampled[dead_cross_after] = df_resampled.groupby('dc_id').cumcount()
 
-                        # 短期と長期の差を計算
-                        df_resampled[diff] = (df_resampled[column_short] - df_resampled[column_long]).round(2)
-                        add_columns.extend([golden_cross, golden_cross_after, dead_cross, dead_cross_after, diff])
+                        # もともとNanのデータについては経過時間カラムもNanにする
+                        df_resampled.loc[nan_mask, golden_cross_after] = np.nan
+                        df_resampled.loc[nan_mask, dead_cross_after] = np.nan
+
+                        # 最初にゴールデンクロス・デッドクロスとなった行以前の値を-1で埋める(ただしNanはNanのまま)
+                        first_golden_cross_index = df_resampled[df_resampled[golden_cross] == 1].index.min()
+                        first_dead_cross_index = df_resampled[df_resampled[dead_cross] == 1].index.min()
+                        if pd.notna(first_golden_cross_index):
+                            df_resampled.loc[:first_golden_cross_index - 1, golden_cross_after] = df_resampled.loc[:first_golden_cross_index - 1, golden_cross_after].where(nan_mask, -1)
+                        if pd.notna(first_dead_cross_index):
+                            df_resampled.loc[:first_dead_cross_index - 1, dead_cross_after] = df_resampled.loc[:first_dead_cross_index - 1, dead_cross_after].where(nan_mask, -1)
+
+                        # 短期と長期の差の額と終値に対する比率を計算
+                        short_long_diff = (df_resampled[column_short] - df_resampled[column_long]).round(5)
+                        df_resampled[diff] = short_long_diff.round(2)
+                        df_resampled[diff_rate] = ((short_long_diff * 1000) / df_resampled['close']).round(3)
+                        add_columns.extend([golden_cross, golden_cross_after, dead_cross, dead_cross_after, diff, diff_rate])
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'MAクロス計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -249,29 +276,42 @@ class Indicator():
 
                 add_columns.extend([f'{column_name}_upper_{sigma}_alpha', f'{column_name}_lower_{sigma}_alpha'])
 
-            # バンド(α)の幅を計算
-            df_resampled[f'{column_name}_width'] = (df_resampled['sigma_tmp'] * 2).round(3)
-            add_columns.append(f'{column_name}_width')
+            # バンド(α)の幅の額と終値に対する率を計算
+            band_width = (df_resampled['sigma_tmp'] * 2).round(6)
+            df_resampled[f'{column_name}_width'] = band_width.round(3)
+            df_resampled[f'{column_name}_width_rate'] = ((band_width * 1000) / df_resampled[price_column_name]).round(3)
+            add_columns.extend([f'{column_name}_width', f'{column_name}_width_rate'])
 
-            # バンド幅の収縮・拡大度合いを計算
-            df_resampled[f'{column_name}_width_diff'] = df_resampled[f'{column_name}_width'].diff().round(3)
-            add_columns.append(f'{column_name}_width_diff')
+            # バンド幅の収縮・拡大度合いの額と終値に対する率を計算
+            band_width_diff = band_width.diff().round(6)
+            df_resampled[f'{column_name}_width_diff'] = band_width_diff.round(3)
+            df_resampled[f'{column_name}_width_diff_rate'] = ((band_width_diff * 1000) / df_resampled[price_column_name]).round(3)
+            add_columns.extend([f'{column_name}_width_diff', f'{column_name}_width_diff_rate'])
 
-            # 価格とバンドの差を計算
-            df_resampled[f'{column_name}_upper_diff'] = (df_resampled[price_column_name] - df_resampled[f'{column_name}_upper_1_alpha']).round(3)
-            df_resampled[f'{column_name}_lower_diff'] = (df_resampled[f'{column_name}_lower_1_alpha'] - df_resampled[price_column_name]).round(3)
-            add_columns.extend([f'{column_name}_upper_diff', f'{column_name}_lower_diff'])
+            for sigma in [1, 2, 3]:
+                band_upper_diff = (df_resampled[f'{column_name}_upper_{sigma}_alpha'] - df_resampled[price_column_name]).round(6)
+                band_lower_diff = (df_resampled[f'{column_name}_lower_{sigma}_alpha'] - df_resampled[price_column_name]).round(6)
 
-            # バンド内での位置を計算 αの場合は1、-αの場合は0になる
-            df_resampled[f'{column_name}_position'] = ((df_resampled[price_column_name] - df_resampled[f'{column_name}_lower_1_alpha']) / df_resampled[f'{column_name}_width']).round(3)
-            add_columns.append(f'{column_name}_position')
+                # 終値とバンド(+3α~-3α)の差の額と終値に対する率を計算
+                df_resampled[f'{column_name}_upper_{sigma}_diff'] = band_upper_diff.round(3)
+                df_resampled[f'{column_name}_lower_{sigma}_diff'] = band_lower_diff.round(3)
+                df_resampled[f'{column_name}_upper_{sigma}_diff_rate'] = ((band_upper_diff * 1000) / df_resampled[price_column_name]).round(3)
+                df_resampled[f'{column_name}_lower_{sigma}_diff_rate'] = ((band_lower_diff * 1000) / df_resampled[price_column_name]).round(3)
+
+                # 終値とバンドの位置を計算 +3α~-3αそれぞれの値を終値が超えていたら1、超えていなければ0
+                df_resampled[f'{column_name}_upper_{sigma}_position'] = df_resampled[f'{column_name}_upper_{sigma}_diff'].apply(lambda x: np.nan if pd.isna(x) else (0 if x >= 0 else 1))
+                df_resampled[f'{column_name}_lower_{sigma}_position'] = df_resampled[f'{column_name}_lower_{sigma}_diff'].apply(lambda x: np.nan if pd.isna(x) else (0 if x >= 0 else 1))
+
+                add_columns.extend([f'{column_name}_upper_{sigma}_diff', f'{column_name}_lower_{sigma}_diff'])
+                add_columns.extend([f'{column_name}_upper_{sigma}_diff_rate', f'{column_name}_lower_{sigma}_diff_rate'])
+                add_columns.extend([f'{column_name}_upper_{sigma}_position', f'{column_name}_lower_{sigma}_position'])
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[add_columns], left_index=True, right_index=True, how='left')
 
             for column in add_columns:
                 # リサンプリング対象外の行は、直近の値で埋める
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
                 # window_size - 1番目までのデータでは計算ができずNaNになるので-999で埋める
                 ##df[column].fillna(-999, inplace=True)
@@ -306,18 +346,22 @@ class Indicator():
             else:
                 df_resampled = df[[price_column_name]].copy()
 
-            # 前日との差分を計算
+            # 前レコードとの差分を計算
             df_resampled['diff'] = df_resampled[price_column_name].diff()
 
-            # 前日との差分がプラスならその値、マイナスなら0を設定
+            # 前レコードとの差分がプラスならその値、マイナスなら0を設定
             df_resampled['up'] = df_resampled['diff'].apply(lambda x: x if x > 0 else 0)
 
-            # 前日との差分がマイナスならその値、プラスなら0を設定
+            # 前レコードとの差分がマイナスならその値、プラスなら0を設定
             df_resampled['down'] = df_resampled['diff'].apply(lambda x: abs(x) if x < 0 else 0)
 
             # 平均上昇幅と平均下降幅を計算
             df_resampled['up_mean'] = df_resampled['up'].rolling(window = window_size).mean()
             df_resampled['down_mean'] = df_resampled['down'].rolling(window = window_size).mean()
+
+            # ついでなので終値に対しての平均上昇幅と平均下降幅のカラムを計算して追加する
+            df_resampled[f'up_mean_rate_{interval}min_{window_size}piece'] = ((df_resampled['up_mean'] * 1000) / df_resampled[price_column_name]).round(3)
+            df_resampled[f'down_mean_rate_{interval}min_{window_size}piece'] = ((df_resampled['down_mean'] * 1000) / df_resampled[price_column_name]).round(3)
 
             # RSIを計算
             if df_resampled['down_mean'].isna().all() or df_resampled['up_mean'].isna().all():
@@ -335,10 +379,10 @@ class Indicator():
             ##df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
 
             # 元のデータフレームにリサンプリングされたデータをマージ
-            df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
+            df = df.merge(df_resampled[[column_name,f'up_mean_rate_{interval}min_{window_size}piece',f'down_mean_rate_{interval}min_{window_size}piece']], left_index=True, right_index=True, how='left')
 
-            # window_size - 1番目までのデータでは計算ができずNaNになるので-999で埋める かつ 間の要素は直近の要素で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            # 間の要素の値を直近の値で埋める
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'RSI計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -373,7 +417,7 @@ class Indicator():
             df_resampled[column_name] = df_resampled[price_column_name].rolling(window=window_size).apply(self.calc_rci, raw=False)
 
             # 初めの方の要素はNaNになるので直前の値で埋める
-            df_resampled[column_name].fillna(method='ffill', inplace=True)
+            df_resampled[column_name] = df_resampled[column_name].ffill()
 
             # 先頭の要素を-999で埋める
             ##df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
@@ -382,7 +426,7 @@ class Indicator():
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'RCI計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -433,50 +477,115 @@ class Indicator():
 
             # カラム名の設定
             macd = column_name
+            macd_rate = f'{macd}_rate'
+            macd_position = f'{macd}_position'
             macd_signal = f'{macd}_signal'
+            macd_signal_rate = f'{macd_signal}_rate'
             macd_histogram = f'{macd}_diff'
+            macd_histogram_rate = f'{macd_histogram}_rate'
+            macd_histogram_flag = f'{macd_histogram}_flag'
+            macd_golden_cross = f'{macd}_golden_cross'
+            macd_dead_cross = f'{macd}_dead_cross'
+            macd_golden_cross_after = f'{macd}_golden_cross_after'
+            macd_dead_cross_after = f'{macd}_dead_cross_after'
+            macd_cross_trend = f'{macd}_cross_trend'
             add_columns = []
 
-            # MACD(短期EMA - 長期EMA)の計算 # TODO 円でだけでなく、%も見た方がいいかも
-            short_ema = df_resampled[price_column_name].ewm(span = short_window_size).mean()
-            long_ema = df_resampled[price_column_name].ewm(span = long_window_size).mean()
-            df_resampled[macd] = (short_ema - long_ema).round(2)
-            add_columns.append(macd)
+            # MACD(短期EMA - 長期EMA)の計算 額と終値に対する率を計算
+            short_ema = df_resampled[price_column_name].ewm(span = short_window_size, min_periods = short_window_size).mean()
+            long_ema = df_resampled[price_column_name].ewm(span = long_window_size, min_periods = long_window_size).mean()
+            macd_value = (short_ema - long_ema).round(6)
+            df_resampled[macd] = macd_value.round(2)
+            df_resampled[macd_rate] = ((macd_value * 1000) / df_resampled[price_column_name]).round(3)
+            df_resampled[macd_position] = macd_value.apply(lambda x: np.nan if pd.isna(x) else (0 if x >= 0 else 1))
+            add_columns.extend([macd, macd_rate, macd_position])
 
-            # MACDシグナルの計算
-            df_resampled[macd_signal] = df_resampled[macd].ewm(span = signal_window_size).mean().round(2)
-            add_columns.append(macd_signal)
+            # MACDシグナルの計算 額と終値に対する率を計算
+            macd_signal_value = macd_value.ewm(span = signal_window_size).mean().round(6)
+            df_resampled[macd_signal] = macd_signal_value.round(2)
+            df_resampled[macd_signal_rate] = ((macd_signal_value * 1000) / df_resampled[price_column_name]).round(3)
+            add_columns.extend([macd_signal, macd_signal_rate])
 
-            # MACDとMACDシグナルの差(ヒストグラム)を計算
-            df_resampled[macd_histogram] = (df_resampled[macd] - df_resampled[macd_signal]).round(3)
-            df_resampled[f'{macd_histogram}_flag'] = df_resampled[macd_histogram].apply(lambda x: 1 if x > 0 else 0)
-            add_columns.extend([macd_histogram, f'{macd_histogram}_flag'])
+            # MACDとMACDシグナルの差(ヒストグラム)を計算 額と終値に対する率を計算
+            macd_histogram_value = (macd_value - macd_signal_value).round(6)
+            df_resampled[macd_histogram] = macd_histogram_value.round(3)
+            df_resampled[macd_histogram_rate] = ((macd_histogram_value * 1000) / df_resampled[price_column_name]).round(3)
+            df_resampled[macd_histogram_flag] = macd_histogram_value.apply(lambda x: np.nan if pd.isna(x) else (0 if x >= 0 else 1))
+            add_columns.extend([macd_histogram, macd_histogram_rate, macd_histogram_flag])
 
-            # ゴールデンクロス・デッドクロスのフラグ
-            df_resampled[f'{macd}_cross'] = 0
-            df_resampled.loc[(df_resampled[macd] > df_resampled[macd_signal]) & (df_resampled[macd].shift() < df_resampled[macd_signal].shift()), f'{macd}_cross'] = 1
-            df_resampled.loc[(df_resampled[macd] < df_resampled[macd_signal]) & (df_resampled[macd].shift() > df_resampled[macd_signal].shift()), f'{macd}_cross'] = -1
-            add_columns.append(f'{macd}_cross')
+            # MACDとMACDシグナルのゴールデンクロス・デッドクロスを計算する (MACDがシグナルを上抜けたらゴールデンクロス)
+            macd_shifted = df_resampled[macd].shift(1)
+            macd_signal_shifted = df_resampled[macd_signal].shift(1)
 
-            # TODO クロス後の転換シグナルなしフラグ
+            # NaN行のマスクを作成
+            nan_mask = pd.isna(macd_shifted) | pd.isna(macd_signal_shifted) | pd.isna(df_resampled[macd]) | pd.isna(df_resampled[macd_signal])
 
-            # MACDとMACDシグナルの傾きを計算
-            for count in [1, 3, 5, 10]:
+            # MACDとMACDシグナルのゴールデンクロス・デッドクロスの計算
+            df_resampled[macd_golden_cross] = np.where(
+                nan_mask, np.nan, ((df_resampled[macd_signal] > 0) & (df_resampled[macd] > df_resampled[macd_signal]) & (macd_shifted < macd_signal_shifted)).astype(int)
+            )
+            df_resampled[macd_dead_cross] = np.where(
+                nan_mask, np.nan, ((df_resampled[macd_signal] < 0) & (df_resampled[macd] < df_resampled[macd_signal]) & (macd_shifted > macd_signal_shifted)).astype(int)
+            )
+
+            add_columns.extend([macd_golden_cross, macd_dead_cross])
+
+            # 直近でゴールデンクロス・デッドクロスをしてからの経過時間
+            df_resampled['gc_id'] = df_resampled[macd_golden_cross].cumsum()
+            df_resampled[macd_golden_cross_after] = df_resampled.groupby('gc_id').cumcount()
+            df_resampled['dc_id'] = df_resampled[macd_dead_cross].cumsum()
+            df_resampled[macd_dead_cross_after] = df_resampled.groupby('dc_id').cumcount()
+
+            # 最初にクロスした以前の行を値を-1で埋める(ただしNanはNanのまま)
+            first_macd_golden_cross_index = df_resampled[df_resampled[macd_golden_cross] == 1].index.min()
+            first_macd_dead_cross_index = df_resampled[df_resampled[macd_dead_cross] == 1].index.min()
+            if pd.notna(first_macd_golden_cross_index):
+                df_resampled.loc[:first_macd_golden_cross_index - 1, macd_golden_cross_after] = df_resampled.loc[:first_macd_golden_cross_index - 1, macd_golden_cross_after].where(nan_mask, -1)
+            if pd.notna(first_macd_dead_cross_index):
+                df_resampled.loc[:first_macd_dead_cross_index - 1, macd_dead_cross_after] = df_resampled.loc[:first_macd_dead_cross_index - 1, macd_dead_cross_after].where(nan_mask, -1)
+
+            add_columns.extend([macd_golden_cross_after, macd_dead_cross_after])
+
+            # MACDとMACDシグナルのゴールデンクロス・デッドクロスから現在のトレンドを計算
+            df_resampled[macd_cross_trend] = (df_resampled[macd_golden_cross_after] - df_resampled[macd_dead_cross_after]).apply(lambda x: np.nan if pd.isna(x) else (-1 if x == 0 else (0 if x > 0 else 1)))
+            add_columns.append(macd_cross_trend)
+
+            # MACDとMACDシグナルの傾きと終値に対する率を計算 直近何本の差分から傾きを計算するか
+            for count in [1, 3, 5, 10, 15]:
                 # 幅が長すぎるとデータが取れないのでスキップ
                 if interval * count >= 300:
                     continue
-                df_resampled[f'{macd}_{count}_slope'] = (df_resampled[macd].diff(count)).round(3)
-                df_resampled[f'{macd_signal}_{count}_slope'] = (df_resampled[macd_signal].diff(count)).round(3)
-                add_columns.extend([f'{macd}_{count}_slope', f'{macd_signal}_{count}_slope'])
 
-            # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグ
-            df_resampled[f'{macd}_mismatch'] = (df_resampled[macd].diff() * df_resampled[price_column_name].diff()).apply(lambda x: 1 if x < 0 else 0)
-            add_columns.append(f'{macd}_mismatch')
+                macd_x_slope = f'{macd}_{count}_slope'
+                macd_x_slope_rate = f'{macd_x_slope}_rate'
+                macd_signal_x_slope = f'{macd_signal}_{count}_slope'
+                macd_signal_x_slope_rate = f'{macd_signal_x_slope}_rate'
+                macd_x_mismatch = f'{macd}_{count}_mismatch'
+                macd_x_mismatch_count = f'{macd}_{count}_mismatch_count'
 
-            # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグが続いている回数
-            df_resampled[f'{macd}_mismatch_count'] = df_resampled[f'{macd}_mismatch'].groupby((df_resampled[f'{macd}_mismatch'] != df_resampled[f'{macd}_mismatch'].shift()).cumsum()).cumcount() + 1
-            df_resampled.loc[df_resampled[f'{macd}_mismatch'] == 0, f'{macd}_mismatch_count'] = 0
-            add_columns.append(f'{macd}_mismatch_count')
+                # MACDとMACDシグナルの傾きの計算
+                macd_x_slope_value = (df_resampled[macd].diff(count) / count).round(6)
+                macd_signal_x_slope_value = (df_resampled[macd_signal].diff(count) / count).round(6)
+                df_resampled[macd_x_slope] = macd_x_slope_value.round(3)
+                df_resampled[macd_signal_x_slope] = macd_signal_x_slope_value.round(3)
+                df_resampled[macd_x_slope_rate] = ((macd_x_slope_value * 1000) / df_resampled[price_column_name]).round(3)
+                df_resampled[macd_signal_x_slope_rate] = ((macd_signal_x_slope_value * 1000) / df_resampled[price_column_name]).round(3)
+                add_columns.extend([macd_x_slope, macd_x_slope_rate, macd_signal_x_slope, macd_signal_x_slope_rate])
+
+                # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグ
+                df_resampled[macd_x_mismatch] = (df_resampled[macd_x_slope] * df_resampled[macd_signal_x_slope]).apply(lambda x: np.nan if pd.isna(x) else (0 if x >= 0 else 1))
+                add_columns.append(macd_x_mismatch)
+
+                # NaN行のマスクを作成
+                nan_mask = pd.isna(df_resampled[macd_x_mismatch]) | pd.isna(df_resampled[macd_x_mismatch].shift(1))
+
+                # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグが続いている回数を計算
+                df_resampled[macd_x_mismatch_count] = df_resampled[macd_x_mismatch].groupby((df_resampled[macd_x_mismatch] != df_resampled[macd_x_mismatch].shift(1)).cumsum()).cumcount() + 1
+                # 不一致フラグが0の行の回数を0に設定
+                df_resampled.loc[df_resampled[macd_x_mismatch] == 0, macd_x_mismatch_count] = 0
+                # NaNの行はNaNに設定
+                df_resampled.loc[nan_mask, macd_x_mismatch_count] = np.nan
+                add_columns.append(macd_x_mismatch_count)
 
             # 先頭の要素を-999で埋める
             ##df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -999
@@ -486,7 +595,7 @@ class Indicator():
 
             # リサンプリングされていない行を直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'MACD計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -534,7 +643,7 @@ class Indicator():
             df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'PSY計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -623,14 +732,15 @@ class Indicator():
             df_resampled[column_name] = sar_list
             column_name_flag = f'{column_name}_flag'
             # SARが一つ前のSARよりも高い場合は1、低い場合は0
-            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
+            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift(1)).astype(int)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name, column_name_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
-            df[column_name_flag].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
+
+            df[column_name_flag] = df[column_name_flag].ffill()
 
         except Exception as e:
             self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -665,8 +775,13 @@ class Indicator():
             else:
                 df_resampled = df[columns].copy()
 
+            # カラム名の設定
+            column_name_diff = f'{column_name}_diff'
+            column_name_diff_rate = f'{column_name_diff}_rate'
+
             # 初期値の設定 SARの初期値と前日のEPは初期値の終値になる
             sar_list = [df_resampled['close'].iloc[0]]
+            sar_diff_list = [0]
             ep = df_resampled['close'].iloc[0]
             af = min_af
             trend = ''
@@ -676,6 +791,7 @@ class Indicator():
                 close = df_resampled['close'].iloc[i]
                 high = df_resampled['high'].iloc[i]
                 low = df_resampled['low'].iloc[i]
+                sar_diff = 0
 
                 # 1つ目の要素の場合は前日との差分で上昇か下降トレンドかを判定
                 if i == 1:
@@ -692,12 +808,15 @@ class Indicator():
 
                     # SARの計算
                     sar = sar_list[i - 1] + af * (ep - sar_list[i - 1])
+                    # SARと安値の差分を計算
+                    sar_diff = sar - low
 
                     # SARが現在の安値と同じか高くなった場合はトレンドを反転
                     if sar >= low:
                         trend, af = 'down', min_af
                         sar = ep
                         ep = high
+                        sar_diff = 0
 
                 # 下降トレンドの場合
                 else:
@@ -707,32 +826,46 @@ class Indicator():
 
                     # SARの計算
                     sar = sar_list[i - 1] - af * (sar_list[i - 1] - ep)
+                    # SARと高値の差分を計算
+                    sar_diff = sar - high
 
                     # SARが現在の高値と同じか高くなった場合はトレンドを反転
                     if sar <= high:
                         trend, af = 'up', min_af
                         sar = ep
                         ep = low
+                        sar_diff = 0
 
-                sar_list.append(sar.round(4))
+
+                sar_list.append(round(sar, 3))
+                sar_diff_list.append(round(sar_diff, 3))
 
             df_resampled[column_name] = sar_list
+            df_resampled[column_name_diff] = sar_diff_list
             column_name_flag = f'{column_name}_flag'
             column_name_reverse_flag = f'{column_name}_reverse_flag'
 
             # SARが一つ前のSARよりも高い場合は1、低い場合は0
-            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
+            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift(1)).astype(int)
+
+            # NaN行のマスクを作成
+            nan_mask = pd.isna(df_resampled[column_name_flag]) | pd.isna(df_resampled[column_name_flag].shift(1))
 
             # トレンドが反転した場合は1、そうでない場合は0
-            df_resampled[column_name_reverse_flag] = (df_resampled[column_name_flag] != df_resampled[column_name_flag].shift()).astype(int)
+            df_resampled[column_name_reverse_flag] = np.where(nan_mask, 0, (df_resampled[column_name_flag] != df_resampled[column_name_flag].shift(1)).astype(int))
+
+            # SARとローソク足の差分について終値に対する率を計算
+            df_resampled[column_name_diff_rate] = ((df_resampled[column_name_diff] * 1000) / df_resampled['close']).round(3)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
-            df = df.merge(df_resampled[[column_name, column_name_flag, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
+            df = df.merge(df_resampled[[column_name, column_name_diff, column_name_diff_rate, column_name_flag, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
-            df[column_name_flag].fillna(method='ffill', inplace=True)
-            df[column_name_reverse_flag].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
+            df[column_name_diff] = df[column_name_diff].ffill()
+            df[column_name_diff_rate] = df[column_name_diff_rate].ffill()
+            df[column_name_flag] = df[column_name_flag].ffill()
+            df[column_name_reverse_flag] = df[column_name_reverse_flag].ffill()
 
         except Exception as e:
             self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -772,39 +905,50 @@ class Indicator():
             leading_span_b = f'{column_name}_leading_span_b'
             lagging_span = f'{column_name}_lagging_span'
             base_conversion_diff = f'{column_name}_bc_diff'
+            base_conversion_diff_rate = f'{column_name}_bc_diff_rate'
             base_conversion_position = f'{column_name}_bc_position'
             base_conversion_cross = f'{column_name}_bc_cross'
             base_conversion_gc_after = f'{column_name}_bc_gc_after'
             base_conversion_dc_after = f'{column_name}_bc_dc_after'
             price_lagging_diff = f'{column_name}_pl_diff'
+            price_lagging_diff_rate = f'{column_name}_pl_diff_rate'
             price_lagging_position = f'{column_name}_pl_position'
             price_lagging_cross = f'{column_name}_pl_cross'
             price_lagging_gc_after = f'{column_name}_pl_gc_after'
             price_lagging_dc_after = f'{column_name}_pl_dc_after'
             leading_span_diff = f'{column_name}_ls_diff'
+            leading_span_diff_rate = f'{column_name}_ls_diff_rate'
             leading_span_position = f'{column_name}_ls_position'
             leading_span_cross = f'{column_name}_ls_cross'
             leading_span_gc_after = f'{column_name}_ls_gc_after'
             leading_span_dc_after = f'{column_name}_ls_dc_after'
             price_cloud_high_diff = f'{column_name}_cloud_high_diff'
+            price_cloud_high_diff_rate = f'{column_name}_cloud_high_diff_rate'
             price_cloud_low_diff = f'{column_name}_cloud_low_diff'
+            price_cloud_low_diff_rate = f'{column_name}_cloud_low_diff_rate'
             price_cloud_position = f'{column_name}_cloud_position'
-            price_cloud_cross = f'{column_name}_cloud_cross'
-            price_cloud_cross_gc_after1 = f'{column_name}_cloud_gc_after1'
-            price_cloud_cross_gc_after2 = f'{column_name}_cloud_gc_after2'
-            price_cloud_cross_dc_after1 = f'{column_name}_cloud_dc_after1'
-            price_cloud_cross_dc_after2 = f'{column_name}_cloud_dc_after2'
+            price_cloud_lower_gc = f'{column_name}_cloud_lower_gc'
+            price_cloud_upper_gc = f'{column_name}_cloud_upper_gc'
+            price_cloud_lower_dc = f'{column_name}_cloud_lower_dc'
+            price_cloud_upper_dc = f'{column_name}_cloud_upper_dc'
+            price_cloud_lower_gc_after = f'{column_name}_cloud_lower_gc_after'
+            price_cloud_upper_gc_after = f'{column_name}_cloud_upper_gc_after'
+            price_cloud_lower_dc_after = f'{column_name}_cloud_lower_dc_after'
+            price_cloud_upper_dc_after = f'{column_name}_cloud_upper_dc_after'
 
             add_columns = [base_line, conversion_line, leading_span_a, leading_span_b, lagging_span,
-                           base_conversion_diff, base_conversion_position, base_conversion_cross, base_conversion_gc_after, base_conversion_dc_after,
-                           price_lagging_diff, price_lagging_position, price_lagging_cross, price_lagging_gc_after, price_lagging_dc_after,
-                           leading_span_diff, leading_span_position, leading_span_cross, leading_span_gc_after, leading_span_dc_after,
-                           price_cloud_high_diff, price_cloud_low_diff, price_cloud_position, price_cloud_cross,
-                           price_cloud_cross_gc_after1, price_cloud_cross_gc_after2, price_cloud_cross_dc_after1, price_cloud_cross_dc_after2]
+                           base_conversion_diff, base_conversion_diff_rate, base_conversion_position, base_conversion_cross, base_conversion_gc_after, base_conversion_dc_after,
+                           price_lagging_diff, price_lagging_diff_rate, price_lagging_position, price_lagging_cross, price_lagging_gc_after, price_lagging_dc_after,
+                           leading_span_diff, leading_span_diff_rate, leading_span_position, leading_span_cross, leading_span_gc_after, leading_span_dc_after,
+                           price_cloud_high_diff, price_cloud_high_diff_rate, price_cloud_low_diff, price_cloud_low_diff_rate, price_cloud_position,
+                            price_cloud_lower_gc, price_cloud_upper_gc, price_cloud_lower_dc, price_cloud_upper_dc,
+                            price_cloud_lower_gc_after, price_cloud_upper_gc_after, price_cloud_lower_dc_after, price_cloud_upper_dc_after]
 
             # 高値/安値がない場合
             if 'high' not in df_resampled.columns:
                 df_resampled['high'] = df_resampled[close_column_name]
+
+            if 'low' not in df_resampled.columns:
                 df_resampled['low'] = df_resampled[close_column_name]
 
             # 基準線の計算 long_window_size本の高値と安値の平均
@@ -822,79 +966,158 @@ class Indicator():
             # 遅行スパンの計算 現在の価格をlong_window_size本前にずらす
             df_resampled[lagging_span] = df_resampled[close_column_name].shift(-long_window_size)
 
-            # 基準線と転換線の差/位置関係
-            df_resampled[base_conversion_diff] = (df_resampled[conversion_line] - df_resampled[base_line]).round(3)
-            df_resampled[base_conversion_position] = (df_resampled[conversion_line] - df_resampled[base_line]).apply(lambda x: 1 if x > 0 else 0)
+            # 基準線と転換線の差の額/終値に対する差の比率/位置関係
+            base_conversion_diff_value = (df_resampled[conversion_line] - df_resampled[base_line]).round(6)
+            df_resampled[base_conversion_diff] = base_conversion_diff_value.round(3)
+            df_resampled[base_conversion_diff_rate] = ((base_conversion_diff_value * 1000) / df_resampled[close_column_name]).round(3)
+            df_resampled[base_conversion_position] = (df_resampled[conversion_line] - df_resampled[base_line]).apply(lambda x: np.nan if pd.isna(x) else (1 if x > 0 else 0))
 
             # 基準線と転換線のクロスフラグ
+            nan_mask = pd.isna(df_resampled[conversion_line]) | pd.isna(df_resampled[base_line]) | pd.isna(df_resampled[conversion_line].shift(1)) | pd.isna(df_resampled[base_line].shift(1))
             df_resampled[base_conversion_cross] = 0
-            df_resampled.loc[(df_resampled[conversion_line] > df_resampled[base_line]) & (df_resampled[conversion_line].shift() < df_resampled[base_line].shift()), base_conversion_cross] = 1
-            df_resampled.loc[(df_resampled[conversion_line] < df_resampled[base_line]) & (df_resampled[conversion_line].shift() > df_resampled[base_line].shift()), base_conversion_cross] = -1
+            df_resampled.loc[~nan_mask & (df_resampled[conversion_line] > df_resampled[base_line]) & (df_resampled[conversion_line].shift(1) < df_resampled[base_line].shift(1)), base_conversion_cross] = 1
+            df_resampled.loc[~nan_mask & (df_resampled[conversion_line] < df_resampled[base_line]) & (df_resampled[conversion_line].shift(1) > df_resampled[base_line].shift(1)), base_conversion_cross] = -1
+            df_resampled.loc[nan_mask, base_conversion_cross] = np.nan
 
-            # ゴールデンクロス/デッドクロスからの経過データ数を計算
+            # 基準線と転換線のゴールデンクロス/デッドクロスからの経過データ数を計算
+            nan_mask = pd.isna(df_resampled[base_conversion_cross])
             df_resampled[base_conversion_gc_after] = df_resampled.groupby((df_resampled[base_conversion_cross] == 1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[base_conversion_cross] == 1, base_conversion_gc_after] = 0
             df_resampled[base_conversion_dc_after] = df_resampled.groupby((df_resampled[base_conversion_cross] == -1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[base_conversion_cross] == -1, base_conversion_dc_after] = 0
+            df_resampled.loc[nan_mask, base_conversion_gc_after] = np.nan
+            df_resampled.loc[nan_mask, base_conversion_dc_after] = np.nan
 
-            # 終値と遅行スパンの差/位置関係
-            df_resampled[price_lagging_diff] = (df_resampled[close_column_name] - df_resampled[lagging_span]).round(3)
+            # 基準線と転換線のゴールデンクロス/デッドクロスからの経過データ数を計算
+            nan_mask = pd.isna(df_resampled[base_conversion_cross])
+            df_resampled[base_conversion_gc_after] = df_resampled.groupby((df_resampled[base_conversion_cross] == 1).cumsum()).cumcount()
+            df_resampled.loc[df_resampled[base_conversion_cross] == 1, base_conversion_gc_after] = 0
+            df_resampled[base_conversion_dc_after] = df_resampled.groupby((df_resampled[base_conversion_cross] == -1).cumsum()).cumcount()
+            df_resampled.loc[df_resampled[base_conversion_cross] == -1, base_conversion_dc_after] = 0
+            df_resampled.loc[nan_mask, base_conversion_gc_after] = np.nan
+            df_resampled.loc[nan_mask, base_conversion_dc_after] = np.nan
+
+            # 最初にゴールデンクロス/デッドクロスが発生した行以前の値を-1で埋める(ただしNanはNanのまま)
+            first_base_conversion_gc_index = df_resampled[df_resampled[base_conversion_cross] == 1].index.min()
+            first_base_conversion_dc_index = df_resampled[df_resampled[base_conversion_cross] == -1].index.min()
+            if pd.notna(first_base_conversion_gc_index):
+                df_resampled.loc[:first_base_conversion_gc_index - 1, base_conversion_gc_after] = df_resampled.loc[:first_base_conversion_gc_index - 1, base_conversion_gc_after].where(nan_mask, -1)
+            if pd.notna(first_base_conversion_dc_index):
+                df_resampled.loc[:first_base_conversion_dc_index - 1, base_conversion_dc_after] = df_resampled.loc[:first_base_conversion_dc_index - 1, base_conversion_dc_after].where(nan_mask, -1)
+
+            # 終値と遅行スパンの差の額/終値に対する差の比率/位置関係
+            price_lagging_diff_value = (df_resampled[close_column_name] - df_resampled[lagging_span]).round(6)
+            df_resampled[price_lagging_diff] = price_lagging_diff_value.round(3)
+            df_resampled[price_lagging_diff_rate] = ((price_lagging_diff_value * 1000) / df_resampled[close_column_name]).round(3)
             df_resampled[price_lagging_position] = (df_resampled[close_column_name] > df_resampled[lagging_span]).astype(int)
 
             # 終値と遅行スパンのクロスフラグ
             df_resampled[price_lagging_cross] = 0
-            df_resampled.loc[(df_resampled[close_column_name] > df_resampled[lagging_span]) & (df_resampled[close_column_name].shift() < df_resampled[lagging_span].shift()), price_lagging_cross] = 1
-            df_resampled.loc[(df_resampled[close_column_name] < df_resampled[lagging_span]) & (df_resampled[close_column_name].shift() > df_resampled[lagging_span].shift()), price_lagging_cross] = -1
+            df_resampled.loc[(df_resampled[close_column_name] > df_resampled[lagging_span]) & (df_resampled[close_column_name].shift(1) < df_resampled[lagging_span].shift(1)), price_lagging_cross] = 1
+            df_resampled.loc[(df_resampled[close_column_name] < df_resampled[lagging_span]) & (df_resampled[close_column_name].shift(1) > df_resampled[lagging_span].shift(1)), price_lagging_cross] = -1
 
-            # ゴールデンクロス/デッドクロスからの経過データ数を計算
+            # 終値と遅行スパンのゴールデンクロス/デッドクロスからの経過データ数を計算
             df_resampled[price_lagging_gc_after] = df_resampled.groupby((df_resampled[price_lagging_cross] == 1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[price_lagging_cross] == 1, price_lagging_gc_after] = 0
             df_resampled[price_lagging_dc_after] = df_resampled.groupby((df_resampled[price_lagging_cross] == -1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[price_lagging_cross] == -1, price_lagging_dc_after] = 0
 
-            # 先行スパン1と2の差/位置関係
-            df_resampled[leading_span_diff] = (df_resampled[leading_span_a] - df_resampled[leading_span_b]).round(3)
-            df_resampled[leading_span_position] = (df_resampled[leading_span_a] > df_resampled[leading_span_b]).astype(int)
+            # 最初にゴールデンクロス/デッドクロスが発生した行以前の値を-1で埋める(ただしNanはNanのまま)
+            first_price_lagging_gc_index = df_resampled[df_resampled[price_lagging_cross] == 1].index.min()
+            first_price_lagging_dc_index = df_resampled[df_resampled[price_lagging_cross] == -1].index.min()
+            if pd.notna(first_price_lagging_gc_index):
+                df_resampled.loc[:first_price_lagging_gc_index - 1, price_lagging_gc_after] = -1
+            if pd.notna(first_price_lagging_dc_index):
+                df_resampled.loc[:first_price_lagging_dc_index - 1, price_lagging_dc_after] = -1
+
+            # 先行スパン1と2の差の額/終値に対する差の比率/位置関係
+            leading_span_diff_value = (df_resampled[leading_span_a] - df_resampled[leading_span_b]).round(6)
+            df_resampled[leading_span_diff] = leading_span_diff_value.round(3)
+            df_resampled[leading_span_diff_rate] = ((leading_span_diff_value * 1000) / df_resampled[close_column_name]).round(3)
+            nan_mask = pd.isna(df_resampled[leading_span_a]) | pd.isna(df_resampled[leading_span_b])
+            df_resampled[leading_span_position] = np.where(nan_mask, np.nan, (df_resampled[leading_span_a] > df_resampled[leading_span_b]).astype(int))
 
             # 先行スパン1と2のクロスフラグ
+            nan_mask = pd.isna(df_resampled[leading_span_a]) | pd.isna(df_resampled[leading_span_b]) | pd.isna(df_resampled[leading_span_a].shift(1)) | pd.isna(df_resampled[leading_span_b].shift(1))
             df_resampled[leading_span_cross] = 0
-            df_resampled.loc[(df_resampled[leading_span_a] > df_resampled[leading_span_b]) & (df_resampled[leading_span_a].shift() < df_resampled[leading_span_b].shift()), leading_span_cross] = 1
-            df_resampled.loc[(df_resampled[leading_span_a] < df_resampled[leading_span_b]) & (df_resampled[leading_span_a].shift() > df_resampled[leading_span_b].shift()), leading_span_cross] = -1
+            df_resampled.loc[~nan_mask & (df_resampled[leading_span_a] > df_resampled[leading_span_b]) & (df_resampled[leading_span_a].shift(1) < df_resampled[leading_span_b].shift(1)), leading_span_cross] = 1
+            df_resampled.loc[~nan_mask & (df_resampled[leading_span_a] < df_resampled[leading_span_b]) & (df_resampled[leading_span_a].shift(1) > df_resampled[leading_span_b].shift(1)), leading_span_cross] = -1
+            df_resampled.loc[nan_mask, leading_span_cross] = np.nan
 
-            # ゴールデンクロス/デッドクロスからの経過データ数を計算
+            # 先行スパン1と2のゴールデンクロス/デッドクロスからの経過データ数を計算
+            nan_mask = pd.isna(df_resampled[leading_span_cross])
             df_resampled[leading_span_gc_after] = df_resampled.groupby((df_resampled[leading_span_cross] == 1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[leading_span_cross] == 1, leading_span_gc_after] = 0
             df_resampled[leading_span_dc_after] = df_resampled.groupby((df_resampled[leading_span_cross] == -1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[leading_span_cross] == -1, leading_span_dc_after] = 0
+            df_resampled.loc[nan_mask, leading_span_gc_after] = np.nan
+            df_resampled.loc[nan_mask, leading_span_dc_after] = np.nan
 
-            # 終値と雲(先行スパン1と2の間)の差/位置関係
-            df_resampled[price_cloud_high_diff] = (df_resampled[close_column_name] - np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])).round(3)
-            df_resampled[price_cloud_low_diff] = (df_resampled[close_column_name] - np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])).round(3)
+            # 最初にゴールデンクロス/デッドクロスが発生した行以前の値を-1で埋める(ただしNanはNanのまま)
+            first_leading_span_gc_index = df_resampled[df_resampled[leading_span_cross] == 1].index.min()
+            first_leading_span_dc_index = df_resampled[df_resampled[leading_span_cross] == -1].index.min()
+            if pd.notna(first_leading_span_gc_index):
+                df_resampled.loc[:first_leading_span_gc_index - 1, leading_span_gc_after] = df_resampled.loc[:first_leading_span_gc_index - 1, leading_span_gc_after].where(nan_mask, -1)
+            if pd.notna(first_leading_span_dc_index):
+                df_resampled.loc[:first_leading_span_dc_index - 1, leading_span_dc_after] = df_resampled.loc[:first_leading_span_dc_index - 1, leading_span_dc_after].where(nan_mask, -1)
+
+            # 終値と雲(先行スパン1と2の間)の上限・下限との差の額/終値に対する差の比率/位置関係
+            price_cloud_high_diff_value = (df_resampled[close_column_name] - np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])).round(6)
+            price_cloud_low_diff_value = (df_resampled[close_column_name] - np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])).round(6)
+            df_resampled[price_cloud_high_diff] = price_cloud_high_diff_value.round(3)
+            df_resampled[price_cloud_low_diff] = price_cloud_low_diff_value.round(3)
+            df_resampled[price_cloud_high_diff_rate] = ((price_cloud_high_diff_value * 1000) / df_resampled[close_column_name]).round(3)
+            df_resampled[price_cloud_low_diff_rate] = ((price_cloud_low_diff_value * 1000) / df_resampled[close_column_name]).round(3)
             # 雲の上下位置フラグ(1: 上、 0: 中、-1: 下)
+            nan_mask = pd.isna(df_resampled[leading_span_a]) | pd.isna(df_resampled[leading_span_b])
             df_resampled[price_cloud_position] = 0
             df_resampled.loc[(df_resampled[close_column_name] > np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = 1
             df_resampled.loc[(df_resampled[close_column_name] < np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = -1
+            df_resampled.loc[nan_mask, price_cloud_position] = np.nan
 
-            # 終値と雲(先行スパン1と2の間)からのクロスフラグ # TODO おかしいかも
-            df_resampled[price_cloud_cross] = 0
-            # 雲の上->中
-            df_resampled.loc[(df_resampled[close_column_name] >= np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() < np.maximum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 1
-            # 雲の中->上
-            df_resampled.loc[(df_resampled[close_column_name] <= np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() > np.maximum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 2
-            # 雲の中->下
-            df_resampled.loc[(df_resampled[close_column_name] >= np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() < np.minimum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 3
-            # 雲の下->中
-            df_resampled.loc[(df_resampled[close_column_name] <= np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift() > np.minimum(df_resampled[leading_span_a].shift(), df_resampled[leading_span_b].shift())), price_cloud_cross] = 4
+            # 終値と雲(先行スパン1と2の間)の上限・下限のクロスフラグ
+            nan_mask = pd.isna(df_resampled[leading_span_a]) | pd.isna(df_resampled[leading_span_b]) | pd.isna(df_resampled[close_column_name]) | pd.isna(df_resampled[close_column_name].shift(1))
+            df_resampled[price_cloud_upper_dc] = 0
+            df_resampled[price_cloud_upper_gc] = 0
+            df_resampled[price_cloud_lower_dc] = 0
+            df_resampled[price_cloud_lower_gc] = 0
+            df_resampled.loc[(df_resampled[close_column_name] >= np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift(1) < np.maximum(df_resampled[leading_span_a].shift(1), df_resampled[leading_span_b].shift(1))), price_cloud_upper_dc] = 1
+            df_resampled.loc[(df_resampled[close_column_name] <= np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift(1) > np.maximum(df_resampled[leading_span_a].shift(1), df_resampled[leading_span_b].shift(1))), price_cloud_upper_gc] = 1
+            df_resampled.loc[(df_resampled[close_column_name] >= np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift(1) < np.minimum(df_resampled[leading_span_a].shift(1), df_resampled[leading_span_b].shift(1))), price_cloud_lower_dc] = 1
+            df_resampled.loc[(df_resampled[close_column_name] <= np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])) & (df_resampled[close_column_name].shift(1) > np.minimum(df_resampled[leading_span_a].shift(1), df_resampled[leading_span_b].shift(1))), price_cloud_lower_gc] = 1
+            df_resampled.loc[nan_mask, price_cloud_upper_dc] = np.nan
+            df_resampled.loc[nan_mask, price_cloud_upper_gc] = np.nan
+            df_resampled.loc[nan_mask, price_cloud_lower_dc] = np.nan
+            df_resampled.loc[nan_mask, price_cloud_lower_gc] = np.nan
 
             # ゴールデンクロス/デッドクロスからの経過データ数を計算
-            df_resampled[price_cloud_cross_gc_after1] = df_resampled.groupby((df_resampled[price_cloud_cross] == 2).cumsum()).cumcount()
-            df_resampled.loc[df_resampled[price_cloud_cross] == 2, price_cloud_cross_gc_after1] = 0
-            df_resampled[price_cloud_cross_gc_after2] = df_resampled.groupby((df_resampled[price_cloud_cross] == 4).cumsum()).cumcount()
-            df_resampled.loc[df_resampled[price_cloud_cross] == 4, price_cloud_cross_gc_after2] = 0
-            df_resampled[price_cloud_cross_dc_after1] = df_resampled.groupby((df_resampled[price_cloud_cross] == 1).cumsum()).cumcount()
-            df_resampled.loc[df_resampled[price_cloud_cross] == 1, price_cloud_cross_dc_after1] = 0
-            df_resampled[price_cloud_cross_dc_after2] = df_resampled.groupby((df_resampled[price_cloud_cross] == 3).cumsum()).cumcount()
-            df_resampled.loc[df_resampled[price_cloud_cross] == 3, price_cloud_cross_dc_after2] = 0
+            df_resampled[price_cloud_upper_dc_after] = df_resampled.groupby((df_resampled[price_cloud_upper_dc] == 1).cumsum()).cumcount()
+            df_resampled.loc[df_resampled[price_cloud_upper_dc] == 1, price_cloud_upper_dc_after] = 0
+            df_resampled[price_cloud_upper_gc_after] = df_resampled.groupby((df_resampled[price_cloud_upper_gc] == 1).cumsum()).cumcount()
+            df_resampled.loc[df_resampled[price_cloud_upper_gc] == 1, price_cloud_upper_gc_after] = 0
+            df_resampled[price_cloud_lower_dc_after] = df_resampled.groupby((df_resampled[price_cloud_lower_dc] == 1).cumsum()).cumcount()
+            df_resampled.loc[df_resampled[price_cloud_lower_dc] == 1, price_cloud_lower_dc_after] = 0
+            df_resampled[price_cloud_lower_gc_after] = df_resampled.groupby((df_resampled[price_cloud_lower_gc] == 1).cumsum()).cumcount()
+            df_resampled.loc[df_resampled[price_cloud_lower_gc] == 1, price_cloud_lower_gc_after] = 0
+            df_resampled.loc[nan_mask, price_cloud_upper_dc_after] = np.nan
+            df_resampled.loc[nan_mask, price_cloud_upper_gc_after] = np.nan
+            df_resampled.loc[nan_mask, price_cloud_lower_dc_after] = np.nan
+            df_resampled.loc[nan_mask, price_cloud_lower_gc_after] = np.nan
+
+            # 最初にゴールデンクロス/デッドクロスが発生した行以前の値を-1で埋める(ただしNanはNanのまま)
+            first_price_cloud_upper_dc_index = df_resampled[df_resampled[price_cloud_upper_dc] == 1].index.min()
+            first_price_cloud_upper_gc_index = df_resampled[df_resampled[price_cloud_upper_gc] == 1].index.min()
+            first_price_cloud_lower_dc_index = df_resampled[df_resampled[price_cloud_lower_dc] == 1].index.min()
+            first_price_cloud_lower_gc_index = df_resampled[df_resampled[price_cloud_lower_gc] == 1].index.min()
+
+            if pd.notna(first_price_cloud_upper_dc_index):
+                df_resampled.loc[:first_price_cloud_upper_dc_index - 1, price_cloud_upper_dc_after] = df_resampled.loc[:first_price_cloud_upper_dc_index - 1, price_cloud_upper_dc_after].where(nan_mask, -1)
+            if pd.notna(first_price_cloud_upper_gc_index):
+                df_resampled.loc[:first_price_cloud_upper_gc_index - 1, price_cloud_upper_gc_after] = df_resampled.loc[:first_price_cloud_upper_gc_index - 1, price_cloud_upper_gc_after].where(nan_mask, -1)
+            if pd.notna(first_price_cloud_lower_dc_index):
+                df_resampled.loc[:first_price_cloud_lower_dc_index - 1, price_cloud_lower_dc_after] = df_resampled.loc[:first_price_cloud_lower_dc_index - 1, price_cloud_lower_dc_after].where(nan_mask, -1)
+            if pd.notna(first_price_cloud_lower_gc_index):
+                df_resampled.loc[:first_price_cloud_lower_gc_index - 1, price_cloud_lower_gc_after] = df_resampled.loc[:first_price_cloud_lower_gc_index - 1, price_cloud_lower_gc_after].where(nan_mask, -1)
 
             # 先頭の要素を-9999999で埋める
             ##df_resampled.iloc[0, df_resampled.columns.get_indexer(add_columns)] = -9999999
@@ -904,7 +1127,7 @@ class Indicator():
 
             # リサンプリングされていない行を直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'一目均衡表計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -952,7 +1175,7 @@ class Indicator():
 
             # 計算(リサンプリング)対象外の行は直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'計算でエラー\n{str(e)}\n{traceback.format_exc()}')

@@ -1,3 +1,4 @@
+import numpy as np
 import os
 import pandas as pd
 import re
@@ -5,6 +6,7 @@ import traceback
 from datetime import datetime
 from service_base import ServiceBase
 from tqdm import tqdm
+import time
 
 # PerformanceWarningを無視
 import warnings
@@ -340,7 +342,8 @@ class MoldPastRecord(ServiceBase):
             for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
                 # n分後のデータを追加
                 # n分後の株価変化フラグ(1:上昇, 0:同値・下落)
-                df[f'change_{minute}min_flag'] = (df['close'].shift(-minute) > df['close']).astype(int)
+                shifted = df['close'].shift(-minute)
+                df[f'change_{minute}min_flag'] = np.where(df['close'].notna() & shifted.notna(), (shifted > df['close']).astype(int), np.nan)
                 # n分後の株価変化額 単純引き算だと丸め誤差が出るため、小数点第2位で丸める
                 df[f'change_{minute}min_price'] = (df['close'].shift(-minute) - df['close']).round(2)
                 # n分後の株価変化率(%)を1000倍した値 小数点以下は丸める 最小絶対値はTOPIX銘柄の1000円→999.9円(-0.01%x1000=10)
@@ -367,7 +370,7 @@ class MoldPastRecord(ServiceBase):
 
         '''
         # 何分足で計算するか
-        minute_list = [1, 3, 5, 10, 15, 30, 60]
+        minute_list = [1, 2, 3, 5, 10, 15]
 
         # 直近何本のデータから計算するか
         window_size_list = [3, 5, 10, 15]
@@ -394,7 +397,7 @@ class MoldPastRecord(ServiceBase):
             for minute in minute_list:
                 for window_size in window_size_list:
                     # 間隔と本数が多すぎると説明変数として利用できるようになるまで時間がかかるためスキップ
-                    if minute * window_size > 150: # TODO 元は150だったが、計算量を減らすため一時的に9に変更
+                    if minute * window_size > 150:
                         continue
 
                     sma_column_name = f'sma_{minute}min_{window_size}piece'
@@ -447,10 +450,18 @@ class MoldPastRecord(ServiceBase):
                     ma_tmp_df[ema_column_name] = ema_df[ema_column_name]
                     ma_tmp_df[wma_column_name] = wma_df[wma_column_name]
 
+                    # メモリ開放
+                    del sma_df
+                    del ema_df
+                    del wma_df
+
                     ## ボリンジャーバンドは複数のカラムがあるので一つずつ追加
                     for column_name in bb_df.columns:
                         if re.search(bb_column_name, column_name):
                             add_df[column_name] = bb_df[column_name]
+
+                    # メモリ開放
+                    del bb_df
 
                 # 計算・カラム追加済みの各種移動平均線のカラム名を取得
                 ma_columns = []
@@ -458,9 +469,12 @@ class MoldPastRecord(ServiceBase):
                     if re.compile(f'.ma_{minute}min_\\d+piece').match(column):
                         ma_columns.append(column)
 
+                # 終値カラムを追加
+                ma_columns.append('close')
+
                 # 対象のカラムがない場合はスキップ
                 if len(ma_columns) != 0:
-                    # 日付と証券コードでフィルタリングし、必要なカラムだけをコピー
+                    # MA関連のデータと終値でフィルタリングしコピー
                     ma_unique_df = ma_tmp_df[ma_columns].copy()
 
                     # 計算済みの移動平均線から短期と長期の関連性を計算・追加する
@@ -473,9 +487,14 @@ class MoldPastRecord(ServiceBase):
                         if column_name not in ma_columns:
                             add_df[column_name] = ma_cross_df[column_name]
 
+                # メモリ開放
+                del ma_unique_df
+                del ma_columns
+                del ma_cross_df
+
                 for window_size in window_size_list2:
                     # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                    if minute * window_size > 150: # TODO 元は150だったが、計算量を減らすため一時的に44に変更
+                    if minute * window_size > 150:
                         continue
 
                     # カラム名定義
@@ -505,10 +524,13 @@ class MoldPastRecord(ServiceBase):
                     add_df[rsi_column_name] = rsi_df[rsi_column_name]
                     add_df[rci_column_name] = rci_df[rci_column_name]
 
+                    # メモリ開放
+                    del rsi_df
+                    del rci_df
 
                 for window_size in window_size_list3:
                     # 間隔と本数が多すぎると実際の数値が出るまで時間がかかるためスキップ
-                    if minute * window_size > 150: # TODO 元は150だったが、計算量を減らすため一時的に59に変更
+                    if minute * window_size > 150:
                         continue
 
                     # カラム名定義
@@ -525,6 +547,9 @@ class MoldPastRecord(ServiceBase):
 
                     # 計算したデータをdfに追加する
                     add_df[psy_column_name] = psy_df[psy_column_name]
+
+                    # メモリ開放
+                    del psy_df
 
                 for min_af, max_af in af_list:
                     # カラム名定義
@@ -544,24 +569,30 @@ class MoldPastRecord(ServiceBase):
                         if column_name not in add_df.columns:
                             add_df[column_name] = sar_df[column_name]
 
-                # MACDを計算・追加する
-                result, macd_df = self.util.indicator.get_macd(df = unique_df,
-                                                                column_name = f'macd_{minute}min',
-                                                                short_window_size = 12,
-                                                                long_window_size = 26,
-                                                                signal_window_size = 9,
-                                                                interval = minute,
-                                                                price_column_name = 'close')
-                if result == False:
-                    return False, None
+                    # メモリ開放
+                    del sar_df
 
-                # 計算したデータをdfに追加する
-                for column_name in macd_df.columns:
-                    if column_name not in add_df.columns:
-                        add_df[column_name] = macd_df[column_name]
+                # MACDを計算・追加する
+                if minute <= 5:
+                    result, macd_df = self.util.indicator.get_macd(df = unique_df,
+                                                                    column_name = f'macd_{minute}min',
+                                                                    short_window_size = 12,
+                                                                    long_window_size = 26,
+                                                                    signal_window_size = 9,
+                                                                    interval = minute,
+                                                                    price_column_name = 'close')
+                    if result == False:
+                        return False, None
+
+                    # 計算したデータをdfに追加する
+                    for column_name in macd_df.columns:
+                        if column_name not in add_df.columns:
+                            add_df[column_name] = macd_df[column_name]
+
+                    del macd_df
 
                 # 一目均衡表は計算に広いデータが必要になるため5分足までで制限
-                if minute > 5:
+                if minute >= 5:
                     continue
 
                 # 一目均衡表を計算・追加する
@@ -579,6 +610,8 @@ class MoldPastRecord(ServiceBase):
                     if column_name not in add_df.columns:
                         add_df[column_name] = ichimoku_df[column_name]
 
+                # メモリ開放
+                del ichimoku_df
         except Exception as e:
             self.log.error(f'説明変数の計算に失敗しました')
             self.log.error(f'{e}\n{traceback.format_exc()}')
