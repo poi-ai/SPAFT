@@ -4,30 +4,26 @@
 not_related_columns = ['timestamp', 'date', 'minute', 'get_minute']
 
 #### リークを起こすカラム ####
-leak_columns = ['change_1min_price', 'change_1min_rate', 'change_1min_flag',
-                'change_2min_price', 'change_2min_rate', 'change_2min_flag',
-                'change_3min_price', 'change_3min_rate', 'change_3min_flag',
-                'change_5min_price', 'change_5min_rate', 'change_5min_flag',
-                'change_10min_price', 'change_10min_rate', 'change_10min_flag',
-                'change_15min_price', 'change_15min_rate', 'change_15min_flag',
-                'change_30min_price', 'change_30min_rate', 'change_30min_flag',
-                'change_60min_price', 'change_60min_rate', 'change_60min_flag',
-                'change_90min_price', 'change_90min_rate', 'change_90min_flag',
-                'ichimoku_1min_lagging_span', 'ichimoku_1min_pl_diff', 'ichimoku_1min_pl_position',
-                'ichimoku_1min_pl_cross', 'ichimoku_1min_pl_gc_after', 'ichimoku_1min_pl_dc_after',
-                'ichimoku_3min_lagging_span', 'ichimoku_3min_pl_diff', 'ichimoku_3min_pl_position',
-                'ichimoku_3min_pl_cross', 'ichimoku_3min_pl_gc_after', 'ichimoku_3min_pl_dc_after',
-                'ichimoku_5min_lagging_span', 'ichimoku_5min_pl_diff', 'ichimoku_5min_pl_position',
-                'ichimoku_5min_pl_cross', 'ichimoku_5min_pl_gc_after', 'ichimoku_5min_pl_dc_after'
+leak_columns = [
+    'change_1min_price', 'change_1min_rate', 'change_1min_flag',
+    'change_2min_price', 'change_2min_rate', 'change_2min_flag',
+    'change_3min_price', 'change_3min_rate', 'change_3min_flag',
+    'change_5min_price', 'change_5min_rate', 'change_5min_flag',
+    'change_10min_price', 'change_10min_rate', 'change_10min_flag',
+    'change_15min_price', 'change_15min_rate', 'change_15min_flag',
+    'change_30min_price', 'change_30min_rate', 'change_30min_flag',
+    'change_60min_price', 'change_60min_rate', 'change_60min_flag',
+    'change_90min_price', 'change_90min_rate', 'change_90min_flag',
 ]
 
+# 遅延スパン(リーク)から算出されるカラム
 leak_columns_ichimoku = [
-                'ichimoku_1min_lagging_span', 'ichimoku_1min_pl_diff', 'ichimoku_1min_pl_position',
-                'ichimoku_1min_pl_cross', 'ichimoku_1min_pl_gc_after', 'ichimoku_1min_pl_dc_after',
-                'ichimoku_3min_lagging_span', 'ichimoku_3min_pl_diff', 'ichimoku_3min_pl_position',
-                'ichimoku_3min_pl_cross', 'ichimoku_3min_pl_gc_after', 'ichimoku_3min_pl_dc_after',
-                'ichimoku_5min_lagging_span', 'ichimoku_5min_pl_diff', 'ichimoku_5min_pl_position',
-                'ichimoku_5min_pl_cross', 'ichimoku_5min_pl_gc_after', 'ichimoku_5min_pl_dc_after'
+    'ichimoku_1min_lagging_span', 'ichimoku_1min_pl_diff', 'ichimoku_1min_pl_diff_rate', 'ichimoku_1min_pl_position',
+    'ichimoku_1min_pl_cross', 'ichimoku_1min_pl_gc_after', 'ichimoku_1min_pl_dc_after',
+    'ichimoku_2min_lagging_span', 'ichimoku_2min_pl_diff', 'ichimoku_2min_pl_diff_rate', 'ichimoku_2min_pl_position',
+    'ichimoku_2min_pl_cross', 'ichimoku_2min_pl_gc_after', 'ichimoku_2min_pl_dc_after',
+    'ichimoku_3min_lagging_span', 'ichimoku_3min_pl_diff', 'ichimoku_3min_pl_diff_rate', 'ichimoku_3min_pl_position',
+    'ichimoku_3min_pl_cross', 'ichimoku_3min_pl_gc_after', 'ichimoku_3min_pl_dc_after'
 ]
 
 '''
@@ -193,6 +189,6 @@ low_related_columns_clf = [
     ]
 
 #### 説明変数として使えないカラム
-cant_use_columns = not_related_columns + leak_columns + low_related_columns
-cant_use_columns_clf = not_related_columns + leak_columns + low_related_columns_clf
+cant_use_columns = not_related_columns + leak_columns + leak_columns_ichimoku + low_related_columns
+cant_use_columns_clf = not_related_columns + leak_columns + leak_columns_ichimoku + low_related_columns_clf
 
