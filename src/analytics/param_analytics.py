@@ -14,12 +14,19 @@ log = Log()
 # データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
 data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
 output_csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', 'param_rate.csv')
+boerder_csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', 'border_value.csv')
 csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_\d{8}.csv', csv_file)]
 
 # 出力先のCSVファイルが存在しない場合はファイル作成をしてヘッダーを追加
 headers = ['date', 'column', 'updown', 'per', 'min', 'one_num', 'zero_num', 'one_rate']
 if not os.path.exists(output_csv_path):
-    with open(output_csv_path, 'w', newline='') as f:
+    with open(output_csv_path, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+
+headers = ['date', 'column', '1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per']
+if not os.path.exists(boerder_csv_path):
+    with open(boerder_csv_path, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(headers)
 
@@ -74,6 +81,21 @@ for csv_file in tqdm(csv_files):
 
                 # 各閾値の値を取得
                 quantiles = target_column_df.quantile(percents).values
+
+                # quantilesの値を小数点以下5桁に丸めてborder_value.csvに出力
+                mold_quantiles = [round(q, 5) for q in quantiles]
+
+                # 二値の場合は出力用に補正
+                if nichi_flag:
+                    mold_quantiles = [mold_quantiles[0], None, None, None, None, None, None, None, mold_quantiles[1]]
+
+                # 閾値を出力
+                with open(boerder_csv_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([csv_file_date, column_name] + mold_quantiles)
+
+                continue
+
                 for i, q in enumerate(quantiles):
                     try:
                         # ここでqには1%, 5%, 10%, 25%, 50%, 75%, 90%, 95%, 99%の値が入る
