@@ -1,36 +1,21 @@
-import custom_loss as cl
 import os
 import pandas as pd
-import re
-import sys
-import time
 from catboost import CatBoostRegressor, Pool
-from plyer import notification
 from sklearn.metrics import root_mean_squared_error, mean_absolute_error, r2_score
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
-from util.log import Log
+# テストデータのCSVファイル名
+test_csv_name = 'formatted_ohlc_20250228.csv'
 
-log = Log()
+# 学習済モデルと予測を行うファイルの保管ディレクトリのパス
+model_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'model')
+pred_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'prediction')
+test_data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
 
-# データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
-data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
-csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_\d{8}.csv', csv_file)]
-
-csv_counter = 0
-
-# 最後のデータはテストデータとして使用するので分割
-train_csv_names = csv_files[:-1]
-test_csv_name = csv_files[-1]
-
+# 1分足~90分足での予測を行う
 for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
-
-    # x分後の数値予測を行う
-
-    #### 目的変数 ####
-    target_column = f'change_{minute}min_rate'
-
-    log.info(f'目的変数: {target_column}')
+    # 学習済モデルの読み込み
+    model = CatBoostRegressor()
+    model.load_model(os.path.join(model_dir, f'catboost_{minute}min.cbm'))
 
     #### 関連のないカラム ####
     not_related_columns = ['timestamp', 'date', 'minute', 'get_minute']
@@ -105,82 +90,15 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     #### 説明変数として使えないカラム
     cant_use_columns = not_related_columns + leak_columns + low_related_columns
 
-    # 学習済みのモデルがあるか
-    model = CatBoostRegressor(iterations = 60, learning_rate = 0.07, depth = 4, loss_function = cl.RMSESignPenalty(), eval_metric = 'RMSE', verbose = 0, l2_leaf_reg = 1.2)
-    model_flag = False
+    # 目的変数のカラム名
+    target_column = f'change_{minute}min_rate'
 
-    for index, train_csv_name in enumerate(train_csv_names):
-        # メモリ開放
-        train_df = None
+    # 予測を行うデータの読み込み
+    test_df = pd.read_csv(os.path.join(test_data_dir, test_csv_name))
 
-        # 訓練用データの読み込み
-        while True:
-            try:
-                train_df = pd.read_csv(os.path.join(data_dir, train_csv_name))
-                break
-            except Exception as e:
-                log.error(e)
-                log.error('Retry reading csv file')
-                time.sleep(10)
-
-        # 9:30以前と15:00以降のデータを削除
-        train_df = train_df[30:-25]
-
-        # NaN値を含む行を削除
-        train_df = train_df.dropna(subset=[target_column])
-
-        # 特徴量と目的変数に分割
-        X_train = train_df.drop(cant_use_columns, axis=1)
-        y_train = train_df[target_column]
-
-        # stock_codeをカテゴリ型に変換
-        X_train['stock_code'] = X_train['stock_code'].astype('category')
-
-        # CatBoost用のデータセットを作成
-        train_pool = Pool(X_train, y_train, cat_features=['stock_code'])
-
-        # モデルの作成
-        if model_flag:
-            model.fit(train_pool, init_model = model)
-        else:
-            model.fit(train_pool)
-            model_flag = True
-
-        # 訓練データで予測
-        y_train_pred = model.predict(train_pool)
-
-        # 訓練データの評価
-        train_rmse = round(root_mean_squared_error(y_train, y_train_pred), 2)
-        log.info(f'学習データ: {train_csv_name} 残りファイル数: {len(train_csv_names) - index - 1} Train RMSE: {train_rmse} Train RMSE(Sign diff Pena): {round(cl.evaluation_rmse_sign_penalty(y_train.values, y_train_pred), 2)}')
-
-        # 予測結果と実際の値を出力
-        csv_counter += 1
-        result_df = pd.DataFrame({'y_train': y_train, 'y_train_pred': y_train_pred})
-        result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'error_catboost_{minute}min_{csv_counter}.csv'), index=False)
-
-        if train_rmse > 5000:
-            log.info('精度が悪すぎるので強制終了します')
-            break
-
-        #log.info('Train MAE:', round(mean_absolute_error(y_train, y_train_pred), 2))
-        #log.info('Train R2:', round(r2_score(y_train, y_train_pred), 2))
-
-    #### テストデータでの予測
-
-    # テスト用データの読み込み
-    log.info(f'テストデータ: {test_csv_name}')
-
-    while True:
-        try:
-            test_df = pd.read_csv(os.path.join(data_dir, test_csv_name))
-            break
-        except Exception as e:
-            log.error(e)
-            log.error('Retry reading csv file')
-            time.sleep(10)
-
-    # 9:30以前と15:00以降のデータを削除
-    test_df = test_df[30:-25]
+    # timestampカラムをdatetime型に変換して、9:30以前と15:00以降のデータを削除
+    test_df['timestamp'] = pd.to_datetime(test_df['timestamp'])
+    test_df = test_df[(test_df['timestamp'].dt.time >= pd.to_datetime('09:30').time()) & (test_df['timestamp'].dt.time <= pd.to_datetime('15:00').time())]
 
     # NaN値を含む行を削除
     test_df = test_df.dropna(subset=[target_column])
@@ -189,7 +107,7 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     X_test = test_df.drop(cant_use_columns, axis=1)
     y_test = test_df[target_column]
 
-    # stock_codeをカテゴリ型に変換
+    # stock_codeをカテゴリ型に変更
     X_test['stock_code'] = X_test['stock_code'].astype('category')
 
     # CatBoost用のデータセットを作成
@@ -198,39 +116,14 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     # テストデータで予測
     y_pred = model.predict(test_pool)
 
-    # テストデータの評価
-    custom_rmse = cl.evaluation_rmse_sign_penalty(y_test.values, y_pred)
-    log.info(f'テストデータ: {test_csv_name} Test RMSE: {round(root_mean_squared_error(y_test, y_pred), 2)} Test RMSE(Sign diff Pena): {round(custom_rmse, 2)}')
-    #log.info('Test MAE:', round(mean_absolute_error(y_test, y_pred), 2))
-    #log.info('Test R2:', round(r2_score(y_test, y_pred), 2))
+    # 一部カラムのみを切り出して、予測値を結合する
+    keep_columns = ['stock_code', 'timestamp', 'open', 'high', 'low', 'close', 'volume', f'change_{minute}min_flag', f'change_{minute}min_price', f'change_{minute}min_rate']
+    test_df_result = test_df[keep_columns].copy()
+    test_df_result[f'pred_change_{minute}min_rate'] = y_pred
 
-    # 特徴量の重要度
-    feature_importance = model.get_feature_importance(train_pool)
-    feature_name = X_train.columns
-    importance_list = []
-    for score, name in sorted(zip(feature_importance, feature_name), reverse=True):
-        importance_list.append({'name': name, 'score': round(score, 2)})
+    # 予測結果をCSVファイルに保存
+    test_df_result.to_csv(os.path.join(pred_dir, f'pred_{minute}min.csv'), index=False)
 
-    # 重要度を出力
-    #for importance in importance_list:
-    #    self.log(importance)
+    print(f'{minute}分足の予測結果')
+    print(f'テストデータ: {test_csv_name} Test RMSE: {round(root_mean_squared_error(y_test, y_pred), 2)}')
 
-    # 予測結果と実際の値を出力
-    #result_df = pd.DataFrame({'y_test': y_test, 'y_pred': y_pred})
-    #result_df.to_csv(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', f'catboost_{minute}min.csv'), index=False)
-
-    # 構築したモデルの出力
-    model.save_model(os.path.join(os.path.dirname(__file__), '..', '..', 'model', f'catboost_{minute}min.cbm'))
-
-## 重要度を降順にソートして上位10件を表示
-#importance_list = sorted(importance_list, key=lambda x: x['score'], reverse=True)
-#for i in range(10):
-#    self.log(importance_list[i])
-
-# 特徴量の重要度を可視化
-#import matplotlib.pyplot as plt
-#import seaborn as sns
-#sns.barplot(x=feature_importance, y=feature_name)
-#plt.show()
-
-notification.notify(title='実行完了', message='スクリプトの実行が終了しました。', timeout=50)

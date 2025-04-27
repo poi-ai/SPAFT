@@ -448,7 +448,7 @@ class Indicator():
             add_columns.append(macd_signal)
 
             # MACDとMACDシグナルの差(ヒストグラム)を計算
-            df_resampled[macd_histogram] = df_resampled[macd] - df_resampled[macd_signal]
+            df_resampled[macd_histogram] = (df_resampled[macd] - df_resampled[macd_signal]).round(3)
             df_resampled[f'{macd_histogram}_flag'] = df_resampled[macd_histogram].apply(lambda x: 1 if x > 0 else 0)
             add_columns.extend([macd_histogram, f'{macd_histogram}_flag'])
 
@@ -465,8 +465,8 @@ class Indicator():
                 # 幅が長すぎるとデータが取れないのでスキップ
                 if interval * count >= 300:
                     continue
-                df_resampled[f'{macd}_{count}_slope'] = df_resampled[macd].diff(count)
-                df_resampled[f'{macd_signal}_{count}_slope'] = df_resampled[macd_signal].diff(count)
+                df_resampled[f'{macd}_{count}_slope'] = (df_resampled[macd].diff(count)).round(3)
+                df_resampled[f'{macd_signal}_{count}_slope'] = (df_resampled[macd_signal].diff(count)).round(3)
                 add_columns.extend([f'{macd}_{count}_slope', f'{macd_signal}_{count}_slope'])
 
             # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグ
@@ -808,22 +808,22 @@ class Indicator():
                 df_resampled['low'] = df_resampled[close_column_name]
 
             # 基準線の計算 long_window_size本の高値と安値の平均
-            df_resampled[base_line] = (df_resampled['high'].rolling(window = long_window_size).max() + df_resampled['low'].rolling(window = long_window_size).min()) / 2
+            df_resampled[base_line] = ((df_resampled['high'].rolling(window = long_window_size).max() + df_resampled['low'].rolling(window = long_window_size).min()) / 2).round(3)
 
             # 転換線の計算 short_window_size本の高値と安値の平均
-            df_resampled[conversion_line] = (df_resampled['high'].rolling(window = short_window_size).max() + df_resampled['low'].rolling(window = short_window_size).min()) / 2
+            df_resampled[conversion_line] = ((df_resampled['high'].rolling(window = short_window_size).max() + df_resampled['low'].rolling(window = short_window_size).min()) / 2).round(3)
 
             # 先行スパン1の計算 long_window_size本先の基準線と転換線の平均
-            df_resampled[leading_span_a] = ((df_resampled[conversion_line] + df_resampled[base_line]) / 2).shift(long_window_size)
+            df_resampled[leading_span_a] = (((df_resampled[conversion_line] + df_resampled[base_line]) / 2).shift(long_window_size)).round(3)
 
             # 先行スパン2の計算 long_window_size x 2本の高値と安値の平均をlong_window_size本先にずらす
-            df_resampled[leading_span_b] = ((df_resampled['high'].rolling(window = long_window_size * 2).max() + df_resampled['low'].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)
+            df_resampled[leading_span_b] = (((df_resampled['high'].rolling(window = long_window_size * 2).max() + df_resampled['low'].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)).round(3)
 
             # 遅行スパンの計算 現在の価格をlong_window_size本前にずらす
             df_resampled[lagging_span] = df_resampled[close_column_name].shift(-long_window_size)
 
             # 基準線と転換線の差/位置関係
-            df_resampled[base_conversion_diff] = df_resampled[conversion_line] - df_resampled[base_line]
+            df_resampled[base_conversion_diff] = (df_resampled[conversion_line] - df_resampled[base_line]).round(3)
             df_resampled[base_conversion_position] = (df_resampled[conversion_line] - df_resampled[base_line]).apply(lambda x: 1 if x > 0 else 0)
 
             # 基準線と転換線のクロスフラグ
@@ -838,7 +838,7 @@ class Indicator():
             df_resampled.loc[df_resampled[base_conversion_cross] == -1, base_conversion_dc_after] = 0
 
             # 終値と遅行スパンの差/位置関係
-            df_resampled[price_lagging_diff] = df_resampled[close_column_name] - df_resampled[lagging_span]
+            df_resampled[price_lagging_diff] = (df_resampled[close_column_name] - df_resampled[lagging_span]).round(3)
             df_resampled[price_lagging_position] = (df_resampled[close_column_name] > df_resampled[lagging_span]).astype(int)
 
             # 終値と遅行スパンのクロスフラグ
@@ -853,7 +853,7 @@ class Indicator():
             df_resampled.loc[df_resampled[price_lagging_cross] == -1, price_lagging_dc_after] = 0
 
             # 先行スパン1と2の差/位置関係
-            df_resampled[leading_span_diff] = df_resampled[leading_span_a] - df_resampled[leading_span_b]
+            df_resampled[leading_span_diff] = (df_resampled[leading_span_a] - df_resampled[leading_span_b]).round(3)
             df_resampled[leading_span_position] = (df_resampled[leading_span_a] > df_resampled[leading_span_b]).astype(int)
 
             # 先行スパン1と2のクロスフラグ
@@ -868,8 +868,8 @@ class Indicator():
             df_resampled.loc[df_resampled[leading_span_cross] == -1, leading_span_dc_after] = 0
 
             # 終値と雲(先行スパン1と2の間)の差/位置関係
-            df_resampled[price_cloud_high_diff] = df_resampled[close_column_name] - np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])
-            df_resampled[price_cloud_low_diff] = df_resampled[close_column_name] - np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])
+            df_resampled[price_cloud_high_diff] = (df_resampled[close_column_name] - np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])).round(3)
+            df_resampled[price_cloud_low_diff] = (df_resampled[close_column_name] - np.minimum(df_resampled[leading_span_a], df_resampled[leading_span_b])).round(3)
             # 雲の上下位置フラグ(1: 上、 0: 中、-1: 下)
             df_resampled[price_cloud_position] = 0
             df_resampled.loc[(df_resampled[close_column_name] > np.maximum(df_resampled[leading_span_a], df_resampled[leading_span_b])), price_cloud_position] = 1
