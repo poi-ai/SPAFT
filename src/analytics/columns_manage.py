@@ -4,6 +4,7 @@
 not_related_columns = ['timestamp', 'date', 'minute', 'get_minute']
 
 #### リークを起こすカラム ####
+# 目的変数
 leak_columns = [
     'change_1min_price', 'change_1min_rate', 'change_1min_flag',
     'change_2min_price', 'change_2min_rate', 'change_2min_flag',
@@ -14,6 +15,20 @@ leak_columns = [
     'change_30min_price', 'change_30min_rate', 'change_30min_flag',
     'change_60min_price', 'change_60min_rate', 'change_60min_flag',
     'change_90min_price', 'change_90min_rate', 'change_90min_flag',
+]
+
+# 目的変数(額)
+leak_columns_price = [
+    'change_1min_price', 'change_2min_price', 'change_3min_price',
+    'change_5min_price', 'change_10min_price', 'change_15min_price',
+    'change_30min_price', 'change_60min_price', 'change_90min_price'
+]
+
+# 目的変数(率)
+leak_columns_rate = [
+    'change_1min_rate', 'change_2min_rate', 'change_3min_rate',
+     'change_5min_rate', 'change_10min_rate', 'change_15min_rate',
+      'change_30min_rate', 'change_60min_rate', 'change_90min_rate'
 ]
 
 # 遅延スパン(リーク)から算出されるカラム

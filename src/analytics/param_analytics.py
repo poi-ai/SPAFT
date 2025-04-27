@@ -14,7 +14,7 @@ log = Log()
 # データ格納フォルダからformatted_ohlc_{date}.csvに合致するCSVファイル名のみ取得する
 data_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'past_ohlc', 'formatted')
 output_csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', 'param_rate.csv')
-boerder_csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', 'border_value.csv')
+border_csv_path = os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', 'border_value.csv')
 csv_files = [csv_file for csv_file in os.listdir(data_dir) if re.fullmatch(r'formatted_ohlc_\d{8}.csv', csv_file)]
 
 # 出力先のCSVファイルが存在しない場合はファイル作成をしてヘッダーを追加
@@ -24,9 +24,9 @@ if not os.path.exists(output_csv_path):
         writer = csv.writer(f)
         writer.writerow(headers)
 
-headers = ['date', 'column', '1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per']
-if not os.path.exists(boerder_csv_path):
-    with open(boerder_csv_path, 'a', newline='') as f:
+headers = ['date', 'column', 'min', '1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per']
+if not os.path.exists(border_csv_path):
+    with open(border_csv_path, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(headers)
 
@@ -60,7 +60,7 @@ for csv_file in tqdm(csv_files):
             # intかfloat型のカラムのみを対象にする
             if mold_df[column_name].dtype == 'int64' or mold_df[column_name].dtype == 'float64':
                 # 対象のカラムと変動フラグ、変動率をのみ切り出し
-                uni_df = mold_df[[column_name, f'change_{min}min_rate', f'change_{min}min_flag']].copy()
+                uni_df = mold_df[[column_name, 'timestamp', f'change_{min}min_rate', f'change_{min}min_flag']].copy()
                 # 対象カラムがNaNのレコードを削除
                 uni_df = uni_df[uni_df[column_name].notnull()]
 
@@ -90,11 +90,9 @@ for csv_file in tqdm(csv_files):
                     mold_quantiles = [mold_quantiles[0], None, None, None, None, None, None, None, mold_quantiles[1]]
 
                 # 閾値を出力
-                with open(boerder_csv_path, 'a', newline='') as f:
+                with open(border_csv_path, 'a', newline='') as f:
                     writer = csv.writer(f)
-                    writer.writerow([csv_file_date, column_name] + mold_quantiles)
-
-                continue
+                    writer.writerow([csv_file_date, column_name, min] + mold_quantiles)
 
                 for i, q in enumerate(quantiles):
                     try:

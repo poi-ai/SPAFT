@@ -20,7 +20,7 @@ border_settle_path = os.path.join(result_dir, 'border_settle.csv')
 if not os.path.exists(border_settle_path):
     with open(border_settle_path, 'a', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['column', '1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per'])
+        writer.writerow(['column', 'min', '1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per'])
 
 # 閾値を記録しているCSVファイルを読み込む
 border_df = pd.read_csv(border_path)
@@ -32,10 +32,17 @@ for feature in tqdm(feature_list):
     # 特徴量ごとにデータをフィルタリング
     feature_df = border_df[border_df['column'] == feature]
 
-    # 各閾値ごとの平均値を計算する
-    mean_values = feature_df[['1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per']].mean().round(5)
+    for min in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
+        # minごとにデータをフィルタリング
+        min_df = feature_df[feature_df['min'] == min]
 
-    # データをCSVの末尾に出力する
-    with open(border_settle_path, 'a', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow([feature] + mean_values.tolist())
+        # 各閾値ごとの平均値を計算する
+        mean_values = min_df[['1per', '5per', '10per', '25per', '50per', '75per', '90per', '95per', '99per']].mean().round(3)
+
+        # nanのデータを空文字に置き換える
+        mean_values = mean_values.fillna('')
+
+        # データをCSVの末尾に出力する
+        with open(border_settle_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([feature, min] + mean_values.tolist())
