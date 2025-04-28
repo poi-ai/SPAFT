@@ -278,7 +278,7 @@ class Record(ServiceBase):
 
         return True
 
-    def record_board_price(self, reception_data):
+    async def record_board_price(self, reception_data):
         '''
         WebSocketで受信した板情報をDBに登録する
 
@@ -302,10 +302,11 @@ class Record(ServiceBase):
                 writer = csv.writer(f)
                 writer.writerow([reception_data['Symbol'], reception_data['CurrentPriceTime'], reception_data['CurrentPrice'], reception_data['CurrentPriceStatus'],
                                 reception_data['TradingVolume'], reception_data['Sell2']['Qty'], reception_data['Sell2']['Price'], reception_data['BidQty'], reception_data['BidPrice'],
-                                reception_data['AskQty'], reception_data['AskPrice'], reception_data['Buy2']['Qty'], reception_data['Buy2']['Price'], reception_data['']])
+                                reception_data['AskQty'], reception_data['AskPrice'], reception_data['Buy2']['Qty'], reception_data['Buy2']['Price']])
 
             self.last_record_time[stock_code] = now
         except Exception as e:
+            self.log.error(f'最良気配値記録処理でエラー\r{e}')
             return False
         return True
 

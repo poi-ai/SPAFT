@@ -14,7 +14,8 @@ class Register():
 
         Args:
             symbol(str): 銘柄コード
-            exchange(int): 市場コード)
+            exchange(int): 市場コード
+                1: 東証、3: 名証、5: 福証、6: 札証
 
         Returns:
             bool or str: 実行結果 or エラーメッセージ
