@@ -1,4 +1,5 @@
 import asyncio
+import csv
 import datetime
 import json
 import os
@@ -25,6 +26,9 @@ class Record(ServiceBase):
 
         # タイムゾーン設定用
         self.jst = pytz.timezone('Asia/Tokyo')
+
+        # 最良気配と出来高の最終記録時刻
+        self.last_record_time = {}
 
     def record_init(self, target_code_list, debug = False, push_mode = False):
         '''
@@ -81,13 +85,15 @@ class Record(ServiceBase):
 
         return True, target_code_list
 
-    async def websocket_main(self, time_period):
+    async def websocket_main(self, time_period, websocket_mode):
         '''
         WebSocket接続/受信とDBへの登録処理を行う
 
         Args:
             time_period(int): 時間種別
                 1: 前場、2: 後場
+            websocket_mode(int): 処理の種別
+                1: 四本値をDBに記録する、2: 最良気配と出来高をCSVに記録する
 
         Returns:
             bool: 処理結果
@@ -143,7 +149,10 @@ class Record(ServiceBase):
                     self.log.info('PUSHメッセージ配信を受信')
 
                     # メッセージを受信したらレコードを設定する処理をコールバック関数として実行
-                    asyncio.create_task(self.operate_ohlc(json.loads(message)))
+                    if websocket_mode == 1:
+                        asyncio.create_task(self.operate_ohlc(json.loads(message)))
+                    else:
+                        asyncio.create_task(self.record_board_price(json.loads(message)))
 
                 except TimeoutError:
                     self.log.warning('WebSocket受信がタイムアウトしました')
@@ -160,16 +169,18 @@ class Record(ServiceBase):
 
         self.log.info('WebSocket接続処理終了')
 
+
         # 最後にメモリに残っている四本値データをDBに登録
-        upsert_count = 0
-        for ohlc in self.ohlc_list:
-            result, operate_type = self.db.ohlc.upsert(ohlc)
-            if result != True:
-                self.log.error(f'四本値テーブルへの記録処理でエラー\n{result}')
-                self.log.error(f'記録に失敗したデータ: {ohlc}')
-                continue
-            upsert_count += 1
-        self.log.info(f'メモリに残っている四本値データのDB登録完了 登録レコード数: {upsert_count}')
+        if websocket_mode:
+            upsert_count = 0
+            for ohlc in self.ohlc_list:
+                result, operate_type = self.db.ohlc.upsert(ohlc)
+                if result != True:
+                    self.log.error(f'四本値テーブルへの記録処理でエラー\n{result}')
+                    self.log.error(f'記録に失敗したデータ: {ohlc}')
+                    continue
+                upsert_count += 1
+            self.log.info(f'メモリに残っている四本値データのDB登録完了 登録レコード数: {upsert_count}')
 
         return True
 
@@ -265,6 +276,37 @@ class Record(ServiceBase):
         if latest_trade_time != None and latest_trade_time.hour != 0 and latest_trade_time.minute != 0:
             result = self.memory_cleaning(new_ohlc_data['symbol'], latest_trade_time)
 
+        return True
+
+    def record_board_price(self, reception_data):
+        '''
+        WebSocketで受信した板情報をDBに登録する
+
+        Args:
+            reception_data(dict): 受信したデータ
+        '''
+        try:
+            # 証券コード取得
+            stock_code = str(reception_data['Symbol'])
+
+            # 現在の時刻を取得
+            now = datetime.now()
+
+            # 同一秒に板情報をCSVに記録したかのチェック
+            if stock_code in self.last_record_time:
+                if now == self.last_record_time[stock_code]:
+                    return True
+
+            # 各データをCSVに記録する
+            with open(os.path.join(os.path.dirname(__file__), '..', '..', 'csv', 'result', 'kehai.csv'), 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow([reception_data['Symbol'], reception_data['CurrentPriceTime'], reception_data['CurrentPrice'], reception_data['CurrentPriceStatus'],
+                                reception_data['TradingVolume'], reception_data['Sell2']['Qty'], reception_data['Sell2']['Price'], reception_data['BidQty'], reception_data['BidPrice'],
+                                reception_data['AskQty'], reception_data['AskPrice'], reception_data['Buy2']['Qty'], reception_data['Buy2']['Price'], reception_data['']])
+
+            self.last_record_time[stock_code] = now
+        except Exception as e:
+            return False
         return True
 
     def insert_board(self, board_info):
@@ -419,7 +461,7 @@ class Record(ServiceBase):
                 if result != True:
                     self.log.error(f'四本値テーブルへの登録処理でエラー\n{result}')
                     continue
-                    
+
                 self.log.info(f'四本値テーブルへの登録処理完了 記録した取引時間: {ohlc["trade_time"]}、証券コード: {ohlc["symbol"]}')
 
                 # 削除対象のインデックスを追加
