@@ -75,3 +75,6 @@ RECORD_OHLC_STOCK_CODE_LIST = [9432, 1570]
 
 # 過去何日分のデータを取得するか(1~8日)
 RECORD_OHLC_DAYS= 8
+
+# PUSH配信で行う処理(1: 四本値をDBに登録、2: 最良気配と出来高をCSVに登録)
+WEBSOCKET_MODE = 2
