@@ -171,7 +171,7 @@ class Record(ServiceBase):
 
 
         # 最後にメモリに残っている四本値データをDBに登録
-        if websocket_mode:
+        if websocket_mode == 1:
             upsert_count = 0
             for ohlc in self.ohlc_list:
                 result, operate_type = self.db.ohlc.upsert(ohlc)
