@@ -7,7 +7,7 @@ from tkcalendar import DateEntry
 
 class StockOrderApp(Base):
     def __init__(self, root):
-        super().__init__()
+        super().__init__(use_db = False)
         self.root = root
         self.root.title('信用空売り決済注文')
         self.api_url = 'https://your-api-url.com'
