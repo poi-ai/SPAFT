@@ -194,6 +194,20 @@ class StockOrderApp(Base):
         # 実行ボタン
         tk.Button(self.root, text='注文を送信', command=self.send_order, font=font_options).grid(row=15, column=0, columnspan=2, pady=15)
 
+        # 別のウインドウでクイック区分の選択肢を表示
+        self.sub_window = tk.Toplevel()
+        self.sub_window.title('クイック区分選択')
+        self.sub_window.geometry('150x180')
+        radio_options = {'font': ('Arial', 13)}
+        self.quick_radio_var = tk.IntVar(value=3)
+
+        for index, value in enumerate(['新規買', '新規売', '返済買', '返済売', '現物買', '現物売']):
+            rb = tk.Radiobutton(self.sub_window, text=value, variable=self.quick_radio_var, value=index + 1, command=self.update_quick_category, **radio_options)
+            rb.pack(anchor='center')
+
+        # ラジオボタンを返済買を選択状態にする
+        self.sub_window.children['!radiobutton3'].select()
+
     def toggle_price_entry(self, selected_value):
         '''執行条件が成行の場合の注文価格テキストボックスの表示/非表示切り替え'''
         if selected_value == '成行':
@@ -234,6 +248,9 @@ class StockOrderApp(Base):
                 self.close_position_order_label.grid_remove()
                 self.close_position_order_menu.grid_remove()
 
+                # クイック区分の現物買を選択状態にする
+                self.sub_window.children['!radiobutton5'].select()
+
             else:
                 # 資産区分を現物売にして非表示
                 self.fund_type_var.set('現物売')
@@ -243,6 +260,9 @@ class StockOrderApp(Base):
                 # ポジション決済順を再表示
                 self.close_position_order_label.grid()
                 self.close_position_order_menu.grid()
+
+                # クイック区分の現物売を選択状態にする
+                self.sub_window.children['!radiobutton6'].select()
 
         else:
             # 信用区分を再表示
@@ -260,11 +280,29 @@ class StockOrderApp(Base):
                 self.close_position_order_label.grid_remove()
                 self.close_position_order_menu.grid_remove()
 
+                # 買いの場合
+                if self.side_var.get() == '買':
+                    # クイック区分の新規買を選択状態にする
+                    self.sub_window.children['!radiobutton'].select()
+                # 売の場合
+                else:
+                    # クイック区分の新規売を選択状態にする
+                    self.sub_window.children['!radiobutton2'].select()
+
             # 返済信用の場合
             else:
                 # ポジション決済順を再表示
                 self.close_position_order_label.grid()
                 self.close_position_order_menu.grid()
+
+                # 買いの場合
+                if self.side_var.get() == '買':
+                    # クイック区分の返済買を選択状態にする
+                    self.sub_window.children['!radiobutton3'].select()
+                # 売の場合
+                else:
+                    # クイック区分の返済売を選択状態にする
+                    self.sub_window.children['!radiobutton4'].select()
 
     def update_side_state(self, selected_value):
         '''売買区分の選択肢に応じて他の選択肢の内容を切り替える'''
@@ -287,6 +325,17 @@ class StockOrderApp(Base):
                 self.fund_type_menu.grid_remove()
                 self.fund_type_label.grid_remove()
 
+                # クイック区分の現物買を選択状態にする
+                self.sub_window.children['!radiobutton5'].select()
+            # 信用新規の場合
+            elif cash_margin == '新規信用':
+                # クイック区分の新規買を選択状態にする
+                self.sub_window.children['!radiobutton'].select()
+            # 信用返済の場合
+            else:
+                # クイック区分の返済買を選択状態にする
+                self.sub_window.children['!radiobutton3'].select()
+
         # 売の場合
         else:
             # 取引区分のチェック
@@ -299,6 +348,59 @@ class StockOrderApp(Base):
                 self.fund_type_var.set('現物売')
                 self.fund_type_menu.grid_remove()
                 self.fund_type_label.grid_remove()
+
+                # クイック区分の現物売を選択状態にする
+                self.sub_window.children['!radiobutton6'].select()
+            # 信用新規の場合
+            elif cash_margin == '新規信用':
+                # クイック区分の新規売を選択状態にする
+                self.sub_window.children['!radiobutton2'].select()
+            # 信用返済の場合
+            else:
+                # クイック区分の返済売を選択状態にする
+                self.sub_window.children['!radiobutton4'].select()
+
+    def update_quick_category(self):
+        '''クイック区分の選択に応じて他の選択肢の内容を切り替える'''
+        selected_value = self.quick_radio_var.get()
+        if selected_value == 1:  # 新規買
+            self.side_var.set('買')
+            self.cash_margin_var.set('新規信用')
+            self.fund_type_var.set('信用買・売')
+            self.margin_trade_type_menu.grid()
+            self.margin_trade_type_label.grid()
+        elif selected_value == 2:  # 新規売
+            self.side_var.set('売')
+            self.cash_margin_var.set('新規信用')
+            self.fund_type_var.set('信用買・売')
+            self.margin_trade_type_menu.grid()
+            self.margin_trade_type_label.grid()
+        elif selected_value == 3:  # 返済買
+            self.side_var.set('買')
+            self.cash_margin_var.set('返済信用')
+            self.fund_type_var.set('信用買・売')
+            self.margin_trade_type_menu.grid()
+            self.margin_trade_type_label.grid()
+        elif selected_value == 4:  # 返済売
+            self.side_var.set('売')
+            self.cash_margin_var.set('返済信用')
+            self.fund_type_var.set('信用買・売')
+            self.margin_trade_type_menu.grid()
+            self.margin_trade_type_label.grid()
+        elif selected_value == 5:  # 現物買
+            self.side_var.set('買')
+            self.cash_margin_var.set('現物')
+            self.fund_type_var.set('信用代用')
+            self.margin_trade_type_menu.grid_remove()
+            self.margin_trade_type_label.grid_remove()
+        elif selected_value == 6:  # 現物売
+            self.side_var.set('売')
+            self.cash_margin_var.set('現物')
+            self.fund_type_var.set('現物売')
+            self.margin_trade_type_menu.grid_remove()
+            self.margin_trade_type_label.grid_remove()
+
+        return True
 
     def validate_stock_code(self, stock_code):
         # 証券コードは文字と数字の入力を許可
