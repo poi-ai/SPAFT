@@ -3,9 +3,6 @@
 **Scalping Profit Algorithm From TSE**
 auカブコム証券のKabuStation APIを使った東京証券取引所（TSE）向け自動スキャルピングシステム。
 
-> [!WARNING]
-> このシステムは実際の資金を使った取引を行います。使用は自己責任でお願いします。
-
 ---
 
 ## 概要
@@ -18,7 +15,7 @@ Npipsスキャルピング（指定pip数での買い・利確・損切り・ト
 ## 必要環境
 
 ### ハードウェア・OS
-- **Windows 10 / 11**（KabuStation APIはWindowsのみで動作）
+- **Windows 11**（KabuStation APIはWindowsのみで動作）
 
 ### アカウント
 - auカブコム証券 **Fintechプラン** または **Premiumプラン**
@@ -27,7 +24,7 @@ Npipsスキャルピング（指定pip数での買い・利確・損切り・ト
 ### ソフトウェア
 | ソフトウェア | バージョン |
 |---|---|
-| Python | 3.9 以上 |
+| Python | 3.12 |
 | MySQL | 8.0 |
 | KabuStation | 最新版 |
 
@@ -45,7 +42,7 @@ cd SPAFT
 ### 2. 依存ライブラリのインストール
 
 ```bash
-pip install pymysql requests ntplib catboost scikit-learn pandas numpy tkcalendar
+pip install -r requirements.txt
 ```
 
 ### 3. データベースの作成
