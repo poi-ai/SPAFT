@@ -253,7 +253,7 @@ dev     ← 開発ベースブランチ
   - 成功: `(True, 結果値)`
   - 失敗: `(False, エラーメッセージ or エラーコード)`
 - エラー処理: `self.error_output(message, e, traceback.format_exc())` を使う
-  - 自動でログ出力される
+  - 自動でログ出力 + LINE Messaging API通知（`config.LINE_MESSAGING_API_TOKEN` が設定されている場合）
 - ログ出力: `self.log.info()`, `self.log.error()`, `self.log.warning()`
   - ログファイルは `log/YYYYMMDD.log` に出力
 - 新規 Service クラスは `ServiceBase` を継承し、コンストラクタで `api_headers, api_url, ws_url, conn` を受け取る

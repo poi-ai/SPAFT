@@ -7,6 +7,9 @@ DB_USER = 'root'
 DB_PASSWORD = 'password'
 DB_NAME = 'spaft'
 
+# LINE Messaging APIのチャネルアクセストークン[任意]
+LINE_MESSAGING_API_TOKEN = ''
+
 # APIに設定したパスワード(≠取引パスワード)
 # KabuStationアプリ > 設定 > API で設定したパスワード
 API_PASSWORD = 'production'

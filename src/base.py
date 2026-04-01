@@ -1,4 +1,6 @@
 import config
+import json
+import requests
 
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -80,21 +82,78 @@ class Base():
                                conn = conn)
 
 
-    def error_output(self, message, e = None, stacktrace = None):
-        '''エラー時のログ出力を行う
+    def error_output(self, message, e = None, stacktrace = None, line_flg = True):
+        '''エラー時のログ出力/LINE通知を行う
 
         Args:
             message(str) : エラーメッセージ
             e(str) : エラー名
             stacktrace(str) : スタックトレース(traceback.format_exc())
+            line_flg(bool) : LINE通知を行うか
         '''
+        other_message = message
         self.log.error(message)
 
         if e != None:
             self.log.error(e)
+            other_message += f'\n{e}'
 
         if stacktrace != None:
             self.log.error(stacktrace)
+            other_message += f'\n{stacktrace}'
+
+        if line_flg:
+            self.line_send(other_message)
+
+    def line_send(self, message):
+        '''LINE Messaging APIのブロードキャストでメッセージを送信する
+            送信にはconfig.py.LINE_MESSAGING_API_TOKENにLINE Messaging APIの
+            チャネルアクセストークンが記載されている必要がある(必須ではない)
+
+        Args:
+            message(str) : LINE送信するメッセージ内容
+        '''
+        # 設定ファイルからトークン取得
+        try:
+            token = config.LINE_MESSAGING_API_TOKEN
+        except AttributeError:
+            return
+
+        # 空なら何もしない
+        if token == '':
+            return
+
+        # 5000文字ずつ最大5件に分割（Messaging API上限）
+        chunks = []
+        while message and len(chunks) < 5:
+            chunks.append(message[:5000])
+            message = message[5000:]
+
+        # ヘッダー設定
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {token}'
+        }
+
+        # メッセージ設定
+        data = {
+            'messages': [{'type': 'text', 'text': chunk} for chunk in chunks]
+        }
+
+        # メッセージ送信
+        try:
+            r = requests.post('https://api.line.me/v2/bot/message/broadcast', headers = headers, json = data)
+        except Exception as e:
+            self.log.error('LINE Messaging APIでのメッセージ送信に失敗しました')
+            self.log.error(e)
+            return
+
+        if r.status_code != 200:
+            self.log.error('LINE Messaging APIでエラーが発生しました')
+            try:
+                self.log.error(f'ステータスコード: {r.status_code}\nエラー内容: {json.dumps(json.loads(r.content), indent=2)}')
+            except Exception as e:
+                self.log.error(e)
 
     #def byte_to_dict(self, response_json):
     #    '''受け取ったレスポンスをdict型に変換する'''
