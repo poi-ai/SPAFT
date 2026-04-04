@@ -59,7 +59,7 @@ class Buying_Power():
 
                 return rows
         except Exception as e:
-            self.log.error('余力テーブル取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'余力テーブル取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def insert(self, data):
@@ -100,5 +100,5 @@ class Buying_Power():
 
             return True
         except Exception as e:
-            self.log.error('余力テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            self.log.error(f'余力テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}')
             return False

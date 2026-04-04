@@ -49,7 +49,7 @@ class Template():
                 rows = cursor.fetchmany(num)
                 # fetchallと同
         except Exception as e:
-            self.log.error('xxでエラー', e, traceback.format_exc())
+            self.log.error(f'xxでエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def insert_tablename(self):
@@ -87,7 +87,7 @@ class Template():
 
             return True
         except Exception as e:
-            self.log.error('xxxへのINSERTでエラー', e, traceback.format_exc())
+            self.log.error(f'xxxへのINSERTでエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def update_tablename(self):
@@ -118,7 +118,7 @@ class Template():
 
             return True
         except Exception as e:
-            self.log.error(f'xxのUPDATEでエラー', e, traceback.format_exc())
+            self.log.error(f'xxのUPDATEでエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def delete_tablename(self):
@@ -145,7 +145,7 @@ class Template():
 
             return True
         except Exception as e:
-            self.log.error(f'xxのDELETEでエラー', e, traceback.format_exc())
+            self.log.error(f'xxのDELETEでエラー\n{e}\n{traceback.format_exc()}')
             return False
 
 
