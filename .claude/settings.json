@@ -1,7 +1,22 @@
 {
+  "skipDangerousModePermissionPrompt": true,
   "permissions": {
-    "deny": [
-      "Bash(git push*)"
+    "allow": [
+      "Bash(cd *)",
+      "Bash(find *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(grep *)"
+    ],
+    "ask": [
+      "Bash(rm -rf *)",
+      "Bash(sudo *)",
+      "Bash(python *)",
+      "Bash(python3 *)"
     ]
   }
 }
