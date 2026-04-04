@@ -37,7 +37,7 @@ class Ohlc():
                     return False
                 return row
         except Exception as e:
-            self.log.error('四本値レコード一括取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値レコード一括取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def select_time(self, symbol, target_time):
@@ -71,7 +71,7 @@ class Ohlc():
                     return {}
                 return row
         except Exception as e:
-            self.log.error('四本値レコード取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値レコード取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def select_total_volume(self, symbol, target_time):
@@ -105,7 +105,7 @@ class Ohlc():
                     return False
                 return row['total_volume']
         except Exception as e:
-            self.log.error('四本値レコードの指定時刻累計出来高取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値レコードの指定時刻累計出来高取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def select_latest_total_volume(self, symbol, target_date):
@@ -142,7 +142,7 @@ class Ohlc():
                     return -999
                 return row['total_volume']
         except Exception as e:
-            self.log.error('四本値レコードの最新分累計出来高取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値レコードの最新分累計出来高取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def insert(self, ohlc_data):
@@ -208,7 +208,7 @@ class Ohlc():
 
             return True
         except Exception as e:
-            self.log.error('四本値テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def update(self, ohlc_data):
@@ -262,7 +262,7 @@ class Ohlc():
 
             return True
         except Exception as e:
-            self.log.error('四本値テーブルのレコード更新処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値テーブルのレコード更新処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def upsert(self, ohlc_data):
@@ -335,5 +335,5 @@ class Ohlc():
 
             return True, cursor.rowcount
         except Exception as e:
-            self.log.error('四本値テーブルのレコード追加または更新処理でエラー', e, traceback.format_exc())
+            self.log.error(f'四本値テーブルのレコード追加または更新処理でエラー\n{e}\n{traceback.format_exc()}')
             return False, 0

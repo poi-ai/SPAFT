@@ -408,6 +408,6 @@ class PastRecord(ServiceBase):
                 else:
                     self.log.error(f'CSVファイルの圧縮が見つかりません\nファイルパス: {csv_path}')
             except Exception as e:
-                self.log.error(f'CSVファイルの圧縮に失敗\nファイルパス: {csv_path}\n{e}')
+                self.log.error(f'CSVファイルの圧縮に失敗\nファイルパス: {csv_path}\n{e}\n{traceback.format_exc()}')
 
         return True

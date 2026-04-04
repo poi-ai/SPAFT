@@ -50,8 +50,7 @@ class MoldPastRecord(ServiceBase):
             # インスタンス変数に追加
             self.target_list = target_list
         except Exception as e:
-            self.log.error(f'成形対象の四本値CSVファイル名の取得に失敗しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'成形対象の四本値CSVファイル名の取得に失敗しました\n{e}\n{traceback.format_exc()}')
             return False
 
         return True
@@ -77,8 +76,7 @@ class MoldPastRecord(ServiceBase):
             # インスタンス変数に追加
             self.tmp_target_list = tmp_target_list
         except Exception as e:
-            self.log.error(f'成形対象の目的変数追加済CSVファイル名の取得に失敗しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'成形対象の目的変数追加済CSVファイル名の取得に失敗しました\n{e}\n{traceback.format_exc()}')
             return False
 
         return True
@@ -117,8 +115,7 @@ class MoldPastRecord(ServiceBase):
                             for line in f_in:
                                 f_out.write(line)
                 except Exception as e:
-                    self.log.error(f'まとめファイルへの書き込みでエラーが発生しました。出力先ファイル名: {output_csv_path}、出力元ファイル名: {csv_path}')
-                    self.log.error(f'{e}\n{traceback.format_exc()}')
+                    self.log.error(f'まとめファイルへの書き込みでエラーが発生しました。出力先ファイル名: {output_csv_path}、出力元ファイル名: {csv_path}\n{e}\n{traceback.format_exc()}')
                     continue
 
                 # まとめに成功したファイルを別ファイルに記録する
@@ -129,8 +126,7 @@ class MoldPastRecord(ServiceBase):
                     with open(csv_path, 'a') as f:
                         f.write(f'{csv_name},{output_csv_file_name}\n')
                 except Exception as e:
-                    self.log.error(f'まとめ完了したCSVファイルを記録する処理でエラーが発生しました。出力ファイル名: {csv_path}、出力内容: {csv_name},{output_csv_file_name}')
-                    self.log.error(f'{e}\n{traceback.format_exc()}')
+                    self.log.error(f'まとめ完了したCSVファイルを記録する処理でエラーが発生しました。出力ファイル名: {csv_path}、出力内容: {csv_name},{output_csv_file_name}\n{e}\n{traceback.format_exc()}')
                     continue
 
                 # まとめ元のファイルを削除
@@ -138,13 +134,11 @@ class MoldPastRecord(ServiceBase):
                     os.remove(os.path.join(self.tmp_csv_dir_name, csv_name))
                     os.remove(os.path.join(self.tmp_csv_dir_name, csv_name.replace('formatted_', '')))
                 except Exception as e:
-                    self.log.error(f'まとめ完了したCSVファイルを削除する処理でエラーが発生しました。削除ファイル名: {csv_name} / {csv_name.replace("formatted_", "")}')
-                    self.log.error(f'{e}\n{traceback.format_exc()}')
+                    self.log.error(f'まとめ完了したCSVファイルを削除する処理でエラーが発生しました。削除ファイル名: {csv_name} / {csv_name.replace("formatted_", "")}\n{e}\n{traceback.format_exc()}')
                     continue
 
         except Exception as e:
-            self.log.error(f'成形済CSVファイルの一括まとめ処理で想定外のエラーが発生しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'成形済CSVファイルの一括まとめ処理で想定外のエラーが発生しました\n{e}\n{traceback.format_exc()}')
             return False
 
         return True
@@ -239,8 +233,7 @@ class MoldPastRecord(ServiceBase):
                         #self.log.info(f'目的変数追加処理終了 出力ファイル名: {output_csv_path}')
 
         except Exception as e:
-            self.log.error(f'目的変数追加処理で想定外のエラーが発生しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'目的変数追加処理で想定外のエラーが発生しました\n{e}\n{traceback.format_exc()}')
             return False
 
         return True
@@ -302,8 +295,7 @@ class MoldPastRecord(ServiceBase):
                 #self.log.info(f'説明変数追加処理終了 出力ファイル名: {output_csv_file_name}')
 
         except Exception as e:
-            self.log.error(f'説明変数追加処理で想定外のエラーが発生しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'説明変数追加処理で想定外のエラーが発生しました\n{e}\n{traceback.format_exc()}')
             return False
 
         return True
@@ -346,8 +338,7 @@ class MoldPastRecord(ServiceBase):
                 # n分後の株価変化率(%)を1000倍した値 小数点以下は丸める 最小絶対値はTOPIX銘柄の1000円→999.9円(-0.01%x1000=10)
                 df[f'change_{minute}min_rate'] = (df[f'change_{minute}min_price'] / df['close'] * 100000).round(0)
         except Exception as e:
-            self.log.error(f'目的変数の計算に失敗しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'目的変数の計算に失敗しました\n{e}\n{traceback.format_exc()}')
             return False
 
         return df
@@ -580,8 +571,7 @@ class MoldPastRecord(ServiceBase):
                         add_df[column_name] = ichimoku_df[column_name]
 
         except Exception as e:
-            self.log.error(f'説明変数の計算に失敗しました')
-            self.log.error(f'{e}\n{traceback.format_exc()}')
+            self.log.error(f'説明変数の計算に失敗しました\n{e}\n{traceback.format_exc()}')
             return False, None
 
         return True, add_df

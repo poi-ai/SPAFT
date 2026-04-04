@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import re
+import traceback
 from service_base import ServiceBase
 from datetime import datetime
 
@@ -70,7 +71,7 @@ class BoardMold(ServiceBase):
 
             return True
         except Exception as e:
-            self.log.error(f'CSVファイルの取得でエラー: {str(e)}')
+            self.log.error(f'CSVファイルの取得でエラー: {str(e)}\n{traceback.format_exc()}')
             return False
 
     def read_csv(self, csv_path):
@@ -87,7 +88,7 @@ class BoardMold(ServiceBase):
         try:
             board_df = pd.read_csv(csv_path)
         except Exception as e:
-            self.log.error(f'CSV読み込みでエラー パス: {csv_path}\n{str(e)}')
+            self.log.error(f'CSV読み込みでエラー パス: {csv_path}\n{str(e)}\n{traceback.format_exc()}')
             return None, False
 
         return True, board_df
@@ -108,7 +109,7 @@ class BoardMold(ServiceBase):
         try:
             board_df.to_csv(new_csv_path, index = False)
         except Exception as e:
-            self.log.error(f'CSV書き込みでエラー パス: {new_csv_path}\n{str(e)}')
+            self.log.error(f'CSV書き込みでエラー パス: {new_csv_path}\n{str(e)}\n{traceback.format_exc()}')
             return False
 
         return True

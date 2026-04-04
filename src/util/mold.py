@@ -79,7 +79,7 @@ class Mold():
             else:
                 board_table_info['latest_transaction_time'] = current_price_time.replace('+09:00', '')
         except Exception as e:
-            self.log.error(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー', e, traceback.format_exc())
+            self.log.error(f'板情報取得APIから板情報テーブルへのフォーマット変換処理でエラー\n{e}\n{traceback.format_exc()}')
             self.log.error(board_info)
             return False
         return board_table_info
@@ -165,7 +165,7 @@ class Mold():
                 'get_minute': board_info['get_time'].minute # 取得分
             }
         except Exception as e:
-            self.log.error(f'板情報取得APIからCSV記録用フォーマット変換処理でエラー', e, traceback.format_exc())
+            self.log.error(f'板情報取得APIからCSV記録用フォーマット変換処理でエラー\n{e}\n{traceback.format_exc()}')
             self.log.error(board_info)
             return False
         return board_info_dict
