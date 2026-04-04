@@ -2,125 +2,147 @@
 
 作成日: 2026-04-04
 
-## 概要
+## 方針
 
-要件整備なく機能追加を続けた結果、オープンIssueが13件蓄積し、実装中・保留・未着手が混在した状態になっている。
-本ドキュメントは「今何をすべきか」を整理し、以下の順で対応する指針をまとめたもの。
+取引アルゴリズム（スキャルピング・ML注文・テクニカル注文）は現在**凍結中**。
+アルゴリズム自体の精度が出ておらず、動かすほど損失が出る状態のため、取引ロジックには触れない。
 
-**対応順序の原則:**
-金銭的リスクのあるバグ → 実装中の機能完成 → データ/MLパイプライン改善 → 保留の小作業
+**対応順序:**
+1. 板情報の取得・記録（基盤）を固める
+2. MLパイプライン（学習データの整備・モデル精度改善）
+3. 取引ロジック（凍結解除後に対応）
 
 ---
 
-## 現状サマリー
+## システム構成と現状
 
-### 動作状況
+### 処理の区分
 
-| ファイル | 状態 | 備考 |
+| 区分 | 主ファイル | 状態 |
 |---|---|---|
-| `src/main.py`（スキャルピング実行） | ✅ 動作中 | |
-| `src/gui.py`（GUI注文ツール） | ✅ 動作中 | |
-| `src/board_record.py`（板情報記録） | ✅ 動作中 | |
-| `src/data_search.py` | ❌ 起動不可 | 旧アーキテクチャのimportで失敗 |
-| `src/listed_update.py` | ❌ 起動不可 | 旧アーキテクチャのimportで失敗 |
+| 板情報取得・記録 | `board_record.py`, `reception_websocket.py`, `service/record.py` | ✅ 概ね動作 |
+| ML学習パイプライン | `analytics/catboost_clf.py`, `analytics/catboost_reg.py` | ⚠️ データリーク疑い |
+| 取引実行（凍結） | `main.py`, `service/trade.py` | 🔒 凍結中 |
+| GUI（凍結） | `gui.py` | 🔒 凍結中 |
 
-### 実装中ブランチの状態
+### 板情報取得の2ルート
 
-| ブランチ | 変更内容 | 完成度 |
-|---|---|---|
-| `origin/#18` | `gui.py` +103行 | 完成に近い、レビューのみ必要 |
-| `origin/#31` | 4ファイル変更 | コア実装あり、インポート確認が必要 |
+```
+board_record.py         → APIポーリング（1秒/1分/1回）→ DB or CSV
+reception_websocket.py  → WebSocket PUSH配信       → 四本値DB or 最良気配CSV
+```
 
----
+### 動作不可なファイル
 
-## Phase 1 — 今週中（金銭リスク排除 + クリーンアップ）
-
-### 1. #14 損切りバグ調査・修正（最優先）
-
-**理由**: 損切りが設定価格より2〜3pip低い位置で発動し、実際の金銭損失に直結する。
-
-**調査箇所:**
-
-- `src/service/trade.py` L282-304 — `decent_cut_price`の計算と判定ロジック
-  - `decent_cut_price = sell_price + loss_cut_pips`（`updown=1`）
-  - 条件 `decent_cut_price <= hold_stock['Price']` は `sell_price <= purchase_price - loss_cut_pips` と等価
-  - 期待動作との差異が「計算ロジック」か「注文タイミングのスリッページ」かを切り分ける
-  - `board_detail_info['sell_price']`（売り板最良値）と`buy_price`（買い板最良値）どちらを基準にすべきか確認
-- `src/service/trade.py` L403 — 利確→損切り差し替え時にも同じ`decent_cut_price`を使っている
-- `src/kabusapi/order.py` — `sell_cut_order`の注文価格指定方法（成行 vs 指値）
-
-**作業手順:**
-1. `dev`から`#14`ブランチを作成
-2. ログで実際の`sell_price`・`purchase_price`・`decent_cut_price`の値を追跡
-3. 期待動作との差異の原因を特定して修正
-4. `#14` → `test`へPR作成
-
-### 2. #29 クローズ
-
-コミット`40f2251`で対応済み。GitHubでIssueをクローズし、ローカルの`#29`ブランチを削除するだけ。**コード変更不要。**
-
-### 3. #33 エラー行数出力（#14と同時対応）
-
-**理由**: `trade.py`を触るついでに対応できる。
-- `error_output(message, e, traceback.format_exc())`を使っていないtry-exceptブロックを`trade.py`内で統一
-- `src/base.py`の`error_output()`はすでに`traceback.format_exc()`を受け取れる設計になっている
+| ファイル | 原因 |
+|---|---|
+| `src/data_search.py` | `from db_base import Db_Base` など旧クラスのimport |
+| `src/listed_update.py` | 同上 |
 
 ---
 
-## Phase 2 — 2〜3週間（実装中機能の完成）
+## Phase 1 — 板情報基盤の整備（優先対応）
 
-### 4. #18 GUI注文機能のマージ
+### 1. #33 エラー行数出力の統一（最初に対応）
 
-- `origin/#18`は`gui.py`1ファイルのみ変更で完成度が高い
-- コードレビュー後、`#18` → `test`へPR作成
+**理由**: 以降の作業でバグを踏んだ際の調査コストを下げるため、最初に対応する。
 
-### 5. #31 最良気配値CSV記録のマージ
+- `error_output(message, e, traceback.format_exc())`を使っていないtry-exceptブロックを探して統一
+- 対象: `src/service/record.py`（板情報記録の中核）、`src/kabusapi/websocket.py` 等
+- `src/base.py`の`error_output()`はすでに`traceback.format_exc()`を受け取れる設計
 
-- `src/service/record.py`の`record_board_price`メソッドのインポート確認
-  - `record.py`に`from datetime import datetime`が必要かチェック（`datetime.now()`の使い方が混在している可能性）
-- 4ファイル変更分レビュー後、PR作成
+### 2. #31 最良気配値CSV記録のマージ（実装中）
 
-### 6. #32 日足データスクレイピング
+**理由**: WebSocket PUSH配信で最良気配・出来高をCSVに記録する機能。ML学習データの収集基盤になる。
 
-- Yahoo!Financeから日足データ取得のスタンドアロンスクリプト追加（`src/`以下）
-- 他ファイルへの影響が少なく完結しやすい
-- #31の板情報データと合わせてML学習データの基盤になる
+`origin/#31`ブランチの変更内容:
+- `config.py.sample` に `WEBSOCKET_MODE` 追加（1=四本値DB, 2=最良気配CSV）
+- `reception_websocket.py`: `WEBSOCKET_MODE`でDB接続の有無を制御
+- `service/record.py`: `record_board_price()`メソッド追加（CSV出力先: `csv/result/kehai.csv`）
+- `kabusapi/register.py`: ドキュメント修正のみ
+
+**確認事項（マージ前）:**
+- `record.py`の`record_board_price()`内: `datetime.now()`と`import datetime`の記述が一致しているか確認
+- `record.py` 321行目付近: `self.info_board(self, stock_code, ...)` のように`self`が2重渡しになっていないか確認
+
+### 3. `data_search.py` / `listed_update.py` の修正
+
+**理由**: 板情報の検索・上場銘柄マスターの更新に必要なスクリプト。現在`import`でエラーになる。
+
+修正内容（各ファイル同じパターン）:
+```python
+# 修正前（旧アーキテクチャ）
+from db_base import Db_Base
+from db_operate import Db_Operate
+
+# 修正後（現行アーキテクチャ）
+from base import Base  # Base継承でService/DB/API全てを初期化
+```
+ロジック自体は完成しているため、importとクラス継承の書き換えのみで動作する見込み。
+
+### 4. #29 クローズ（コード変更なし）
+
+- コミット`40f2251`で対応済み
+- GitHubでIssueをクローズ、ローカルの`#29`ブランチを削除するだけ
+
+---
+
+## Phase 2 — データパイプライン強化
+
+### 5. #32 日足データスクレイピング
+
+※ `origin/#32`ブランチは現時点で存在しない。新規に作成して実装する。
+
+- Yahoo!Financeから日足OHLCデータを取得するスタンドアロンスクリプト
+- 既存の`src/service/past_record.py`・`src/service/mold_past_record.py`の役割と重複しないか確認してから設計
+- 保存先: `csv/past_ohlc/`以下（既存の学習データと同形式）
+
+### 6. #20 板情報CSVへの指標カラム追加
+
+- `src/service/board_mold.py`に指標計算を追加（`service/__init__.py`経由で呼ばれる）
+- `src/util/indicator.py`（約960行）に既存の指標計算があるため最大限再利用
+- #31でCSV記録が整備された後に対応
 
 ### 7. #28 注文可能価格の事前計算とリスト化
 
 - `src/util/stock_price.py`にユーティリティメソッドを追加
 - ストップ高〜ストップ安の全注文可能価格をリストで返す関数を実装
-- #14修正で`stock_price.py`に触れるため、そのタイミングで設計を確認してから実装
+- 板情報成形時の価格チェックに使える
+
+### 8. #11 NTPサーバーへのアクセス量削減
+
+- `src/util/culc_time.py`の`get_now()`をキャッシュ化（N秒に1回だけNTP取得、それ以外は`datetime.now()`）
+- `board_record.py`のメインループで毎回呼ばれているため
 
 ---
 
-## Phase 3 — 1〜2ヶ月（ML改善・保留Issue消化）
+## Phase 3 — MLパイプライン整備
 
-### 8. #30 データリーク調査とモデル再学習
+### 9. #30 データリーク調査とモデル再学習
 
-- `src/analytics/catboost_clf.py`では`leak_columns`の除外は対応済み
-- 残課題: 時系列データの訓練/テスト分割が無作為になっていないか確認
-  - 同一日付データが訓練/テスト両方に混在していると時系列リークになる
-- Phase 2でデータパイプライン（#31, #32）が整備されてから、最新データで再検証
-- 合理的な精度（55〜65%程度）に収まるか確認
+**現状:**
+- `src/analytics/catboost_clf.py`では`leak_columns`による除外対応済み
+- ただし時系列データの訓練/テスト分割が無作為になっていないか未検証
 
-### 9. `data_search.py` / `listed_update.py` の修正
+**調査手順:**
+1. 現モデルの精度指標を記録（ベースライン）
+2. 訓練データとテストデータの日付を確認（同一日付が両方に混在していないか）
+3. 時系列分割（直近N日をテストに固定）に修正
+4. 再学習して精度が合理的な範囲（55〜65%程度）に収まるか確認
 
-- 旧アーキテクチャ（`db_base.Db_Base`、`db_operate.Db_Operate`）のimportを現行構成（`Base`継承）に書き換え
-- ロジック自体は完成しているため、インポートパス修正のみで動作する見込み
-- 本番トレードエンジンに影響しないため、Phase 3で余裕があるときに対応
+Phase 2でデータパイプライン（#31, #32, #20）が整備されてから最新データで実施。
 
-### 10. #27 GUIでスキャルピング設定
+---
 
-- #14のバグが修正されたトレードエンジンが安定してから、GUI側でパラメータ設定機能を実装
-- 規模が大きいため、Phase 3の最後に着手
+## 凍結中（現時点では対応しない）
 
-### 11. 保留Issue（優先度低）
-
-- **#11** NTPアクセス量削減: キャッシュ戦略実装（N秒に1回だけNTP取得）
-- **#8** すり抜け注文のエラー非扱い
-- **#4** 取引記録のDBレコード化（スキーマ変更を伴うため安定稼働時期に）
-- **#20** 板情報CSVへの指標カラム追加（#31完成後）
+| Issue | 内容 | 解除条件 |
+|---|---|---|
+| #14 | 損切りバグ調査・修正 | 取引凍結解除後 |
+| #18 | GUI注文機能追加 | 取引凍結解除後 |
+| #27 | GUIでスキャルピング設定 | 取引凍結解除後 |
+| #8 | すり抜け注文のエラー非扱い | 取引凍結解除後 |
+| #4 | 取引記録のDBレコード化 | 取引凍結解除後 |
 
 ---
 
@@ -128,31 +150,31 @@
 
 | Phase | Issues | 主目的 |
 |---|---|---|
-| Phase 1（今週） | #14調査・修正, #29クローズ, #33 | 金銭リスク排除 |
-| Phase 2（2〜3週） | #18, #31, #32, #28 | 実装中機能の完成 |
-| Phase 3（1〜2ヶ月） | #30, broken files, #27, #11, #8, #4, #20 | ML改善・保留消化 |
+| Phase 1 | #33, #31マージ, broken files修正, #29クローズ | 板情報基盤の整備 |
+| Phase 2 | #32, #20, #28, #11 | データパイプライン強化 |
+| Phase 3 | #30 | MLパイプライン整備 |
+| 凍結 | #14, #18, #27, #8, #4 | 取引凍結解除後に対応 |
 
 ---
 
 ## 最初の具体的アクション
 
 ```bash
-# 1. #14の作業ブランチを作成
+# 1. devから作業ブランチを作成
 git checkout dev
-git checkout -b '#14'
+git checkout -b '#33'
 
-# 2. trade.py L282-304のロジック調査・修正
-# 3. traceback未使用箇所の修正（#33兼用）
+# 2. service/record.py 等のtry-exceptにtraceback出力を統一
+# 3. PR: #33 → test
 
-# 4. PR作成: #14 → test
-
-# 5. GitHubで#29をクローズ（コード変更なし）
+# 次: #31ブランチのコードレビュー → マージPR
+# 次: data_search.py / listed_update.py のimport修正
 ```
 
 ---
 
 ## 検証方法
 
-- **#14修正**: KabuStation検証環境（`config.API_PRODUCTION = False`、ポート18081）でスキャルピングを動作させ、ログで損切り発動価格が期待値通りか確認
-- **#18/#31**: `python gui.py` / `python board_record.py` の手動動作確認
+- **#31マージ後**: `python reception_websocket.py`を実行し、`csv/result/kehai.csv`にデータが書き込まれることを確認
+- **data_search.py修正後**: `cd src && python data_search.py`がエラーなく起動することを確認
 - **#30**: `src/analytics/catboost_clf.py`を実行して精度指標を記録し、合理的な範囲内か確認
