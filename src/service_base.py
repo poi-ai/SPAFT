@@ -84,6 +84,7 @@ class ServiceBase():
             message(str) : エラーメッセージ
             e(str) : エラー名
             stacktrace(str) : スタックトレース(traceback.format_exc())
+            line_flg(bool) : LINE通知を行うか
         '''
         other_message = message
         self.log.error(message)
@@ -99,61 +100,55 @@ class ServiceBase():
         if line_flg:
             self.line_send(other_message)
 
-    def line_send(self, message, separate_no = 1):
-        ''' LINEにメッセージを送信する
-            送信にはconfig.py.LINE_TOKENにLINE Notice APIの
-            APIトークンコードが記載されている必要がある(必須ではない)
+    def line_send(self, message):
+        '''LINE Messaging APIのブロードキャストでメッセージを送信する
+            送信にはconfig.py.LINE_MESSAGING_API_TOKENにLINE Messaging APIの
+            チャネルアクセストークンが記載されている必要がある(必須ではない)
 
         Args:
             message(str) : LINE送信するメッセージ内容
         '''
-        # 10000字以上送ったらもうそれ以上送らない
-        if separate_no > 10:
-            self.log.info('LINE Notifyでの送信メッセージが10000字を超えました')
-            return
-
         # 設定ファイルからトークン取得
         try:
-            token = config.LINE_TOKEN
-        except AttributeError as e:
+            token = config.LINE_MESSAGING_API_TOKEN
+        except AttributeError:
             return
 
         # 空なら何もしない
         if token == '':
             return
 
-        # ヘッダー設定
-        headers = {'Authorization': f'Bearer {token}'}
+        # 5000文字ずつ最大5件に分割（Messaging API上限）
+        chunks = []
+        while message and len(chunks) < 5:
+            chunks.append(message[:5000])
+            message = message[5000:]
 
-        # メッセージが1000文字(上限)を超えていたら分割して送る
-        unsent_message = ''
-        if len(message) > 999:
-            unsent_message = message[1000:]
-            message = message[:1000]
+        # ヘッダー設定
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {token}'
+        }
 
         # メッセージ設定
-        data = {'message': f'{message}'}
+        data = {
+            'messages': [{'type': 'text', 'text': chunk} for chunk in chunks]
+        }
 
         # メッセージ送信
         try:
-            r = requests.post('https://notify-api.line.me/api/notify', headers = headers, data = data)
+            r = requests.post('https://api.line.me/v2/bot/message/broadcast', headers = headers, json = data)
         except Exception as e:
-            self.log.error('LINE Notify APIでのメッセージ送信に失敗しました')
+            self.log.error('LINE Messaging APIでのメッセージ送信に失敗しました')
             self.log.error(e)
             return
 
         if r.status_code != 200:
-            self.log.error('LINE Notify APIでエラーが発生しました')
-            self.log.error('ステータスコード：' + r.status_code)
+            self.log.error('LINE Messaging APIでエラーが発生しました')
             try:
-                self.log.error('エラー内容：' + json.dumps(json.loads(r.content), indent=2))
+                self.log.error(f'ステータスコード: {r.status_code}\nエラー内容: {json.dumps(json.loads(r.content), indent=2)}')
             except Exception as e:
                 self.log.error(e)
-            return False
-
-        # 未送信文字が残っていれば送信
-        if unsent_message != '':
-            self.line_send(unsent_message, separate_no + 1)
 
     def byte_to_dict(self, response_json):
         '''受け取ったレスポンスをdict型に変換する'''
