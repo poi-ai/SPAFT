@@ -67,8 +67,17 @@ Service (src/service/__init__.py)
 ### 新規クラスの登録手順
 
 **Serviceクラス追加時:**
-1. `src/service/<snake_case>.py` を作成（`ServiceBase` を継承）
-2. `src/service/__init__.py` に import と `Service.__init__()` 内でのインスタンス生成を追加
+
+`src/service/` はサブパッケージに分かれているため、責務に応じた配置先を選ぶ。
+
+| 責務 | 配置先 | 集約クラス |
+|---|---|---|
+| データ収集（API/WebSocket） | `src/service/collect/` | `Collect` |
+| データ前処理（CSV成形・ML特徴量） | `src/service/preprocess/` | `Preprocess` |
+| 取引・注文（凍結中） | `src/service/trade/` | `Trade` |
+
+1. 対応するサブパッケージに `<snake_case>.py` を作成（`ServiceBase` を継承）
+2. そのサブパッケージの `__init__.py` の集約クラスにインスタンス生成を追加
 
 **KabusApiクラス追加時:**
 1. `src/kabusapi/<snake_case>.py` を作成
