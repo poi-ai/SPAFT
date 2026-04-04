@@ -1,9 +1,9 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from .collect import Record, PastRecord
-from .mold import BoardMold, MoldPastRecord
-from .trade import Trade, Simulation
+from .collect import Collect
+from .mold import Mold
+from .trade import Trade
 
 
 class Service():
@@ -18,20 +18,11 @@ class Service():
             conn(pymysql.Conn): MySQLへの接続情報
 
         '''
-        # 情報取得/記録に関するクラス
-        self.record = Record(api_headers, api_url, ws_url, conn)
+        # データ収集に関するクラス群
+        self.collect = Collect(api_headers, api_url, ws_url, conn)
 
-        # 過去の四本値の情報取得/記録に関するクラス
-        self.past_record = PastRecord()
+        # データ成形に関するクラス群
+        self.mold = Mold()
 
-        # 過去の四本値の情報を成形するクラス
-        self.mold_past_record = MoldPastRecord()
-
-        # 取引/注文に関するクラス
+        # 取引に関するクラス群（凍結中）
         self.trade = Trade(api_headers, api_url, ws_url, conn)
-
-        # DBに保存された板情報から取引のシミュレーションを行うクラス
-        self.simulation = Simulation(api_headers, api_url, ws_url, conn)
-
-        # 板情報CSVを成形するクラス
-        self.board_mold = BoardMold()

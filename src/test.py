@@ -7,7 +7,7 @@ class Test(Base):
 
     def main(self):
         '''テスト処理'''
-        result = self.service.board_mold.main()
+        result = self.service.mold.board_mold.main()
         if result == False:
             return
 
