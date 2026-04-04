@@ -103,7 +103,7 @@ class BoardRecord(Base):
 
         # CSV記録モードの場合は板情報から計算可能な情報を計算してCSVに記録・成形
         if config.BOARD_RECORD_DB == 0:
-            result = self.service.mold.board_mold.main()
+            result = self.service.preprocess.board_mold.main()
             if result == False:
                 return False
 

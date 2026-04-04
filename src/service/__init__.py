@@ -2,7 +2,7 @@ import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from .collect import Collect
-from .mold import Mold
+from .preprocess import Preprocess
 from .trade import Trade
 
 
@@ -21,8 +21,8 @@ class Service():
         # データ収集に関するクラス群
         self.collect = Collect(api_headers, api_url, ws_url, conn)
 
-        # データ成形に関するクラス群
-        self.mold = Mold()
+        # データ前処理に関するクラス群
+        self.preprocess = Preprocess()
 
         # 取引に関するクラス群（凍結中）
         self.trade = Trade(api_headers, api_url, ws_url, conn)

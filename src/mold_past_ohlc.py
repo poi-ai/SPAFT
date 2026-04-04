@@ -9,7 +9,7 @@ class MoldPastOhlc(Base):
         self.output_csv_dir = os.path.join(os.path.dirname(__file__), '..',  'csv', 'past_ohlc')
         self.tmp_csv_dir = os.path.join(os.path.dirname(__file__), '..',  'csv', 'past_ohlc', 'tmp')
         self.formatted_csv_dir = os.path.join(os.path.dirname(__file__), '..',  'csv', 'past_ohlc', 'formatted')
-        self.logic = self.service.mold.past_record_mold
+        self.logic = self.service.preprocess.past_record_mold
 
     def main(self):
         '''メイン処理'''

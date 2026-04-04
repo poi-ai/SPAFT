@@ -2,7 +2,7 @@ from .board_mold import BoardMold
 from .past_record_mold import MoldPastRecord
 
 
-class Mold():
+class Preprocess():
     def __init__(self):
         # 板情報CSVを成形するクラス
         self.board_mold = BoardMold()
