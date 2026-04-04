@@ -11,7 +11,7 @@ class PastOhlc(Base):
         self.target_stock_code_list = config.RECORD_OHLC_STOCK_CODE_LIST
         self.target_days = config.RECORD_OHLC_DAYS
         self.output_csv_dir = os.path.join(os.path.dirname(__file__), '..',  'csv', 'past_ohlc')
-        self.logic = self.service.past_record
+        self.logic = self.service.collect.past_record
 
     def main(self):
         '''メイン処理'''

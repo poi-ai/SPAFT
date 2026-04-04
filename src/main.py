@@ -8,7 +8,7 @@ class Main(Base):
         super().__init__()
 
         # 取引関連の処理のサービスクラス
-        self.logic = self.service.trade
+        self.logic = self.service.trade.scalping
 
     def main(self):
         self.log.info('SPAFT起動')
