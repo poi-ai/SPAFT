@@ -9,7 +9,7 @@ Fintech または Premium プランが必須。
 
 ## プラットフォーム制約
 
-**Windowsのみ動作する。** KabuStation（kabuステーション）デスクトップアプリがWindows専用のため。
+**Windowsのみ動作する。** KabuStation（かぶステーション）デスクトップアプリがWindows専用のため。
 Linuxへの移植、Dockerコンテナ化、クロスプラットフォーム対応は提案しないこと。
 
 ## 実行コマンド
@@ -217,6 +217,35 @@ MySQL 8.0、DB名: `spaft`
 | `cash_margin` | 3 | 信用新規 |
 | `cash_margin` | 4 | 信用返済 |
 
+## ブランチ運用ルール
+
+```
+master  ← 本番リリース用（直接コミット禁止）
+  ↑
+test    ← 結合テスト用（PRはここに受ける）
+  ↑
+dev     ← 開発ベースブランチ
+  ↑
+#{{issue番号}}  ← 作業ブランチ（例: #29）
+```
+
+### 作業手順
+
+1. **ブランチ作成**: `dev` から `#{{issue番号}}` ブランチを切る
+   ```bash
+   git checkout dev
+   git checkout -b '#29'
+   ```
+2. **作業・コミット**: `#{{issue番号}}` ブランチ上で作業しコミット
+3. **プッシュ**: `#{{issue番号}}` ブランチを remote に push
+4. **PR作成**: `#{{issue番号}}` → `test` へのPRを作成する（`master` や `dev` への直接PRは禁止）
+
+### 注意事項
+
+- `master` / `test` / `dev` への直接コミット・直接 force push は禁止
+- PRは必ず `test` ブランチに向けて作成すること
+- ブランチ名はGitHub Issue番号に合わせて `#{{issue番号}}` とする
+
 ## コーディング規約
 
 - **コメント・ログメッセージは日本語で書く**（既存コード全体が日本語）
@@ -224,7 +253,7 @@ MySQL 8.0、DB名: `spaft`
   - 成功: `(True, 結果値)`
   - 失敗: `(False, エラーメッセージ or エラーコード)`
 - エラー処理: `self.error_output(message, e, traceback.format_exc())` を使う
-  - 自動でログ出力 + LINE Notify 通知（トークンが設定されている場合）
+  - 自動でログ出力 + LINE Messaging API通知（`config.LINE_MESSAGING_API_TOKEN` が設定されている場合）
 - ログ出力: `self.log.info()`, `self.log.error()`, `self.log.warning()`
   - ログファイルは `log/YYYYMMDD.log` に出力
 - 新規 Service クラスは `ServiceBase` を継承し、コンストラクタで `api_headers, api_url, ws_url, conn` を受け取る
