@@ -1,6 +1,7 @@
 import csv
 import os
 import py7zr
+import traceback
 
 class FileManager():
     '''ファイルの入力・出力を行うクラス'''
@@ -24,7 +25,7 @@ class FileManager():
             with open(file_path, 'r', encoding = 'utf-8') as f:
                 data = f.readlines()
         except Exception as e:
-            self.log.error(f'CSVファイル読み込みでエラー\nファイルパス: {file_path}\n{e}')
+            self.log.error(f'CSVファイル読み込みでエラー\nファイルパス: {file_path}\n{e}\n{traceback.format_exc()}')
             return False, e
 
         self.log.info(f'CSVファイル読み込み処理終了 ファイルパス: {file_path}')
@@ -55,7 +56,7 @@ class FileManager():
 
                 writer.writerow(data)
         except Exception as e:
-            self.log.error(f'CSVファイル書き込みでエラー\nファイルパス: {file_path}\n{e}')
+            self.log.error(f'CSVファイル書き込みでエラー\nファイルパス: {file_path}\n{e}\n{traceback.format_exc()}')
             return False, e
 
         self.log.info(f'CSVファイル書き込み処理終了')
@@ -78,7 +79,7 @@ class FileManager():
         try:
             os.rename(src_path, dst_path)
         except Exception as e:
-            self.log.error(f'ファイル移動でエラー\n移動元: {src_path}\n移動先: {dst_path}\n{e}')
+            self.log.error(f'ファイル移動でエラー\n移動元: {src_path}\n移動先: {dst_path}\n{e}\n{traceback.format_exc()}')
             return False, e
 
         self.log.info(f'ファイル移動処理終了')
@@ -115,7 +116,7 @@ class FileManager():
                     archive.write(file_path, arcname=os.path.basename(file_path))
 
         except Exception as e:
-            self.log.error(f'CSVファイルの圧縮処理でエラー\nディレクトリ: {directory}\n出力ファイル: {output_file}\n{e}')
+            self.log.error(f'CSVファイルの圧縮処理でエラー\nディレクトリ: {directory}\n出力ファイル: {output_file}\n{e}\n{traceback.format_exc()}')
             return False, e
 
         # 圧縮成功後に元のCSVファイルを削除する
@@ -123,7 +124,7 @@ class FileManager():
             for file_path in csv_files:
                 os.remove(file_path)
         except Exception as e:
-            self.log.error(f'元のCSVファイルの削除処理でエラー\n{e}')
+            self.log.error(f'元のCSVファイルの削除処理でエラー\n{e}\n{traceback.format_exc()}')
             return False, e
 
         self.log.info(f'CSVファイル圧縮処理終了')

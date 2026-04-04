@@ -59,6 +59,6 @@ class Api_Process():
                     return []
 
         except Exception as e:
-            self.log.error('APIプロセス管理テーブル取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'APIプロセス管理テーブル取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 

@@ -1,5 +1,6 @@
 import sys
 import time
+import traceback
 from service_base import ServiceBase
 
 class Scalping(ServiceBase):
@@ -542,7 +543,7 @@ class Scalping(ServiceBase):
             try:
                 return response['MarginAccountWallet']
             except Exception as e:
-                self.log.error(f'信用余力情報の取り出しに失敗\n{e}')
+                self.log.error(f'信用余力情報の取り出しに失敗\n{e}\n{traceback.format_exc()}')
                 return False
         else:
             self.log.error(response)
@@ -584,7 +585,7 @@ class Scalping(ServiceBase):
                 return premium_info
 
             except Exception as e:
-                self.log.error(f'信用余力情報の取り出しに失敗\n{e}')
+                self.log.error(f'信用余力情報の取り出しに失敗\n{e}\n{traceback.format_exc()}')
                 return False
         else:
             self.log.error(response)
@@ -981,7 +982,7 @@ class Scalping(ServiceBase):
 
             return board_detail_info
         except Exception as e:
-            self.log.error(f'板情報分析処理でエラー\n{e}')
+            self.log.error(f'板情報分析処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def buy_order(self, stock_price):
