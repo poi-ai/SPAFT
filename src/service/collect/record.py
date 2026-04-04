@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import time
+import traceback
 import websockets
 import pytz
 from service_base import ServiceBase
@@ -151,7 +152,7 @@ class Record(ServiceBase):
                     break
 
                 except Exception as e:
-                    self.log.error(f'PUSH配信の受信処理でエラー\n{e}')
+                    self.log.error(f'PUSH配信の受信処理でエラー\n{e}\n{traceback.format_exc()}')
                     error_counter += 1
                     if error_counter >= 15:
                         self.log.error('エラーが続いたためWebSocket接続を終了します')
@@ -204,7 +205,7 @@ class Record(ServiceBase):
                         recorded_ohlc_data = ohlc
                         break
                 except Exception as e:
-                    self.log.error(f'メモリのチェック処理でエラー\n{e}')
+                    self.log.error(f'メモリのチェック処理でエラー\n{e}\n{traceback.format_exc()}')
                     self.log.error(f'ohlc[trade_time]: {ohlc["trade_time"]}')
                     self.log.error(f'reception_data[CurrentPriceMinute]: {reception_data["CurrentPriceMinute"]}')
                     continue
@@ -254,7 +255,7 @@ class Record(ServiceBase):
                     self.ohlc_list.remove(ohlc)
                     break
             except Exception as e:
-                self.log.error(f'メモリの更新処理でエラー\n{e}')
+                self.log.error(f'メモリの更新処理でエラー\n{e}\n{traceback.format_exc()}')
                 self.log.error(f'ohlc[trade_time]: {ohlc["trade_time"]}')
                 self.log.error(f'new_ohlc_data[trade_time]: {new_ohlc_data["trade_time"]}')
                 continue

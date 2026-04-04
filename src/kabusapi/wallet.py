@@ -25,7 +25,7 @@ class Wallet():
         try:
             response = requests.get(url, headers = self.api_headers)
         except Exception as e:
-            self.log.error(f'現物余力情報取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'現物余力情報取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
         if response.status_code != 200:

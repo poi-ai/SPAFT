@@ -96,7 +96,7 @@ class Orders():
 
                 return rows
         except Exception as e:
-            self.log.error('注文テーブル取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'注文テーブル取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def insert(self, data):
@@ -178,7 +178,7 @@ class Orders():
 
             return True
         except Exception as e:
-            self.log.error('注文テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            self.log.error(f'注文テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def update_status(self, order_id, status):
@@ -212,5 +212,5 @@ class Orders():
 
             return True
         except Exception as e:
-            self.log.error(f'注文テーブルのステータス更新処理でエラー', e, traceback.format_exc())
+            self.log.error(f'注文テーブルのステータス更新処理でエラー\n{e}\n{traceback.format_exc()}')
             return False

@@ -3,6 +3,7 @@ import asyncio
 import config
 import json
 import time
+import traceback
 from base import Base
 
 class ReceptionWebsocket(Base):
@@ -24,7 +25,7 @@ class ReceptionWebsocket(Base):
             # 後場
             await self.service.collect.record.websocket_main(2)
         except Exception as e:
-            self.log.error(f'WebSocket接続でエラー\n{e}')
+            self.log.error(f'WebSocket接続でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
 if __name__ == "__main__":

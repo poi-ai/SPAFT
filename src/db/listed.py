@@ -53,7 +53,7 @@ class Listed():
                     return []
 
         except Exception as e:
-            self.log.error('上場コードテーブル取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'上場コードテーブル取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def insert(self, stock_code, listed_flg):
@@ -92,7 +92,7 @@ class Listed():
 
             return True
         except Exception as e:
-            self.log.error('上場情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            self.log.error(f'上場情報テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def update(self, stock_code, listed_flg):
@@ -125,7 +125,7 @@ class Listed():
 
             return True
         except Exception as e:
-            self.log.error(f'上場情報テーブルのステータス更新処理でエラー', e, traceback.format_exc())
+            self.log.error(f'上場情報テーブルのステータス更新処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def delete(self, stock_code):
@@ -155,5 +155,5 @@ class Listed():
 
             return True
         except Exception as e:
-            self.log.error(f'上場コードテーブルの削除処理でエラー', e, traceback.format_exc())
+            self.log.error(f'上場コードテーブルの削除処理でエラー\n{e}\n{traceback.format_exc()}')
             return False

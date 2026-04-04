@@ -49,7 +49,7 @@ class Errors():
                     return 0
 
         except Exception as e:
-            self.log.error('エラー件数取得処理でエラー', e, traceback.format_exc())
+            self.log.error(f'エラー件数取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
     def insert(self, content):
@@ -84,6 +84,6 @@ class Errors():
 
             return True
         except Exception as e:
-            self.log.error('エラー情報テーブルへのレコード追加処理でエラー', e, traceback.format_exc())
+            self.log.error(f'エラー情報テーブルへのレコード追加処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 

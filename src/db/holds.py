@@ -74,7 +74,7 @@ class Holds():
 
                 return True, rows
         except Exception as e:
-            self.log.error()
+            self.log.error(f'保有株テーブル取得処理でエラー\n{e}\n{traceback.format_exc()}')
             return False, f'保有株テーブル取得処理でエラー\n{e}\n{traceback.format_exc()}'
 
     def insert(self, data):
