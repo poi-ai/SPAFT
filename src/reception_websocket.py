@@ -12,17 +12,17 @@ class ReceptionWebsocket(Base):
 
     async def main(self):
         # 初期処理(営業日判定/登録済銘柄の解除/PUSH配信を受ける銘柄の登録)
-        record_init = self.service.record.record_init(config.RECORD_STOCK_CODE_LIST, config.BOARD_RECORD_DEBUG, push_mode = True)
+        record_init = self.service.collect.record.record_init(config.RECORD_STOCK_CODE_LIST, config.BOARD_RECORD_DEBUG, push_mode = True)
         if record_init == False:
             return False
 
         # WebSocket接続/PUSH配信の受信/データのDB登録
         try:
             # 前場
-            await self.service.record.websocket_main(1)
+            await self.service.collect.record.websocket_main(1)
 
             # 後場
-            await self.service.record.websocket_main(2)
+            await self.service.collect.record.websocket_main(2)
         except Exception as e:
             self.log.error(f'WebSocket接続でエラー\n{e}')
             return False

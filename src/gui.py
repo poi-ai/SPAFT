@@ -419,7 +419,7 @@ class StockOrderApp(Base):
             order_info['ExpireDay'] = expire_day
 
         # 注文リクエスト送信
-        result, response = self.service.trade.direct_order(order_info)
+        result, response = self.service.trade.scalping.direct_order(order_info)
         if result:
             messagebox.showinfo('成功', f'注文が成功しました。\n受付注文番号: {response.get("OrderId", "不明")}')
         else:

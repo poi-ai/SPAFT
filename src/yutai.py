@@ -12,7 +12,7 @@ class Yutai(Base):
 
     def main(self):
         # メイン処理 TODO 引数にパスワードを入れろ
-        self.service.trade.yutai_settlement(config.TRADE_PASSWORD)
+        self.service.trade.scalping.yutai_settlement(config.TRADE_PASSWORD)
 
         return
 
