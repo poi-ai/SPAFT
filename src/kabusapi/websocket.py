@@ -23,6 +23,6 @@ class Websocket():
         try:
             handler = await websockets.connect(url, ping_timeout = None)
         except Exception as e:
-            self.log.error(f'Websocket接続確率処理でエラー\n{e}')
+            self.log.error(f'Websocket接続確率処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
         return handler

@@ -59,7 +59,7 @@ class Db():
                 db = db_info['db']
             )
         except Exception as e:
-            self.log.error(f'データベースに接続できません\n{e}')
+            self.log.error(f'データベースに接続できません\n{e}\n{traceback.format_exc()}')
             return False
 
         return conn
@@ -86,7 +86,7 @@ class Db():
             self.conn.commit()
             self.log.info('コミット完了!')
         except Exception as e:
-            self.log.error('コミットでエラー', e, traceback.format_exc())
+            self.log.error(f'コミットでエラー\n{e}\n{traceback.format_exc()}')
             self.rollback()
             return
 
@@ -97,5 +97,5 @@ class Db():
             self.conn.rollback()
             self.log.info('ロールバック完了!')
         except Exception as e:
-            self.log.error('ロールバックでエラー', e, traceback.format_exc())
+            self.log.error(f'ロールバックでエラー\n{e}\n{traceback.format_exc()}')
             return

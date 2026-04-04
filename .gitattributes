@@ -1,0 +1,11 @@
+# すべてのテキストファイルの改行文字を CRLF に統一する
+* text=auto eol=crlf
+
+# バイナリファイルは変換しない
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.7z binary
+*.cbm binary
