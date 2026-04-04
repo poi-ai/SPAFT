@@ -1,12 +1,9 @@
 import os, sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from .collect.record import Record
-from .collect.past_record import PastRecord
-from .mold.board_mold import BoardMold
-from .mold.past_record_mold import MoldPastRecord
-from .trade.trade import Trade
-from .trade.simulation import Simulation
+from .collect import Record, PastRecord
+from .mold import BoardMold, MoldPastRecord
+from .trade import Trade, Simulation
 
 
 class Service():
