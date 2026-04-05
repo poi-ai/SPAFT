@@ -85,7 +85,7 @@ for param, description in REQUIRED_PARAMS:
         # サンプル値のままでないか確認
         if param == 'DB_PASSWORD' and value == 'password':
             check_ng(f'{param}（{description}）がサンプル値のまま → 実際のパスワードに変更すること')
-        elif param == 'API_PASSWORD' and value == 'production':
+        elif param == 'API_PASSWORD' and value == 'password':
             check_ng(f'{param}（{description}）がサンプル値のまま → KabuStationで設定したAPIパスワードに変更すること')
         elif param == 'TRADE_PASSWORD' and value == 'password':
             check_ng(f'{param}（{description}）がサンプル値のまま → 実際の取引パスワードに変更すること')
