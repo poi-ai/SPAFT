@@ -10,7 +10,7 @@ CREATE TABLE orders (
     cash_margin VARCHAR(1) NOT NULL COMMENT '信用区分(1: 現物買、2: 現物売、3: 信用新規、4:信用返済)',
     margin_type VARCHAR(1) NOT NULL COMMENT '信用取引区分(0: 現物、1: 制度信用、2: 一般信用(長期)、3: 一般信用(デイトレ))',
     fee FLOAT(6, 1) DEFAULT NULL COMMENT '取引手数料',
-    interest FLOAT(7, 1) DEFAULT COMMENT '金利',
+    interest FLOAT(7, 1) DEFAULT NULL COMMENT '金利',
     profit FLOAT(8, 1) DEFAULT NULL COMMENT '損益額(決済注文のみ、新規注文は0)',
     status VARCHAR(1) NOT NULL COMMENT '注文ステータス(0: 未約定(=注文中)、1: 約定済、2: 取消中、3: 取消済)',
     order_date DATETIME NOT NULL COMMENT '注文日時',
