@@ -198,7 +198,7 @@ NTPサーバーのフォールバック順: `ntp.jst.mfeed.ad.jp` → `time.clou
 
 ## データベーススキーマ概要
 
-MySQL 8.0、DB名: `spaft`
+MySQL 8.0 / 8.4、DB名: `spaft`
 
 | テーブル | 目的 |
 |---|---|

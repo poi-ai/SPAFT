@@ -163,9 +163,22 @@ try:
             user=config.DB_USER,
             password=config.DB_PASSWORD,
             database=config.DB_NAME,
+            charset='utf8mb4',
             connect_timeout=5
         )
-        check_ok(f'MySQLへの接続に成功した（{config.DB_HOST} / DB: {config.DB_NAME}）')
+
+        # バージョン確認
+        with conn.cursor() as cursor:
+            cursor.execute('SELECT VERSION()')
+            mysql_version = cursor.fetchone()[0]
+
+        major, minor = int(mysql_version.split('.')[0]), int(mysql_version.split('.')[1])
+        if (major == 8 and minor in (0, 4)) or major > 8:
+            check_ok(f'MySQLへの接続に成功した（{config.DB_HOST} / DB: {config.DB_NAME} / バージョン: {mysql_version}）')
+        elif major == 8:
+            check_ok(f'MySQLへの接続に成功した（バージョン: {mysql_version}） ※動作確認済みは 8.0 / 8.4')
+        else:
+            check_ng(f'MySQLのバージョンが対応外（{mysql_version}） → 8.0 または 8.4 を使用すること')
 
         # テーブル存在チェック
         with conn.cursor() as cursor:
