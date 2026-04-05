@@ -144,7 +144,7 @@ section('4. MySQL疎通・テーブル')
 
 REQUIRED_TABLES = [
     'api_process',
-    'board',
+    'boards',
     'buying_power',
     'errors',
     'holds',
