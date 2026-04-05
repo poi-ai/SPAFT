@@ -9,7 +9,7 @@ import pytz
 from service_base import ServiceBase
 from datetime import datetime, timedelta, timezone
 
-class Record(ServiceBase):
+class CollectService(ServiceBase):
     '''データ取得に関するServiceクラス'''
     def __init__(self, api_headers, api_url, ws_url, conn):
         super().__init__(api_headers, api_url, ws_url, conn)
