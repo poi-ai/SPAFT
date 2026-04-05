@@ -18,9 +18,10 @@ Linuxへの移植、Dockerコンテナ化、クロスプラットフォーム対
 
 ```bash
 cd src
-python main.py              # スキャルピングメイン処理
-python gui.py               # GUI注文ツール
-python board_record.py      # 板情報記録
+python main.py                    # スキャルピングメイン処理
+python gui.py                     # GUI注文ツール
+python board_rest_collector.py    # REST APIポーリングで板情報スナップショットを記録（boards テーブル or CSV）
+python ohlc_push_collector.py     # WebSocket PUSHで1分足OHLCを収集（ohlc テーブル）
 python yutai.py [証券コード] [株数] [信用種別]  # 信用返済成行注文
 ```
 
@@ -41,7 +42,7 @@ python src/analytics/catboost_reg.py
 ## アーキテクチャ — 呼び出し方向の制約
 
 ```
-Controller (src/main.py, gui.py, board_record.py, yutai.py)
+Controller (src/main.py, gui.py, board_rest_collector.py, ohlc_push_collector.py, yutai.py)
     ↓ 継承
 Base (src/base.py)
     ↓ インスタンス生成

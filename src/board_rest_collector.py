@@ -3,8 +3,8 @@ import json
 import time
 from base import Base
 
-class BoardRecord(Base):
-    '''板情報をDBに保存するための処理のテストコード'''
+class BoardRestCollector(Base):
+    '''REST APIポーリングで板情報スナップショットを収集し、DBまたはCSVに記録する'''
     def __init__(self):
         # 初期設定(親クラスのinit実行と、記録先に応じてDB接続を行う)
         if config.BOARD_RECORD_DB == 1:
@@ -110,5 +110,5 @@ class BoardRecord(Base):
         return True
 
 if __name__ == '__main__':
-    m = BoardRecord()
+    m = BoardRestCollector()
     m.main()
