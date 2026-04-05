@@ -78,9 +78,10 @@ class OhlcExport(ServiceBase):
             self.log.warning(f'ohlcレコードが存在しません 銘柄コード: {symbol} 対象日: {target_date}')
             return True
 
-        # DataFrameに変換
+        # DataFrameに変換（DB管理用カラムは除外）
         df = pd.DataFrame(rows)
         df['trade_time'] = pd.to_datetime(df['trade_time'])
+        df = df.drop(columns=[col for col in ['id', 'created_at', 'updated_at'] if col in df.columns])
         df = df.sort_values('trade_time').reset_index(drop=True)
 
         # 1分足CSVを出力
@@ -124,6 +125,7 @@ class OhlcExport(ServiceBase):
         try:
             df_indexed = df.set_index('trade_time')
             resampled = df_indexed.resample(freq).agg({
+                'symbol':       'first',
                 'open_price':   'first',
                 'high_price':   'max',
                 'low_price':    'min',
