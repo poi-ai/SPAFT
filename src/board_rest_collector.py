@@ -19,7 +19,7 @@ class BoardRestCollector(Base):
         self.debug = config.BOARD_RECORD_DEBUG
 
         # 営業日判定/登録済銘柄の解除/取得対象銘柄の登録
-        result, self.target_code_list = self.service.collect.collect_service.record_init(self.target_code_list, self.debug)
+        result, self.target_code_list = self.service.collect.record.record_init(self.target_code_list, self.debug)
 
         # 非営業日の場合
         if result == False:
@@ -59,7 +59,7 @@ class BoardRestCollector(Base):
             # 1銘柄ごとにチェック
             for stock_code in self.target_code_list:
                 # 板情報をAPI経由で取得する
-                result, board_info = self.service.collect.collect_service.info_board(stock_code = stock_code, market_code = 1, add_info = True)
+                result, board_info = self.service.collect.record.info_board(stock_code = stock_code, market_code = 1, add_info = True)
                 if result == False:
                     continue
 
@@ -72,7 +72,7 @@ class BoardRestCollector(Base):
                     board_table_dict = self.util.mold.response_to_boards(board_info)
                     if board_table_dict != False:
                         # 板情報を学習用テーブルに追加
-                        result = self.service.collect.collect_service.insert_board(board_table_dict)
+                        result = self.service.collect.record.insert_board(board_table_dict)
                         if result == False:
                             continue
                 # CSV記録モードの場合
@@ -83,7 +83,7 @@ class BoardRestCollector(Base):
                         continue
 
                     # 板情報をCSVに記録
-                    result = self.service.collect.collect_service.record_board_csv(board_info_dict)
+                    result = self.service.collect.record.record_board_csv(board_info_dict)
                     if result == False:
                         continue
 
