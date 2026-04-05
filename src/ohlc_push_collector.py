@@ -28,6 +28,13 @@ class OhlcPushCollector(Base):
             self.log.error(f'WebSocket接続でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
+        # 大引け後バッチ: ohlcテーブル → CSV出力(1分/3分/5分足) → 7z圧縮 → DB削除
+        result = self.service.collect.ohlc_export.export(
+            target_code_list, self.service.collect.record.today
+        )
+        if result == False:
+            return False
+
 if __name__ == "__main__":
     rw = OhlcPushCollector()
     asyncio.run(rw.main())
