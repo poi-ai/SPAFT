@@ -65,7 +65,8 @@ class Base():
                     'host': config.DB_HOST,
                     'user': config.DB_USER,
                     'password': config.DB_PASSWORD,
-                    'db': config.DB_NAME
+                    'db': config.DB_NAME,
+                    'charset': 'utf8mb4'
                 }
             except Exception as e:
                 self.log.error(f'MySQLの接続情報取得処理でエラー\n{e}\n{traceback.format_exc()}')
