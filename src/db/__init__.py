@@ -56,7 +56,8 @@ class Db():
                 host = db_info['host'],
                 user = db_info['user'],
                 password = db_info['password'],
-                db = db_info['db']
+                db = db_info['db'],
+                charset = db_info.get('charset', 'utf8mb4')
             )
         except Exception as e:
             self.log.error(f'データベースに接続できません\n{e}\n{traceback.format_exc()}')

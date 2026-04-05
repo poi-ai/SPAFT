@@ -12,7 +12,7 @@ LINE_MESSAGING_API_TOKEN = ''
 
 # APIに設定したパスワード(≠取引パスワード)
 # KabuStationアプリ > 設定 > API で設定したパスワード
-API_PASSWORD = 'production'
+API_PASSWORD = 'password'
 
 # 取引用パスワード
 TRADE_PASSWORD = 'password'
