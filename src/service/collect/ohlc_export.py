@@ -81,7 +81,7 @@ class OhlcExport(ServiceBase):
         # DataFrameに変換（DB管理用カラムは除外）
         df = pd.DataFrame(rows)
         df['trade_time'] = pd.to_datetime(df['trade_time'])
-        df = df.drop(columns=[col for col in ['id', 'created_at', 'updated_at'] if col in df.columns])
+        df = df.drop(columns=[col for col in ['id', 'status', 'created_at', 'updated_at'] if col in df.columns])
         df = df.sort_values('trade_time').reset_index(drop=True)
 
         # 1分足CSVを出力
@@ -131,8 +131,7 @@ class OhlcExport(ServiceBase):
                 'low_price':    'min',
                 'close_price':  'last',
                 'volume':       'sum',
-                'total_volume': 'last',
-                'status':       'last'
+                'total_volume': 'last'
             }).dropna(subset=['open_price'])
             resampled = resampled.reset_index()
             return resampled
