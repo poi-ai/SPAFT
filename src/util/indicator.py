@@ -32,15 +32,13 @@ class Indicator():
                 df_resampled = df[[price_column_name]].copy()
 
             # SMAの計算・カラムを追加
+            # window_size - 1番目までのデータでは計算ができずNaNになるが、NaNのままとする
             df_resampled[column_name] = df_resampled[price_column_name].rolling(window=window_size).mean().round(1)
-
-            # window_size - 1番目までのデータでは計算ができずNaNになるので-1で埋める
-            df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
-            # 2分足以上の場合は間の数値を前のSMAで埋める
+            # 2分足以上の場合は間の数値を前のSMAで埋める（初期NaN行はffillしても埋まらない）
             df[column_name].fillna(method='ffill', inplace=True)
 
         except Exception as e:
@@ -74,10 +72,8 @@ class Indicator():
                 df_resampled = df[[price_column_name]].copy()
 
             # EMAの計算・カラムを追加
+            # ewmは1行目から値が出るためNaNは発生しない
             df_resampled[column_name] = df_resampled[price_column_name].ewm(span = window_size).mean().round(1)
-
-            # window_size - 1番目のデータでは計算ができずNaNになるので-1で埋める
-            df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
@@ -116,16 +112,14 @@ class Indicator():
                 df_resampled = df[[price_column_name]].copy()
 
             # WMAの計算・カラムを追加
+            # window_size - 1番目までのデータでは計算ができずNaNになるが、NaNのままとする
             weights = np.arange(1, window_size + 1)
             df_resampled[column_name] = df_resampled[price_column_name].rolling(window = window_size).apply(lambda x: np.dot(x, weights) / weights.sum(), raw = True).round(1)
-
-            # window_size - 1番目までのデータでは計算ができずNaNになるので-1で埋める
-            df_resampled[column_name].fillna(-1, inplace=True)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
-            # 2分足以上の場合は間の数値を前のWMAで埋める
+            # 2分足以上の場合は間の数値を前のWMAで埋める（初期NaN行はffillしても埋まらない）
             df[column_name].fillna(method='ffill', inplace=True)
 
         except Exception as e:
@@ -242,14 +236,14 @@ class Indicator():
             # 追加対象のカラム名
             add_columns = []
 
-            # +3α~-3αを計算してカラムに追加する
+            # +3σ~-3σを計算してカラムに追加する
             for sigma in [1, 2, 3]:
-                df_resampled[f'{column_name}_upper_{sigma}_alpha'] = (df_resampled['sma_tmp'] + (df_resampled['sigma_tmp'] * sigma)).round(1)
-                df_resampled[f'{column_name}_lower_{sigma}_alpha'] = (df_resampled['sma_tmp'] - (df_resampled['sigma_tmp'] * sigma)).round(1)
+                df_resampled[f'{column_name}_upper_{sigma}sigma'] = (df_resampled['sma_tmp'] + (df_resampled['sigma_tmp'] * sigma)).round(1)
+                df_resampled[f'{column_name}_lower_{sigma}sigma'] = (df_resampled['sma_tmp'] - (df_resampled['sigma_tmp'] * sigma)).round(1)
 
-                add_columns.extend([f'{column_name}_upper_{sigma}_alpha', f'{column_name}_lower_{sigma}_alpha'])
+                add_columns.extend([f'{column_name}_upper_{sigma}sigma', f'{column_name}_lower_{sigma}sigma'])
 
-            # バンド(α)の幅を計算
+            # バンド(±1σ)の幅を計算
             df_resampled[f'{column_name}_width'] = (df_resampled['sigma_tmp'] * 2).round(3)
             add_columns.append(f'{column_name}_width')
 
@@ -258,12 +252,14 @@ class Indicator():
             add_columns.append(f'{column_name}_width_diff')
 
             # 価格とバンドの差を計算
-            df_resampled[f'{column_name}_upper_diff'] = (df_resampled[price_column_name] - df_resampled[f'{column_name}_upper_1_alpha']).round(3)
-            df_resampled[f'{column_name}_lower_diff'] = (df_resampled[f'{column_name}_lower_1_alpha'] - df_resampled[price_column_name]).round(3)
+            # upper_diff: 価格 - 上限(+1σ)。正値なら上限を超えている（買われすぎ方向）
+            # lower_diff: 下限(-1σ) - 価格。正値なら下限を割り込んでいる（売られすぎ方向）
+            df_resampled[f'{column_name}_upper_diff'] = (df_resampled[price_column_name] - df_resampled[f'{column_name}_upper_1sigma']).round(3)
+            df_resampled[f'{column_name}_lower_diff'] = (df_resampled[f'{column_name}_lower_1sigma'] - df_resampled[price_column_name]).round(3)
             add_columns.extend([f'{column_name}_upper_diff', f'{column_name}_lower_diff'])
 
-            # バンド内での位置を計算 αの場合は1、-αの場合は0になる
-            df_resampled[f'{column_name}_position'] = ((df_resampled[price_column_name] - df_resampled[f'{column_name}_lower_1_alpha']) / df_resampled[f'{column_name}_width']).round(3)
+            # バンド内での位置を計算 +1σの場合は1、-1σの場合は0になる
+            df_resampled[f'{column_name}_position'] = ((df_resampled[price_column_name] - df_resampled[f'{column_name}_lower_1sigma']) / df_resampled[f'{column_name}_width']).round(3)
             add_columns.append(f'{column_name}_position')
 
             # 元のデータフレームにリサンプリングされたデータをマージ
@@ -309,11 +305,11 @@ class Indicator():
             # 前日との差分を計算
             df_resampled['diff'] = df_resampled[price_column_name].diff()
 
-            # 前日との差分がプラスならその値、マイナスなら0を設定
-            df_resampled['up'] = df_resampled['diff'].apply(lambda x: x if x > 0 else 0)
+            # 前日との差分がプラスならその値、マイナスなら0を設定（NaNはNaNのまま伝播）
+            df_resampled['up'] = df_resampled['diff'].apply(lambda x: np.nan if pd.isna(x) else (x if x > 0 else 0))
 
-            # 前日との差分がマイナスならその値、プラスなら0を設定
-            df_resampled['down'] = df_resampled['diff'].apply(lambda x: abs(x) if x < 0 else 0)
+            # 前日との差分がマイナスならその値、プラスなら0を設定（NaNはNaNのまま伝播）
+            df_resampled['down'] = df_resampled['diff'].apply(lambda x: np.nan if pd.isna(x) else (abs(x) if x < 0 else 0))
 
             # 平均上昇幅と平均下降幅を計算
             df_resampled['up_mean'] = df_resampled['up'].rolling(window = window_size).mean()
@@ -449,8 +445,8 @@ class Indicator():
 
             # MACDとMACDシグナルの差(ヒストグラム)を計算
             df_resampled[macd_histogram] = (df_resampled[macd] - df_resampled[macd_signal]).round(3)
-            df_resampled[f'{macd_histogram}_flag'] = df_resampled[macd_histogram].apply(lambda x: 1 if x > 0 else 0)
-            add_columns.extend([macd_histogram, f'{macd_histogram}_flag'])
+            df_resampled[f'{macd}_hist_positive'] = df_resampled[macd_histogram].apply(lambda x: 1 if x > 0 else 0)
+            add_columns.extend([macd_histogram, f'{macd}_hist_positive'])
 
             # ゴールデンクロス・デッドクロスのフラグ
             df_resampled[f'{macd}_cross'] = 0
@@ -460,14 +456,14 @@ class Indicator():
 
             # TODO クロス後の転換シグナルなしフラグ
 
-            # MACDとMACDシグナルの傾きを計算
+            # MACDとMACDシグナルの傾きを計算（N本前との差）
             for count in [1, 3, 5, 10]:
                 # 幅が長すぎるとデータが取れないのでスキップ
                 if interval * count >= 300:
                     continue
-                df_resampled[f'{macd}_{count}_slope'] = (df_resampled[macd].diff(count)).round(3)
-                df_resampled[f'{macd_signal}_{count}_slope'] = (df_resampled[macd_signal].diff(count)).round(3)
-                add_columns.extend([f'{macd}_{count}_slope', f'{macd_signal}_{count}_slope'])
+                df_resampled[f'{macd}_slope_{count}bar'] = (df_resampled[macd].diff(count)).round(3)
+                df_resampled[f'{macd_signal}_slope_{count}bar'] = (df_resampled[macd_signal].diff(count)).round(3)
+                add_columns.extend([f'{macd}_slope_{count}bar', f'{macd_signal}_slope_{count}bar'])
 
             # MACDの傾きと価格の傾きの不一致(ダイバージェンス)フラグ
             df_resampled[f'{macd}_mismatch'] = (df_resampled[macd].diff() * df_resampled[price_column_name].diff()).apply(lambda x: 1 if x < 0 else 0)
@@ -521,8 +517,8 @@ class Indicator():
             # 前日との差分を計算
             df_resampled['diff'] = df_resampled[price_column_name].diff()
 
-            # 前日との差分がプラスなら1、マイナスなら0を設定
-            df_resampled['up'] = df_resampled['diff'].apply(lambda x: 1 if x > 0 else 0)
+            # 前日との差分がプラスなら1、マイナスなら0を設定（NaNはNaNのまま伝播）
+            df_resampled['up'] = df_resampled['diff'].apply(lambda x: np.nan if pd.isna(x) else (1 if x > 0 else 0))
 
             # PSYを計算
             df_resampled[column_name] = (df_resampled['up'].rolling(window = window_size).sum() / window_size * 100).round(1)
@@ -621,16 +617,20 @@ class Indicator():
                 sar_list.append(sar.round(4))
 
             df_resampled[column_name] = sar_list
-            column_name_flag = f'{column_name}_flag'
-            # SARが一つ前のSARよりも高い場合は1、低い場合は0
-            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
+            column_name_up_trend = f'{column_name}_up_trend'
+            column_name_reverse_flag = f'{column_name}_reverse_flag'
+            # SARが一つ前のSARよりも高い場合は1（上昇トレンド）、低い場合は0
+            df_resampled[column_name_up_trend] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
+            # トレンドが反転した場合は1、そうでない場合は0
+            df_resampled[column_name_reverse_flag] = (df_resampled[column_name_up_trend] != df_resampled[column_name_up_trend].shift()).astype(int)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
-            df = df.merge(df_resampled[[column_name, column_name_flag]], left_index=True, right_index=True, how='left')
+            df = df.merge(df_resampled[[column_name, column_name_up_trend, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
             df[column_name].fillna(method='ffill', inplace=True)
-            df[column_name_flag].fillna(method='ffill', inplace=True)
+            df[column_name_up_trend].fillna(method='ffill', inplace=True)
+            df[column_name_reverse_flag].fillna(method='ffill', inplace=True)
 
         except Exception as e:
             self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -638,17 +638,22 @@ class Indicator():
 
         return True, df
 
-    def get_parabolic_hlc(self, df, column_name, min_af, max_af, interval):
+    def get_parabolic_hlc(self, df, column_name, min_af, max_af, interval,
+                          high_column_name = 'high', low_column_name = 'low', close_column_name = 'close'):
         '''
         パラボリック(SAR)を計算してカラムに追加する(三本値から算出)
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※high, low, closeカラムが存在し、データが時系列で連続していること
+                ※high_column_name/low_column_name/close_column_nameで指定するカラムが存在し、
+                  データが時系列で連続していること
             column_name(str): SARを設定するカラム名
             min_af(float): 加速因数の初期値(最小値)
             max_af(float): 加速因数の最大値
             interval(int): 何分足として計算するか
+            high_column_name(str): 高値のカラム名
+            low_column_name(str): 安値のカラム名
+            close_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -657,7 +662,7 @@ class Indicator():
         '''
         try:
             # 計算に必要なカラム名のリスト
-            columns = ['high', 'low', 'close']
+            columns = [high_column_name, low_column_name, close_column_name]
 
             # 何分足の設定かに応じてデータをリサンプリング
             if interval > 1:
@@ -666,16 +671,16 @@ class Indicator():
                 df_resampled = df[columns].copy()
 
             # 初期値の設定 SARの初期値と前日のEPは初期値の終値になる
-            sar_list = [df_resampled['close'].iloc[0]]
-            ep = df_resampled['close'].iloc[0]
+            sar_list = [df_resampled[close_column_name].iloc[0]]
+            ep = df_resampled[close_column_name].iloc[0]
             af = min_af
             trend = ''
 
             # SARの計算
             for i in range(1, len(df_resampled)):
-                close = df_resampled['close'].iloc[i]
-                high = df_resampled['high'].iloc[i]
-                low = df_resampled['low'].iloc[i]
+                close = df_resampled[close_column_name].iloc[i]
+                high = df_resampled[high_column_name].iloc[i]
+                low = df_resampled[low_column_name].iloc[i]
 
                 # 1つ目の要素の場合は前日との差分で上昇か下降トレンドかを判定
                 if i == 1:
@@ -717,21 +722,21 @@ class Indicator():
                 sar_list.append(sar.round(4))
 
             df_resampled[column_name] = sar_list
-            column_name_flag = f'{column_name}_flag'
+            column_name_up_trend = f'{column_name}_up_trend'
             column_name_reverse_flag = f'{column_name}_reverse_flag'
 
-            # SARが一つ前のSARよりも高い場合は1、低い場合は0
-            df_resampled[column_name_flag] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
+            # SARが一つ前のSARよりも高い場合は1（上昇トレンド）、低い場合は0
+            df_resampled[column_name_up_trend] = (df_resampled[column_name] > df_resampled[column_name].shift()).astype(int)
 
             # トレンドが反転した場合は1、そうでない場合は0
-            df_resampled[column_name_reverse_flag] = (df_resampled[column_name_flag] != df_resampled[column_name_flag].shift()).astype(int)
+            df_resampled[column_name_reverse_flag] = (df_resampled[column_name_up_trend] != df_resampled[column_name_up_trend].shift()).astype(int)
 
             # 元のデータフレームにリサンプリングされたデータをマージ
-            df = df.merge(df_resampled[[column_name, column_name_flag, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
+            df = df.merge(df_resampled[[column_name, column_name_up_trend, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
             df[column_name].fillna(method='ffill', inplace=True)
-            df[column_name_flag].fillna(method='ffill', inplace=True)
+            df[column_name_up_trend].fillna(method='ffill', inplace=True)
             df[column_name_reverse_flag].fillna(method='ffill', inplace=True)
 
         except Exception as e:
@@ -740,18 +745,23 @@ class Indicator():
 
         return True, df
 
-    def get_ichimoku_cloud(self, df, column_name, short_window_size, long_window_size, interval, close_column_name = 'current_price'):
+    def get_ichimoku_cloud(self, df, column_name, short_window_size, long_window_size, interval,
+                           close_column_name = 'current_price',
+                           high_column_name = 'high', low_column_name = 'low'):
         '''
         一目均衡表を計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※close_column_nameで指定したカラム(+high(高値)+row(終値))が存在かつデータが時系列で連続していること
+                ※close_column_name/high_column_name/low_column_nameで指定したカラムが
+                  存在かつデータが時系列で連続していること
             column_name(str): 一目均衡表を設定するカラム名
-            short_window_size(int): 短期のウィンドウ幅
-            long_window_size(int): 長期のウィンドウ幅
+            short_window_size(int): 短期のウィンドウ幅（転換線）
+            long_window_size(int): 長期のウィンドウ幅（基準線）
             interval(int): 何分足として計算するか
             close_column_name(str): 終値のカラム名
+            high_column_name(str): 高値のカラム名
+            low_column_name(str): 安値のカラム名
 
         Returns:
             bool: 実行結果
@@ -790,10 +800,10 @@ class Indicator():
             price_cloud_low_diff = f'{column_name}_cloud_low_diff'
             price_cloud_position = f'{column_name}_cloud_position'
             price_cloud_cross = f'{column_name}_cloud_cross'
-            price_cloud_cross_gc_after1 = f'{column_name}_cloud_gc_after1'
-            price_cloud_cross_gc_after2 = f'{column_name}_cloud_gc_after2'
-            price_cloud_cross_dc_after1 = f'{column_name}_cloud_dc_after1'
-            price_cloud_cross_dc_after2 = f'{column_name}_cloud_dc_after2'
+            price_cloud_cross_gc_after1 = f'{column_name}_cloud_breakout_up_after'    # cloud_cross==2: 雲の中→上（雲上抜け後）
+            price_cloud_cross_gc_after2 = f'{column_name}_cloud_entry_up_after'       # cloud_cross==4: 雲の下→中（下から雲に入った後）
+            price_cloud_cross_dc_after1 = f'{column_name}_cloud_entry_down_after'     # cloud_cross==1: 雲の上→中（上から雲に入った後）
+            price_cloud_cross_dc_after2 = f'{column_name}_cloud_breakout_down_after'  # cloud_cross==3: 雲の中→下（雲下抜け後）
 
             add_columns = [base_line, conversion_line, leading_span_a, leading_span_b, lagging_span,
                            base_conversion_diff, base_conversion_position, base_conversion_cross, base_conversion_gc_after, base_conversion_dc_after,
@@ -802,22 +812,17 @@ class Indicator():
                            price_cloud_high_diff, price_cloud_low_diff, price_cloud_position, price_cloud_cross,
                            price_cloud_cross_gc_after1, price_cloud_cross_gc_after2, price_cloud_cross_dc_after1, price_cloud_cross_dc_after2]
 
-            # 高値/安値がない場合
-            if 'high' not in df_resampled.columns:
-                df_resampled['high'] = df_resampled[close_column_name]
-                df_resampled['low'] = df_resampled[close_column_name]
-
             # 基準線の計算 long_window_size本の高値と安値の平均
-            df_resampled[base_line] = ((df_resampled['high'].rolling(window = long_window_size).max() + df_resampled['low'].rolling(window = long_window_size).min()) / 2).round(3)
+            df_resampled[base_line] = ((df_resampled[high_column_name].rolling(window = long_window_size).max() + df_resampled[low_column_name].rolling(window = long_window_size).min()) / 2).round(3)
 
             # 転換線の計算 short_window_size本の高値と安値の平均
-            df_resampled[conversion_line] = ((df_resampled['high'].rolling(window = short_window_size).max() + df_resampled['low'].rolling(window = short_window_size).min()) / 2).round(3)
+            df_resampled[conversion_line] = ((df_resampled[high_column_name].rolling(window = short_window_size).max() + df_resampled[low_column_name].rolling(window = short_window_size).min()) / 2).round(3)
 
             # 先行スパン1の計算 long_window_size本先の基準線と転換線の平均
             df_resampled[leading_span_a] = (((df_resampled[conversion_line] + df_resampled[base_line]) / 2).shift(long_window_size)).round(3)
 
             # 先行スパン2の計算 long_window_size x 2本の高値と安値の平均をlong_window_size本先にずらす
-            df_resampled[leading_span_b] = (((df_resampled['high'].rolling(window = long_window_size * 2).max() + df_resampled['low'].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)).round(3)
+            df_resampled[leading_span_b] = (((df_resampled[high_column_name].rolling(window = long_window_size * 2).max() + df_resampled[low_column_name].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)).round(3)
 
             # 遅行スパンの計算 現在の価格をlong_window_size本前にずらす
             df_resampled[lagging_span] = df_resampled[close_column_name].shift(-long_window_size)
@@ -912,15 +917,16 @@ class Indicator():
 
         return True, df
 
-    def get_change_price(self, df, column_name, interval):
+    def get_change_price(self, df, column_name, interval, price_column_name = 'current_price'):
         '''
         変動した価格・変動率・変動フラグを計算してカラムに追加する
 
         Args:
             df(pandas.DataFrame): 板情報のデータ
-                ※current_priceカラムが存在かつデータが時系列で連続していること
+                ※price_column_nameで指定するカラムが存在かつデータが時系列で連続していること
             column_name(str): 追加するカラム名
             interval(int): 何分足として計算するか
+            price_column_name(str): 終値のカラム名
 
         Returns:
             bool: 実行結果
@@ -929,17 +935,17 @@ class Indicator():
         '''
         try:
             # 必要なカラムだけコピー
-            df_resampled = df[['current_price']].copy()
+            df_resampled = df[[price_column_name]].copy()
 
             # 変数名の定義
-            change_price = f'{column_name}_price'
+            change_amount = f'{column_name}_amount'
             change_rate = f'{column_name}_rate'
             change_flag = f'{column_name}_flag'
-            add_columns = [change_price, change_rate, change_flag]
+            add_columns = [change_amount, change_rate, change_flag]
 
-            # 変動価格・変動率・変動フラグ(0:変動なし, 1:上昇, -1:下落)の計算
-            df_resampled[change_price] = df_resampled['current_price'].shift(-interval) - df_resampled['current_price']
-            df_resampled[change_rate] = df_resampled[change_price] / df_resampled['current_price']
+            # 変動価格額・変動率・変動フラグ(0:変動なし, 1:上昇, -1:下落)の計算
+            df_resampled[change_amount] = df_resampled[price_column_name].shift(-interval) - df_resampled[price_column_name]
+            df_resampled[change_rate] = df_resampled[change_amount] / df_resampled[price_column_name]
             ##df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: -999 if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
             df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: None if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
 

@@ -1,0 +1,321 @@
+# テクニカル指標 正当性チェックレポート
+
+**生成日時:** 2026-04-06 11:01:01
+**対象:** `src/util/indicator.py` の各テクニカル指標計算メソッド
+**フェーズ:** issue #47 対応前の事前確認
+
+## 前提・確認観点
+
+フェーズ1(#46)が完了すると、KabuStation WebSocket PUSHで蓄積された1分足OHLCデータが
+以下のカラム構成でCSVまたはDBテーブルに存在する想定。
+
+**ohlcテーブル/CSVのカラム構成:**
+```
+symbol, trade_time, open_price, high_price, low_price, close_price, volume, total_volume, status
+```
+
+`indicator.py` の各メソッドはデフォルトで `price_column_name="current_price"` を想定している。
+ohlcデータで使う場合は `price_column_name="close_price"` を明示する必要がある。
+また、一部メソッドはカラム名をハードコードしており、カラム名の不一致が懸念される。
+
+## サンプルデータ概要
+
+| 項目 | 値 |
+|---|---|
+| 銘柄コード | 1570 |
+| 行数 | 325 |
+| 前場 | 9:00〜11:29 (150行) |
+| 後場 | 12:30〜15:24 (175行) |
+| 始値 | 28,000円 |
+| 終値(最終) | 28,144円 |
+| close_price 最小 | 27,594円 |
+| close_price 最大 | 28,174円 |
+| カラム構成 | symbol, trade_time, open_price, high_price, low_price, close_price, volume, total_volume, status |
+
+## チェック結果サマリー
+
+| # | 指標 | 結果 |
+|---|---|---|
+| 1 | SMA (sma_1min_3piece, interval=1) | ❌ FAIL |
+| 2 | EMA (ema_1min_3piece, interval=1) | ✅ PASS |
+| 3 | WMA (wma_1min_3piece, interval=1) | ❌ FAIL |
+| 4 | ボリンジャーバンド (bb_1min_3piece, interval=1) | ✅ PASS |
+| 5 | MAクロス (ma_cross, interval=1) | ✅ PASS |
+| 6 | RSI (rsi_1min_9piece, interval=1) | ⚠️ WARNING |
+| 7 | RCI (rci_1min_9piece, interval=1) | ⚠️ WARNING |
+| 8 | MACD (macd_1min, short=12, long=26, signal=9, interval=1) | ✅ PASS |
+| 9 | PSY (psy_1min_10piece, interval=1) | ⚠️ WARNING |
+| 10 | パラボリックSAR (close_price ベース, min_af=0.02, max_af=0.2, interval=1) | ✅ PASS |
+| 11 | パラボリックSAR HLC (high/low/close カラム名問題の確認) | ❌ FAIL |
+| 12 | 一目均衡表 (high/low カラム名問題の確認, interval=1) | 💥 ERROR |
+| 13 | 変化額・変化率(get_change_price, current_price カラム名問題の確認) | ❌ FAIL |
+| 14 | intervalリサンプリング方式の確認 (interval=5, 時刻ベースか行インデックスベースか) | ⚠️ WARNING |
+
+**集計:** PASS=5 / WARNING=4 / FAIL=4 / ERROR=1
+
+## 詳細結果
+
+### ❌ SMA (sma_1min_3piece, interval=1)
+
+**総合判定:** FAIL
+
+**チェック項目:**
+
+- [FAIL] SMAに0以下の値が存在: min=-1.0
+- [OK] 第3行目の値が期待値(28018.7)と一致: 28018.7
+
+**詳細データ:**
+```
+min: -1.0
+max: 28143.3
+sample: [28018.7, 28039.0, 28058.3, 28069.0]
+```
+
+### ✅ EMA (ema_1min_3piece, interval=1)
+
+**総合判定:** PASS
+
+**チェック項目:**
+
+- [OK] 全値が正の実数
+- [OK] 第1行目のEMAが始値(28015.0)と一致: 28015.0
+
+**詳細データ:**
+```
+min: 27606.0
+max: 28146.5
+sample: [28015.0, 28012.3, 28022.4, 28051.0]
+```
+
+### ❌ WMA (wma_1min_3piece, interval=1)
+
+**総合判定:** FAIL
+
+**チェック項目:**
+
+- [FAIL] WMAに0以下の値が存在
+- [OK] 第3行目のWMAが期待値(28021.2)と一致: 28021.2
+
+**詳細データ:**
+```
+min: -1.0
+max: 28148.7
+sample: [28021.2, 28049.8, 28064.8, 28066.7]
+```
+
+### ✅ ボリンジャーバンド (bb_1min_3piece, interval=1)
+
+**総合判定:** PASS
+
+**チェック項目:**
+
+- [OK] 期待する11カラムが全て生成された
+- [OK] upper_1_alpha > lower_1_alpha が全行成立
+- [OK] upper_2_alpha > upper_1_alpha が全行成立
+- [OK] lower_1_alpha > lower_2_alpha が全行成立（バンドの広がり確認）
+- [OK] 幅(width)が全行で正の値
+- [OK] position値が概ね0〜1の範囲内
+
+**詳細データ:**
+```
+sample_upper_1: [28072.4, 28083.1, 28076.0]
+sample_lower_1: [28005.6, 28033.5, 28062.0]
+sample_width: [66.843, 49.571, 14.0]
+```
+
+### ✅ MAクロス (ma_cross, interval=1)
+
+**総合判定:** PASS
+
+**チェック項目:**
+
+- [OK] クロスカラム90本が生成された
+- [OK] sma_1min_3to5piece_golden_cross: 0/1フラグが正常
+- [OK] sma_1min_3to10piece_golden_cross: 0/1フラグが正常
+- [OK] sma_1min_3to5piece_diff: 数値型で正負の値あり (range: -48.5〜28040.0)
+- [OK] sma_1min_3to10piece_diff: 数値型で正負の値あり (range: -96.7〜28120.7)
+
+### ⚠️ RSI (rsi_1min_9piece, interval=1)
+
+**総合判定:** WARNING
+
+**チェック項目:**
+
+- [WARNING] NaNが8行残存（先頭8行がffillされない場合は許容）
+- [OK] 全RSI値が0〜100の範囲内
+
+**詳細データ:**
+```
+nan_count: 8
+sample: [15.21, 7.46, 6.59, 21.18, 18.75]
+```
+
+### ⚠️ RCI (rci_1min_9piece, interval=1)
+
+**総合判定:** WARNING
+
+**チェック項目:**
+
+- [WARNING] NaNが8行残存
+- [OK] 全RCI値が-100〜100の範囲内
+
+**詳細データ:**
+```
+nan_count: 8
+sample: [-96.67, -96.67, -96.67, -93.33, -90.0]
+```
+
+### ✅ MACD (macd_1min, short=12, long=26, signal=9, interval=1)
+
+**総合判定:** PASS
+
+**チェック項目:**
+
+- [OK] 期待する7カラムが全て生成された
+- [OK] diff = macd - signal が正しい（最大誤差: 0.0000）
+- [OK] diff_flag が正しく 0/1 で設定されている
+- [OK] cross 値が -1/0/1 のみ
+- [OK] slopeカラム4本が全て生成された
+
+**詳細データ:**
+```
+sample_macd: [-47.46, -44.41, -41.52, -41.16, -38.53]
+sample_signal: [-39.08, -40.15, -40.42, -40.57, -40.16]
+sample_diff: [-8.38, -4.26, -1.1, -0.59, 1.63]
+```
+
+### ⚠️ PSY (psy_1min_10piece, interval=1)
+
+**総合判定:** WARNING
+
+**チェック項目:**
+
+- [WARNING] NaNが9行残存
+- [OK] 全PSY値が0〜100の範囲内
+- [OK] PSY値が全て10の倍数（window=10に対する正常な離散値）
+
+**詳細データ:**
+```
+nan_count: 9
+sample: [20.0, 30.0, 30.0, 30.0, 30.0, 30.0, 40.0, 40.0, 40.0, 40.0]
+```
+
+### ✅ パラボリックSAR (close_price ベース, min_af=0.02, max_af=0.2, interval=1)
+
+**総合判定:** PASS
+
+**チェック項目:**
+
+- [OK] 全SAR値が正の実数
+- [OK] flagが0/1のみ
+- [OK] SAR平均(27840)が終値平均(27838)の±30%以内
+
+**詳細データ:**
+```
+sample_sar: [28015.0, 28014.8, 28011.0, 28013.6, 28016.1]
+sample_flag: [0, 0, 0, 1, 1]
+```
+
+### ❌ パラボリックSAR HLC (high/low/close カラム名問題の確認)
+
+**総合判定:** FAIL
+
+**チェック項目:**
+
+- [FAIL] メソッドがFalseを返した。ohlcテーブルのカラム名(high_price/low_price/close_price)が get_parabolic_hlc()の期待するカラム名(high/low/close)と不一致のためエラーが発生した可能性が高い
+
+### 💥 一目均衡表 (high/low カラム名問題の確認, interval=1)
+
+**総合判定:** ERROR
+
+**チェック項目:**
+
+- [OK] ichimoku_1min_base_line が生成された
+- [OK] ichimoku_1min_conversion_line が生成された
+- [OK] ichimoku_1min_leading_span_a が生成された
+- [OK] ichimoku_1min_leading_span_b が生成された
+- [OK] ichimoku_1min_lagging_span が生成された
+- [WARNING] ohlcテーブルに high/low カラムが存在しないため、get_ichimoku_cloud()内の代替処理により close_price を高値・安値として計算した。一目均衡表の基準線・転換線・先行スパンが正確な値にならない（OHLC本来の high_price/low_price が使われない）。
+- [OK] 基準線が正の数値型（有効値300行）
+- [ERROR] 例外発生: Can only compare identically-labeled Series objects
+
+### ❌ 変化額・変化率(get_change_price, current_price カラム名問題の確認)
+
+**総合判定:** FAIL
+
+**チェック項目:**
+
+- [FAIL] メソッドがFalseを返した。get_change_price()内で current_price をハードコード参照しているが、ohlcテーブルのカラム名は close_price のためKeyErrorの可能性
+
+### ⚠️ intervalリサンプリング方式の確認 (interval=5, 時刻ベースか行インデックスベースか)
+
+**総合判定:** WARNING
+
+**チェック項目:**
+
+- [OK] リサンプリング後の先頭5行の時刻: ['2026-04-06 09:00:00', '2026-04-06 09:05:00', '2026-04-06 09:10:00', '2026-04-06 09:15:00', '2026-04-06 09:20:00']
+- [WARNING] 行インデックスベースのリサンプリングのため、前場終了(2026-04-06 11:29:00)と後場開始(2026-04-06 12:30:00)が連続した行として扱われる。昼休み(60分)を跨ぐN分足の計算が時刻的に不正確になる可能性がある。
+- [OK] interval=5でSMAが325行生成された（生成自体は成功）
+
+**詳細データ:**
+```
+resampling_method: iloc[::interval] (行インデックスベース)
+first_5_times: ['2026-04-06 09:00:00', '2026-04-06 09:05:00', '2026-04-06 09:10:00', '2026-04-06 09:15:00', '2026-04-06 09:20:00']
+lunch_break_gap: 2026-04-06 11:29:00 → 2026-04-06 12:30:00 (行上では連続)
+```
+
+## 重要な発見事項（修正が必要な可能性がある点）
+
+以下は現時点では修正を行わず、issue #47 の実装方針策定時に考慮すること。
+
+### 1. `get_parabolic_hlc()` のカラム名不一致
+
+```python
+# indicator.py 内部でハードコード
+columns = ['high', 'low', 'close']
+```
+ohlcテーブルのカラム名は `high_price`, `low_price`, `close_price` であるため、
+このメソッドをそのまま呼び出すと `KeyError` が発生する。
+
+### 2. `get_ichimoku_cloud()` の高値・安値フォールバック問題
+
+```python
+# indicator.py 内部
+if 'high' not in df_resampled.columns:
+    df_resampled['high'] = df_resampled[close_column_name]  # close で代替
+    df_resampled['low'] = df_resampled[close_column_name]
+```
+ohlcテーブルには `high_price`, `low_price` はあるが `high`, `low` は存在しないため、
+一目均衡表の基準線・転換線・先行スパンが終値だけで計算される（本来は高値・安値の平均）。
+基準線=転換線になり、雲も正確に形成されない。
+
+### 3. `get_change_price()` の `current_price` ハードコード
+
+```python
+# indicator.py 内部
+df_resampled = df[['current_price']].copy()  # ハードコード
+```
+他のメソッドと異なり `price_column_name` 引数がなく、
+`current_price` カラム名が固定されている。
+ohlcテーブルでは `close_price` であるため `KeyError` が発生する。
+
+### 4. `interval` リサンプリングが時刻ベースではなく行インデックスベース
+
+```python
+# indicator.py 内部（各メソッド共通）
+df_resampled = df[[price_column_name]].iloc[::interval, :].copy()
+```
+`iloc[::interval]` は行番号ベースで等間隔抽出するため、
+前場(9:00-11:30, 150本)と後場(12:30-15:25, 175本)の間の昼休み(60分)を考慮しない。
+例: interval=5 の場合、前場149行目(11:29)と後場150行目(12:30)が
+「連続した5分間」として計算される。本来は91分離れている。
+
+### 5. RSI・RCI の先頭行 NaN 未処理
+
+SMA/EMA/WMAは `fillna(-1)` で明示的に欠損を補完するが、
+RSI・RCI は `fillna(method="ffill")` のみのため、
+先頭 `window_size` 行が NaN のまま残る。
+ML特徴量として使う場合に欠損値として扱われるか、-1として統一するかの方針が必要。
+
+---
+*このレポートは自動生成されたものです。修正対応は issue #47 のスコープ内で検討してください。*
