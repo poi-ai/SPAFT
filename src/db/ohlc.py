@@ -265,6 +265,70 @@ class Ohlc():
             self.log.error(f'四本値テーブルのレコード更新処理でエラー\n{e}\n{traceback.format_exc()}')
             return False
 
+    def select_by_date(self, symbol, target_date):
+        '''
+        四本値テーブル(ohlc)から指定銘柄・指定日の全レコードを取得する
+
+        Args:
+            symbol(str): 銘柄コード
+            target_date(str): 取得対象日 'YYYYMMDD'
+
+        Returns:
+            result(bool): SQL実行結果
+            rows(list[dict]) or None: 取得レコードのリスト ※レコードが存在しない場合は空リスト
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = '''
+                    SELECT
+                        *
+                    FROM
+                        ohlc
+                    WHERE
+                        symbol = %s
+                    AND
+                        DATE(trade_time) = DATE(%s)
+                    ORDER BY
+                        trade_time ASC
+                '''
+
+                cursor.execute(sql, (symbol, target_date))
+                rows = cursor.fetchall()
+
+                if rows is None:
+                    return True, []
+                return True, list(rows)
+        except Exception as e:
+            self.log.error(f'四本値レコード日付指定取得処理でエラー\n{e}\n{traceback.format_exc()}')
+            return False, None
+
+    def delete_by_date(self, target_date):
+        '''
+        四本値テーブル(ohlc)から指定日の全レコードを削除する（全銘柄）
+
+        Args:
+            target_date(str): 削除対象日 'YYYYMMDD'
+
+        Returns:
+            result(bool): SQL実行結果
+            row_count(int): 削除件数
+        '''
+        try:
+            with self.conn.cursor() as cursor:
+                sql = '''
+                    DELETE FROM ohlc
+                    WHERE
+                        DATE(trade_time) = DATE(%s)
+                '''
+
+                cursor.execute(sql, (target_date,))
+                row_count = cursor.rowcount
+
+            return True, row_count
+        except Exception as e:
+            self.log.error(f'四本値レコード日付指定削除処理でエラー\n{e}\n{traceback.format_exc()}')
+            return False, 0
+
     def upsert(self, ohlc_data):
         '''
         四本値テーブル(ohlc)のレコードを追加または更新する
