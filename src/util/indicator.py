@@ -945,7 +945,7 @@ class Indicator():
 
             # 変動価格額・変動率・変動フラグ(0:変動なし, 1:上昇, -1:下落)の計算
             df_resampled[change_amount] = df_resampled[price_column_name].shift(-interval) - df_resampled[price_column_name]
-            df_resampled[change_rate] = df_resampled[change_amount] / df_resampled[price_column_name]
+            df_resampled[change_rate] = (df_resampled[change_amount] / df_resampled[price_column_name]).round(6)
             ##df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: -999 if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
             df_resampled[change_flag] = df_resampled[change_rate].apply(lambda x: None if pd.isna(x) else (0 if x == 0 else (1 if x > 0 else -1)))
 
