@@ -1,48 +1,25 @@
-# -*- coding: utf-8 -*-
 '''
 チャート描画スクリプト
 
 config.py で設定した銘柄・日付・分足・テクニカル指標を組み合わせて
 ローソク足チャートと出来高を描画する。
 
-実行方法:
-    cd src
-    python chart_viewer.py
-
-必要ライブラリ:
-    pip install mplfinance
 '''
+import matplotlib.pyplot as plt
+import mplfinance as mpf
 import os
 import sys
 import traceback
 import numpy as np
 import pandas as pd
-import py7zr
 import config
-
-try:
-    import mplfinance as mpf
-    import matplotlib.pyplot as plt
-except ImportError:
-    print('[ERROR] mplfinance がインストールされていません')
-    print('  インストール: pip install mplfinance')
-    sys.exit(1)
+import japanize_matplotlib
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from util.indicator import Indicator
+from base import Base
 
 
-class _PrintLog:
-    '''標準出力ベースの簡易ログクラス（Indicator クラスへの受け渡し用）'''
-    def error(self, msg):
-        print(f'[ERROR] {msg}')
-    def warning(self, msg):
-        print(f'[WARNING] {msg}')
-    def info(self, msg):
-        pass
-
-
-class ChartViewer:
+class ChartViewer(Base):
     '''分足OHLCデータのチャート描画クラス'''
 
     # テクニカル指標の番号と名称
@@ -61,8 +38,8 @@ class ChartViewer:
     _PANEL_LABELS = {5: 'RSI', 6: 'RCI', 7: 'MACD'}
 
     def __init__(self):
-        self._log = _PrintLog()
-        self._indicator = Indicator(self._log)
+        super().__init__(use_db=False, use_api=False)
+        self._indicator = self.util.indicator
         self._stock_code = str(config.CHART_STOCK_CODE)
         self._date = str(config.CHART_DATE)
         self._interval = int(config.CHART_INTERVAL)
@@ -100,7 +77,7 @@ class ChartViewer:
 
         ファイルパス:
             CSV : csv/ohlc/{date}/{date}_{code}_{interval}min.csv
-            7z  : csv/bak/{date}.7z
+            7z  : csv/ohlc/bak/{date}.7z
 
         Returns:
             result(bool): 処理結果
@@ -112,7 +89,7 @@ class ChartViewer:
             f'{self._date}_{self._stock_code}_{self._interval}min.csv'
         )
         archive_path = os.path.join(
-            self._repo_root, 'csv', 'bak', f'{self._date}.7z'
+            self._repo_root, 'csv', 'ohlc', 'bak', f'{self._date}.7z'
         )
 
         # 日付ディレクトリが存在しない場合は 7z から展開
@@ -124,15 +101,23 @@ class ChartViewer:
                 return False, None
 
             print(f'7z アーカイブを展開します: {archive_path}')
-            try:
-                extract_base = os.path.join(self._repo_root, 'csv', 'ohlc')
-                with py7zr.SevenZipFile(archive_path, mode='r') as z:
-                    z.extractall(path=extract_base)
-                print(f'展開完了: {csv_dir}')
-            except Exception as e:
-                print(f'[ERROR] 7z 展開でエラーが発生しました: {e}')
-                print(traceback.format_exc())
+            extract_base = os.path.join(self._repo_root, 'csv', 'ohlc')
+            result, error = self.util.file_manager.extract_7z_file(archive_path, extract_base)
+            if not result:
+                print(f'[ERROR] 7z 展開に失敗しました: {error}')
                 return False, None
+
+            # 日付ディレクトリが存在しない場合は作成して、CSVファイルを移動
+            if not os.path.isdir(csv_dir):
+                os.makedirs(csv_dir, exist_ok=True)
+                # extract_base 直下のCSVファイルで、日付を含むものを date_dir に移動
+                for filename in os.listdir(extract_base):
+                    if filename.startswith(self._date) and filename.endswith('.csv'):
+                        src = os.path.join(extract_base, filename)
+                        dst = os.path.join(csv_dir, filename)
+                        os.rename(src, dst)
+
+            print(f'展開完了: {csv_dir}')
 
         # CSVの存在チェック
         if not os.path.isfile(csv_path):
@@ -277,27 +262,38 @@ class ChartViewer:
         if self._indicator_type != 0:
             title += f'  [{indicator_name}]'
 
-        # Windows で日本語フォントを適用
-        try:
-            plt.rcParams['font.family'] = 'Meiryo'
-        except Exception:
-            pass
+        # フォントファイルを直接ロードして make_mpf_style の rc に組み込む
+        # （plt.rcParams への直接設定は mpf スタイルに上書きされるため）
+        import matplotlib.font_manager as fm
+        jp_font_name = None
+        for fp in fm.findSystemFonts():
+            if any(fp.lower().endswith(c) for c in [
+                'meiryo.ttc', 'meiryob.ttc',
+                'yugothr.ttc', 'yugothm.ttc', 'yugothb.ttc',
+                'msgothic.ttc', 'mspgothic.ttf',
+            ]):
+                fm.fontManager.addfont(fp)
+                jp_font_name = fm.FontProperties(fname=fp).get_name()
+                break
 
-        style = mpf.make_mpf_style(base_mpf_style='yahoo')
+        style_rc = {'font.family': jp_font_name} if jp_font_name else {}
+        style = mpf.make_mpf_style(base_mpf_style='yahoo', rc=style_rc)
 
         # OHLCV カラムのみに絞った DataFrame を渡す
         ohlcv_cols = ['Open', 'High', 'Low', 'Close', 'Volume']
         df_main = df_plot[[c for c in ohlcv_cols if c in df_plot.columns]]
 
+        # 800x480px（dpi=100 基準）
         plot_kwargs = dict(
             type='candle',
             style=style,
             title=title,
             volume=True,
-            figsize=(16, 9),
+            figsize=(8, 4.8),
             datetime_format='%H:%M',
             show_nontrading=False,   # 昼休みを連続表示に
-            tight_layout=True,
+            # x軸左右のデータ余白を均等化（右寄り防止）
+            scale_padding={'left': 0.02, 'top': 1.3, 'right': 0.02, 'bottom': 0.75},
             returnfig=True,
         )
         if addplots:
@@ -310,6 +306,12 @@ class ChartViewer:
             # axes[0]: メインチャート, axes[1]: 出来高, axes[2]: サブパネル
             if self._indicator_type in self._PANEL_LABELS and len(axes) > 2:
                 axes[2].set_ylabel(self._PANEL_LABELS[self._indicator_type])
+
+            # subplots_adjust は mplfinance の GridSpec に無視されるため
+            # 各 axes の Bbox を直接縮めて右側に y 軸ラベル用の余白を確保
+            for ax in axes:
+                bb = ax.get_position()
+                ax.set_position([bb.x0, bb.y0, bb.width * 0.88, bb.height])
 
             plt.show()
 
@@ -347,17 +349,17 @@ class ChartViewer:
             )
 
         elif t == 4:
-            # ボリンジャーバンド ±1σ (青破線) / ±2σ (赤破線)
+            # ボリンジャーバンド ±1σ (青実線) / ±2σ (赤実線)
             for col, color in [
-                ('bb_upper_2_alpha', 'tomato'),
-                ('bb_lower_2_alpha', 'tomato'),
-                ('bb_upper_1_alpha', 'royalblue'),
-                ('bb_lower_1_alpha', 'royalblue'),
+                ('bb_upper_2sigma', 'tomato'),
+                ('bb_lower_2sigma', 'tomato'),
+                ('bb_upper_1sigma', 'royalblue'),
+                ('bb_lower_1sigma', 'royalblue'),
             ]:
                 if col in df_plot.columns:
                     addplots.append(
                         mpf.make_addplot(
-                            df_plot[col], color=color, width=0.8, linestyle='--'
+                            df_plot[col], color=color, width=0.8, linestyle='-'
                         )
                     )
 
@@ -396,7 +398,6 @@ class ChartViewer:
                 ])
 
         return addplots
-
 
 if __name__ == '__main__':
     viewer = ChartViewer()
