@@ -129,3 +129,28 @@ class FileManager():
 
         self.log.info(f'CSVファイル圧縮処理終了')
         return True, None
+
+    def extract_7z_file(self, archive_path, extract_dir):
+        '''
+        7zファイルを指定ディレクトリに解凍する
+
+        Args:
+            archive_path(str): 解凍する.7zファイルのパス
+            extract_dir(str):  解凍先ディレクトリのパス（存在しない場合は作成される）
+
+        Returns:
+            result(bool): 実行結果
+            error_message(str): エラーメッセージ（成功時はNone）
+        '''
+        self.log.info(f'7zファイル解凍処理開始 ファイルパス: {archive_path}')
+
+        try:
+            os.makedirs(extract_dir, exist_ok=True)
+            with py7zr.SevenZipFile(archive_path, 'r') as archive:
+                archive.extractall(path=extract_dir)
+        except Exception as e:
+            self.log.error(f'7zファイル解凍処理でエラー\nアーカイブ: {archive_path}\n解凍先: {extract_dir}\n{e}\n{traceback.format_exc()}')
+            return False, e
+
+        self.log.info(f'7zファイル解凍処理終了')
+        return True, None
