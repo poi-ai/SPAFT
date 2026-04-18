@@ -223,8 +223,11 @@ class BoardMold(ServiceBase):
 
             for min_af, max_af in af_list:
                 # パラボリックSARを計算・追加する
+                # カラム名の小数点を'p'に置換（例: 0.02 -> 0p02）
+                min_af_str = str(min_af).replace('.', 'p')
+                max_af_str = str(max_af).replace('.', 'p')
                 result, board_df = self.util.indicator.get_parabolic(df = board_df,
-                                                                     column_name = f'sar_{minute}min_{min_af}_{max_af}af',
+                                                                     column_name = f'sar_{minute}min_{min_af_str}_{max_af_str}af',
                                                                      min_af = min_af,
                                                                      max_af = max_af,
                                                                      interval = minute)
