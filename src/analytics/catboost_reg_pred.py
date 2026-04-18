@@ -21,15 +21,15 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     not_related_columns = ['timestamp', 'date', 'minute', 'get_minute']
 
     #### リークを起こすカラム ####
-    leak_columns = ['change_1min_price', 'change_1min_rate', 'change_1min_flag',
-                    'change_2min_price', 'change_2min_rate', 'change_2min_flag',
-                    'change_3min_price', 'change_3min_rate', 'change_3min_flag',
-                    'change_5min_price', 'change_5min_rate', 'change_5min_flag',
-                    'change_10min_price', 'change_10min_rate', 'change_10min_flag',
-                    'change_15min_price', 'change_15min_rate', 'change_15min_flag',
-                    'change_30min_price', 'change_30min_rate', 'change_30min_flag',
-                    'change_60min_price', 'change_60min_rate', 'change_60min_flag',
-                    'change_90min_price', 'change_90min_rate', 'change_90min_flag'
+    leak_columns = ['change_1min_amount', 'change_1min_rate', 'change_1min_flag',
+                    'change_2min_amount', 'change_2min_rate', 'change_2min_flag',
+                    'change_3min_amount', 'change_3min_rate', 'change_3min_flag',
+                    'change_5min_amount', 'change_5min_rate', 'change_5min_flag',
+                    'change_10min_amount', 'change_10min_rate', 'change_10min_flag',
+                    'change_15min_amount', 'change_15min_rate', 'change_15min_flag',
+                    'change_30min_amount', 'change_30min_rate', 'change_30min_flag',
+                    'change_60min_amount', 'change_60min_rate', 'change_60min_flag',
+                    'change_90min_amount', 'change_90min_rate', 'change_90min_flag'
     ]
 
     ### 重要度の低かったカラム
@@ -52,16 +52,16 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
         'ichimoku_3min_bc_cross', 'ichimoku_5min_bc_cross', 'ichimoku_5min_bc_position', 'ichimoku_5min_cloud_cross',
         'ichimoku_5min_cloud_high_diff', 'ichimoku_5min_cloud_low_diff', 'ichimoku_5min_cloud_position',
         'ichimoku_5min_leading_span_b', 'ichimoku_5min_ls_cross', 'ichimoku_5min_ls_diff', 'ichimoku_5min_ls_position',
-        'macd_10min_diff_flag', 'macd_10min_mismatch', 'macd_15min_diff_flag', 'macd_15min_mismatch', 'macd_1min_mismatch',
-        'macd_30min_diff_flag', 'macd_3min_cross', 'macd_3min_mismatch', 'macd_5min_mismatch', 'macd_60min_diff_flag',
-        'sar_10min_0.01_0.1af_flag', 'sar_10min_0.02_0.2af_flag', 'sar_10min_0.05_0.5af_flag', 'sar_10min_0.05_0.5af_reverse_flag',
-        'sar_10min_0.1_1af_flag', 'sar_15min_0.01_0.1af_flag', 'sar_15min_0.01_0.1af_reverse_flag', 'sar_15min_0.02_0.2af_flag',
-        'sar_15min_0.05_0.5af_flag', 'sar_15min_0.05_0.5af_reverse_flag', 'sar_1min_0.02_0.2af_flag',
-        'sar_1min_0.02_0.2af_reverse_flag', 'sar_30min_0.01_0.1af_reverse_flag', 'sar_30min_0.02_0.2af_flag',
-        'sar_30min_0.02_0.2af_reverse_flag', 'sar_30min_0.05_0.5af_flag', 'sar_5min_0.01_0.1af_flag', 'sar_5min_0.1_1af_flag',
-        'sar_60min_0.01_0.1af_flag', 'sar_60min_0.01_0.1af_reverse_flag', 'sar_60min_0.02_0.2af_flag',
-        'sar_60min_0.02_0.2af_reverse_flag', 'sar_60min_0.05_0.5af_flag', 'sar_60min_0.05_0.5af_reverse_flag',
-        'sar_60min_0.1_1af_flag', 'sar_60min_0.1_1af_reverse_flag', 'sma_10min_3to15piece_dead_cross',
+        'macd_10min_hist_positive', 'macd_10min_mismatch', 'macd_15min_hist_positive', 'macd_15min_mismatch', 'macd_1min_mismatch',
+        'macd_30min_hist_positive', 'macd_3min_cross', 'macd_3min_mismatch', 'macd_5min_mismatch', 'macd_60min_hist_positive',
+        'sar_10min_0p01_0p1af_up_trend', 'sar_10min_0p02_0p2af_up_trend', 'sar_10min_0p05_0p5af_up_trend', 'sar_10min_0p05_0p5af_reverse_flag',
+        'sar_10min_0p1_1af_up_trend', 'sar_15min_0p01_0p1af_up_trend', 'sar_15min_0p01_0p1af_reverse_flag', 'sar_15min_0p02_0p2af_up_trend',
+        'sar_15min_0p05_0p5af_up_trend', 'sar_15min_0p05_0p5af_reverse_flag', 'sar_1min_0p02_0p2af_up_trend',
+        'sar_1min_0p02_0p2af_reverse_flag', 'sar_30min_0p01_0p1af_reverse_flag', 'sar_30min_0p02_0p2af_up_trend',
+        'sar_30min_0p02_0p2af_reverse_flag', 'sar_30min_0p05_0p5af_up_trend', 'sar_5min_0p01_0p1af_up_trend', 'sar_5min_0p1_1af_up_trend',
+        'sar_60min_0p01_0p1af_up_trend', 'sar_60min_0p01_0p1af_reverse_flag', 'sar_60min_0p02_0p2af_up_trend',
+        'sar_60min_0p02_0p2af_reverse_flag', 'sar_60min_0p05_0p5af_up_trend', 'sar_60min_0p05_0p5af_reverse_flag',
+        'sar_60min_0p1_1af_up_trend', 'sar_60min_0p1_1af_reverse_flag', 'sma_10min_3to15piece_dead_cross',
         'sma_10min_3to5piece_dead_cross', 'sma_10min_3to5piece_golden_cross', 'sma_10min_5to10piece_dead_cross',
         'sma_10min_5to15piece_dead_cross', 'sma_15min_3to5piece_dead_cross', 'sma_15min_3to5piece_golden_cross',
         'sma_1min_10to15piece_dead_cross', 'sma_1min_10to15piece_golden_cross', 'sma_1min_3to10piece_dead_cross',
@@ -117,7 +117,7 @@ for minute in [1, 2, 3, 5, 10, 15, 30, 60, 90]:
     y_pred = model.predict(test_pool)
 
     # 一部カラムのみを切り出して、予測値を結合する
-    keep_columns = ['stock_code', 'timestamp', 'open', 'high', 'low', 'close', 'volume', f'change_{minute}min_flag', f'change_{minute}min_price', f'change_{minute}min_rate']
+    keep_columns = ['stock_code', 'timestamp', 'open', 'high', 'low', 'close', 'volume', f'change_{minute}min_flag', f'change_{minute}min_amount', f'change_{minute}min_rate']
     test_df_result = test_df[keep_columns].copy()
     test_df_result[f'pred_change_{minute}min_rate'] = y_pred
 

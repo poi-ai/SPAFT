@@ -6,3 +6,4 @@ scikit-learn==1.8.0
 pandas==3.0.1
 numpy==2.4.3
 tkcalendar==1.6.1
+mplfinance==0.12.10b0
