@@ -854,10 +854,17 @@ class Scalping(ServiceBase):
 
         self.log.info(f'信用空売り決済処理[優待用]のAPIリクエスト送信処理開始 証券コード: {stock_code}')
 
+        # 優先市場コードを取得（市場コード「1」は2026/02/28以降の発注で使用不可）
+        result, exchange_info = self.api.info.primary_exchange(stock_code)
+        if result == False:
+            self.log.error(f'信用空売り決済処理[優待用]で優先市場コード取得エラー\n証券コード: {stock_code}\n{exchange_info}')
+            return False
+        exchange = exchange_info['PrimaryExchange']
+
         order_info = {
             'Password': trade_password,    # ここはKabuStationではなくカブコムの取引パスワード
             'Symbol': str(stock_code),     # 証券コード
-            'Exchange': 1,                 # 証券所   1: 東証 (3: 名証、5: 福証、6: 札証)
+            'Exchange': exchange,          # 証券所（primary_exchange APIから取得）
             'SecurityType': 1,             # 商品種別 1: 株式 のみ指定可
             'Side': 2,                     # 売買区分 2: 買 (1: 売)
             'CashMargin': 3,               # 取引区分 3: 返済 (1: 現物、2: 新規信用)
@@ -1140,6 +1147,22 @@ class Scalping(ServiceBase):
 
         self.log.info(f'損切り売り注文処理成功 注文価格: {order_price}')
         return True
+
+    def get_primary_exchange(self, stock_code):
+        '''
+        銘柄の優先市場コードを取得する
+
+        Args:
+            stock_code(str): 証券コード
+
+        Returns:
+            result(bool): 実行結果
+            exchange(int or str): 市場コード or エラーメッセージ
+        '''
+        result, info = self.api.info.primary_exchange(stock_code)
+        if result == False:
+            return False, info
+        return True, info['PrimaryExchange']
 
     def direct_order(self, order_info):
         '''

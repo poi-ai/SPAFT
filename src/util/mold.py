@@ -182,7 +182,8 @@ class Mold():
             password(str): 注文パスワード(≠APIパスワード)[必須]
             stock_code(str): 証券コード [必須]
             exchange(int): 市場コード [必須]
-                1: 東証、3: 名証、5: 福証、6: 札証
+                primary_exchange APIから取得した値を使用すること（3: 名証、5: 福証、6: 札証）
+                ※市場コード「1（東証）」は2026/02/28以降の新規発注で使用不可
             side(str): 売買区分 [必須]
                 1: 売、2: 買
             cash_margin(int): 信用区分 [必須]
