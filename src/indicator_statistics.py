@@ -74,6 +74,23 @@ THRESHOLD_ZERO_COLS_BASE = [
 STAT6_MA_COLS_BASE = [f'{t}_1min_{w}piece' for t in ['sma', 'ema', 'wma'] for w in MA_WINDOWS]
 STAT6_MA_COLS_BASE += ['ichimoku_1min_base_line', 'ichimoku_1min_conversion_line']
 
+# 価格スケール指標(close_priceで除して相対化する対象)
+# 円スケールでボラ大の銘柄に閾値を引きずられないように、蓄積時点で相対値(乖離率)へ変換する
+_PRICE_SCALE_COLS_LIST = [
+    'macd_1min_diff', 'bb_1min_20piece_width',
+    'ichimoku_1min_bc_diff', 'ichimoku_1min_cloud_high_diff', 'ichimoku_1min_cloud_low_diff',
+]
+for _t in ['sma', 'ema', 'wma']:
+    for _s, _l in MA_CROSS_PAIRS:
+        _PRICE_SCALE_COLS_LIST.append(f'{_t}_1min_{_s}to{_l}piece_diff')
+PRICE_SCALE_COLS = set(_PRICE_SCALE_COLS_LIST)
+
+# 出力スコープ定義
+SCOPE_ALL = 'all'
+SCOPE_BY_STOCK = 'by_stock'
+SCOPE_BY_DATE = 'by_date'
+SCOPES = [SCOPE_ALL, SCOPE_BY_STOCK, SCOPE_BY_DATE]
+
 # 出力カラム
 STAT_COMMON_COLUMNS = [
     'sample_count', 'rise_count', 'flat_count', 'fall_count',
@@ -88,6 +105,13 @@ STAT4_COLUMNS = ['indicator_col', 'threshold', 'direction', 'nbar'] + STAT_COMMO
 STAT5_COLUMNS = ['condition_name', 'nbar'] + STAT_COMMON_COLUMNS
 STAT6_COLUMNS = ['ma_col', 'position', 'nbar'] + STAT_COMMON_COLUMNS
 
+# スコープ別の先頭カラム
+SCOPE_PREFIX_COLUMNS = {
+    SCOPE_ALL: [],
+    SCOPE_BY_STOCK: ['stock_code'],
+    SCOPE_BY_DATE: ['date'],
+}
+
 class IndicatorStatistics(Base):
     '''テクニカル指標の統計情報算出クラス'''
 
@@ -99,22 +123,20 @@ class IndicatorStatistics(Base):
         self.statistics_data = {}
 
         # 統計用データアキュムレータ（CSV1件ずつ処理する際に生データを蓄積）
+        # キーに stock_code と date を含めることで、_save_statistics 時点で
+        # 全体／銘柄別／日付別の3スコープに group-by 集計可能とする
         # 構造: dict[group_key] = {'flag': [...], 'amount': [...], 'rate': [...]}
-        # group_keyには(nbar)を含めて1軸1レコードに対応させる
-        self.stat1_data = {}  # key=(signal_col, signal_type, nbar)
-        self.stat2_raw = {}   # key=(oscillator_col, nbar) -> value込み
-        self.stat3_data = {}  # key=(after_col, cross_type, bars_elapsed, nbar)
-        self.stat4_raw = {}   # key=(indicator_col, nbar) -> value込み
-        self.stat5_data = {}  # key=(condition_name, nbar)
-        self.stat6_data = {}  # key=(ma_col, position, nbar)
+        # 価格スケール指標(PRICE_SCALE_COLS)は蓄積時に value/close_price で相対化済み
+        self.stat1_data = {}  # key=(signal_col, signal_type, nbar, stock_code, date)
+        self.stat2_raw = {}   # key=(oscillator_col, nbar, stock_code, date) -> value込み
+        self.stat3_data = {}  # key=(after_col, cross_type, bars_elapsed, nbar, stock_code, date)
+        self.stat4_raw = {}   # key=(indicator_col, nbar, stock_code, date) -> value込み
+        self.stat5_data = {}  # key=(condition_name, nbar, stock_code, date)
+        self.stat6_data = {}  # key=(ma_col, position, nbar, stock_code, date)
 
-        # 出力用の最終行リスト (_save_statistics() で生成)
-        self.stat1_rows = []
-        self.stat2_rows = []
-        self.stat3_rows = []
-        self.stat4_rows = []
-        self.stat5_rows = []
-        self.stat6_rows = []
+        # NaN埋め用の銘柄・日付集合(処理対象として現れたものを記録)
+        self.all_stocks = set()
+        self.all_dates = set()
 
     def get_target_dates(self):
         '''
@@ -225,9 +247,14 @@ class IndicatorStatistics(Base):
 
         for csv_name in self.csv_dict:
             # ファイルパスを復元: "YYYYMMDD_STOCKCODE_N" → csv/ohlc/YYYYMMDD/YYYYMMDD_STOCKCODE_Nmin.csv
-            date = csv_name.split('_')[0]
+            parts = csv_name.split('_')
+            date = parts[0]
+            stock_code = parts[1]
             csv_file_name = f'{csv_name}min.csv'
             csv_path = os.path.join(OHLC_DIR, date, csv_file_name)
+            # 銘柄・日付を記録(NaN埋め用)
+            self.all_stocks.add(stock_code)
+            self.all_dates.add(date)
 
             # CSVを読み込む
             self.log.info(f'{csv_file_name}を読み込みます')
@@ -271,7 +298,7 @@ class IndicatorStatistics(Base):
 
 
             # 統計情報を取得する（生データを蓄積）
-            result = self._get_statistics(df, csv_name)
+            result = self._get_statistics(df, csv_name, stock_code, date)
             if not result:
                 self.log.error(f'{csv_name}: 統計情報の蓄積でエラーが発生しました')
 
@@ -444,7 +471,7 @@ class IndicatorStatistics(Base):
     # =========================================================
     # 統計情報の算出
     # =========================================================
-    def _get_statistics(self, df, csv_name):
+    def _get_statistics(self, df, csv_name, stock_code, date):
         '''
         DataFrame1件分から各統計用の生データを蓄積する。
         集計は全CSV処理完了後に _save_statistics() で行う。
@@ -460,6 +487,8 @@ class IndicatorStatistics(Base):
         Args:
             df(pd.DataFrame): テクニカル指標+正解ラベル付与済みDataFrame
             csv_name(str): ログ用のCSV識別名
+            stock_code(str): 銘柄コード
+            date(str): 日付(YYYYMMDD)
 
         Returns:
             bool: 実行結果
@@ -485,27 +514,27 @@ class IndicatorStatistics(Base):
             collect_times = {}
 
             t1 = time.perf_counter()
-            self._collect_stat1(df, flags, amounts, rates)
+            self._collect_stat1(df, flags, amounts, rates, stock_code, date)
             collect_times['stat1'] = time.perf_counter() - t1
 
             t2 = time.perf_counter()
-            self._collect_stat2(df, flags, amounts, rates)
+            self._collect_stat2(df, flags, amounts, rates, stock_code, date)
             collect_times['stat2'] = time.perf_counter() - t2
 
             t3 = time.perf_counter()
-            self._collect_stat3(df, flags, amounts, rates)
+            self._collect_stat3(df, flags, amounts, rates, stock_code, date)
             collect_times['stat3'] = time.perf_counter() - t3
 
             t4 = time.perf_counter()
-            self._collect_stat4(df, flags, amounts, rates)
+            self._collect_stat4(df, flags, amounts, rates, stock_code, date)
             collect_times['stat4'] = time.perf_counter() - t4
 
             t5 = time.perf_counter()
-            self._collect_stat5(df, flags, amounts, rates)
+            self._collect_stat5(df, flags, amounts, rates, stock_code, date)
             collect_times['stat5'] = time.perf_counter() - t5
 
             t6 = time.perf_counter()
-            self._collect_stat6(df, flags, amounts, rates)
+            self._collect_stat6(df, flags, amounts, rates, stock_code, date)
             collect_times['stat6'] = time.perf_counter() - t6
 
             total_time = time.perf_counter() - time_start
@@ -544,7 +573,7 @@ class IndicatorStatistics(Base):
         bucket['rate'].extend(rate_ser[mask].astype(float).tolist())
 
     # ---------- ① シグナル精度 ----------
-    def _collect_stat1(self, df, flags, amounts, rates):
+    def _collect_stat1(self, df, flags, amounts, rates, stock_code, date):
         '''統計①: クロス・逆転シグナル発火時の生データを蓄積'''
         signals = []  # list of (signal_col, signal_type, mask)
 
@@ -584,24 +613,44 @@ class IndicatorStatistics(Base):
         for col, stype, mask in signals:
             mask_arr = mask.astype(bool).values
             for nbar in NBAR_LIST:
-                key = (col, stype, nbar)
+                key = (col, stype, nbar, stock_code, date)
                 bucket = self.stat1_data.setdefault(key, {'flag': [], 'amount': [], 'rate': []})
                 self._append_triplets(bucket, flags[nbar][mask_arr], amounts[nbar][mask_arr], rates[nbar][mask_arr])
 
     # ---------- ② バケット別精度 ----------
-    def _collect_stat2(self, df, flags, amounts, rates):
-        '''統計②: オシレーター値と正解ラベルの組を蓄積。分割は _save_statistics で行う'''
+    def _collect_stat2(self, df, flags, amounts, rates, stock_code, date):
+        '''統計②: オシレーター値と正解ラベルの組を蓄積。分割は _save_statistics で行う
+        価格スケール指標(PRICE_SCALE_COLS)はここで close_price で除して相対化する'''
         cols = [c for (c, _, _, _) in BUCKET_EVEN] + BUCKET_QUARTILE
         for col in cols:
             if col not in df.columns:
                 continue
+            value_ser = self._relativize_if_needed(df, col)
+            if value_ser is None:
+                continue
             for nbar in NBAR_LIST:
-                key = (col, nbar)
+                key = (col, nbar, stock_code, date)
                 bucket = self.stat2_raw.setdefault(key, {'value': [], 'flag': [], 'amount': [], 'rate': []})
-                self._append_quartets(bucket, df[col], flags[nbar], amounts[nbar], rates[nbar])
+                self._append_quartets(bucket, value_ser, flags[nbar], amounts[nbar], rates[nbar])
+
+    def _relativize_if_needed(self, df, col):
+        '''
+        価格スケール指標(PRICE_SCALE_COLS)に該当する場合、value/close_price で相対化したSeriesを返す。
+        対象外の場合はそのままのSeriesを返す。
+
+        close_price が 0 / NaN の行は NaN とすることで、後段の NaN除外マスクで除外される。
+        '''
+        if col not in PRICE_SCALE_COLS:
+            return df[col]
+        if 'close_price' not in df.columns:
+            return df[col]
+        close = df['close_price']
+        # close_price が 0 や NaN の行は NaN にする(0除算回避)
+        safe_close = close.where((close != 0) & close.notna())
+        return df[col] / safe_close
 
     # ---------- ③ クロス後経過本数別 ----------
-    def _collect_stat3(self, df, flags, amounts, rates):
+    def _collect_stat3(self, df, flags, amounts, rates, stock_code, date):
         '''統計③: 各_afterカラムのバーカウント値ごとに生データを蓄積'''
         after_cols = []  # list of (col, cross_type)
 
@@ -633,13 +682,14 @@ class IndicatorStatistics(Base):
             for val in unique_vals:
                 mask = (df[col] == val).fillna(False).values
                 for nbar in NBAR_LIST:
-                    key = (col, ctype, val, nbar)
+                    key = (col, ctype, val, nbar, stock_code, date)
                     bucket = self.stat3_data.setdefault(key, {'flag': [], 'amount': [], 'rate': []})
                     self._append_triplets(bucket, flags[nbar][mask], amounts[nbar][mask], rates[nbar][mask])
 
     # ---------- ④ 閾値以上/以下 ----------
-    def _collect_stat4(self, df, flags, amounts, rates):
-        '''統計④: 指標値と正解ラベルの組を蓄積。閾値判定は _save_statistics で行う'''
+    def _collect_stat4(self, df, flags, amounts, rates, stock_code, date):
+        '''統計④: 指標値と正解ラベルの組を蓄積。閾値判定は _save_statistics で行う
+        価格スケール指標(PRICE_SCALE_COLS)はここで close_price で除して相対化する'''
         cols = list(THRESHOLD_FIXED.keys()) + ['macd_1min_diff', 'bb_1min_20piece_width']
         # MA diff 列（SMA/EMA/WMA × 6ペア）
         for t in ['sma', 'ema', 'wma']:
@@ -659,13 +709,16 @@ class IndicatorStatistics(Base):
         for col in uniq_cols:
             if col not in df.columns:
                 continue
+            value_ser = self._relativize_if_needed(df, col)
+            if value_ser is None:
+                continue
             for nbar in NBAR_LIST:
-                key = (col, nbar)
+                key = (col, nbar, stock_code, date)
                 bucket = self.stat4_raw.setdefault(key, {'value': [], 'flag': [], 'amount': [], 'rate': []})
-                self._append_quartets(bucket, df[col], flags[nbar], amounts[nbar], rates[nbar])
+                self._append_quartets(bucket, value_ser, flags[nbar], amounts[nbar], rates[nbar])
 
     # ---------- ⑤ BBσ位置 ----------
-    def _collect_stat5(self, df, flags, amounts, rates):
+    def _collect_stat5(self, df, flags, amounts, rates, stock_code, date):
         '''統計⑤: close_price と BBの上下限の直接比較結果ごとに生データを蓄積'''
         required = [
             'close_price',
@@ -695,12 +748,12 @@ class IndicatorStatistics(Base):
         for name, mask in conditions:
             mask_arr = mask.astype(bool).values
             for nbar in NBAR_LIST:
-                key = (name, nbar)
+                key = (name, nbar, stock_code, date)
                 bucket = self.stat5_data.setdefault(key, {'flag': [], 'amount': [], 'rate': []})
                 self._append_triplets(bucket, flags[nbar][mask_arr], amounts[nbar][mask_arr], rates[nbar][mask_arr])
 
     # ---------- ⑥ 価格とMAの位置関係 ----------
-    def _collect_stat6(self, df, flags, amounts, rates):
+    def _collect_stat6(self, df, flags, amounts, rates, stock_code, date):
         '''統計⑥: close_price と MA値の直接比較結果ごとに生データを蓄積'''
         if 'close_price' not in df.columns:
             return
@@ -713,7 +766,7 @@ class IndicatorStatistics(Base):
             below_mask = (close < df[col]).fillna(False).values
             for position, mask in [('above', above_mask), ('below', below_mask)]:
                 for nbar in NBAR_LIST:
-                    key = (col, position, nbar)
+                    key = (col, position, nbar, stock_code, date)
                     bucket = self.stat6_data.setdefault(key, {'flag': [], 'amount': [], 'rate': []})
                     self._append_triplets(bucket, flags[nbar][mask], amounts[nbar][mask], rates[nbar][mask])
 
@@ -751,76 +804,47 @@ class IndicatorStatistics(Base):
         }
 
     def _save_statistics(self):
-        '''蓄積した生データから各統計を集計し、CSVに出力する'''
+        '''
+        蓄積した生データから各統計を集計し、CSVに出力する。
+        全体／銘柄別／日付別の3スコープでそれぞれCSV出力するため、
+        合計18ファイル(6統計 × 3スコープ)が出力される。
+        '''
         try:
             os.makedirs(STATISTICS_DIR, exist_ok=True)
-
-            # 各統計の集計・CSV出力の実行時間を計測
             time_start = time.perf_counter()
-            build_times = {}
-            write_times = {}
 
-            t1 = time.perf_counter()
-            self._build_stat1_rows()
-            build_times['stat1'] = time.perf_counter() - t1
-            tw1 = time.perf_counter()
-            self._write_csv('statistics_1_signal_accuracy.csv', self.stat1_rows, STAT1_COLUMNS)
-            write_times['stat1'] = time.perf_counter() - tw1
+            stat_filenames = {
+                1: 'statistics_1_signal_accuracy',
+                2: 'statistics_2_bucket',
+                3: 'statistics_3_bars_after_cross',
+                4: 'statistics_4_threshold',
+                5: 'statistics_5_bb_sigma',
+                6: 'statistics_6_price_ma_position',
+            }
+            stat_columns = {
+                1: STAT1_COLUMNS, 2: STAT2_COLUMNS, 3: STAT3_COLUMNS,
+                4: STAT4_COLUMNS, 5: STAT5_COLUMNS, 6: STAT6_COLUMNS,
+            }
+            build_funcs = {
+                1: self._build_stat1_rows, 2: self._build_stat2_rows,
+                3: self._build_stat3_rows, 4: self._build_stat4_rows,
+                5: self._build_stat5_rows, 6: self._build_stat6_rows,
+            }
 
-            t2 = time.perf_counter()
-            self._build_stat2_rows()
-            build_times['stat2'] = time.perf_counter() - t2
-            tw2 = time.perf_counter()
-            self._write_csv('statistics_2_bucket.csv', self.stat2_rows, STAT2_COLUMNS)
-            write_times['stat2'] = time.perf_counter() - tw2
+            # 各スコープ × 各統計を build → write
+            for scope in SCOPES:
+                for stat_no in range(1, 7):
+                    t = time.perf_counter()
+                    rows = build_funcs[stat_no](scope)
+                    build_sec = time.perf_counter() - t
+                    columns = SCOPE_PREFIX_COLUMNS[scope] + stat_columns[stat_no]
+                    filename = f'{stat_filenames[stat_no]}_{scope}.csv'
+                    tw = time.perf_counter()
+                    self._write_csv(filename, rows, columns)
+                    write_sec = time.perf_counter() - tw
+                    self.log.info(f'  scope={scope} stat{stat_no}: build={build_sec:.3f}秒 write={write_sec:.3f}秒')
 
-            t3 = time.perf_counter()
-            self._build_stat3_rows()
-            build_times['stat3'] = time.perf_counter() - t3
-            tw3 = time.perf_counter()
-            self._write_csv('statistics_3_bars_after_cross.csv', self.stat3_rows, STAT3_COLUMNS)
-            write_times['stat3'] = time.perf_counter() - tw3
-
-            t4 = time.perf_counter()
-            self._build_stat4_rows()
-            build_times['stat4'] = time.perf_counter() - t4
-            tw4 = time.perf_counter()
-            self._write_csv('statistics_4_threshold.csv', self.stat4_rows, STAT4_COLUMNS)
-            write_times['stat4'] = time.perf_counter() - tw4
-
-            t5 = time.perf_counter()
-            self._build_stat5_rows()
-            build_times['stat5'] = time.perf_counter() - t5
-            tw5 = time.perf_counter()
-            self._write_csv('statistics_5_bb_sigma.csv', self.stat5_rows, STAT5_COLUMNS)
-            write_times['stat5'] = time.perf_counter() - tw5
-
-            t6 = time.perf_counter()
-            self._build_stat6_rows()
-            build_times['stat6'] = time.perf_counter() - t6
-            tw6 = time.perf_counter()
-            self._write_csv('statistics_6_price_ma_position.csv', self.stat6_rows, STAT6_COLUMNS)
-            write_times['stat6'] = time.perf_counter() - tw6
-
-            total_time = time.perf_counter() - time_start
-
-            # 実行時間をログ出力
-            self.log.info(f'統計集計・出力完了 (合計 {total_time:.3f}秒)')
-            self.log.info(f'集計時間:')
-            self.log.info(f'  stat①: {build_times["stat1"]:.3f}秒')
-            self.log.info(f'  stat②: {build_times["stat2"]:.3f}秒')
-            self.log.info(f'  stat③: {build_times["stat3"]:.3f}秒')
-            self.log.info(f'  stat④: {build_times["stat4"]:.3f}秒')
-            self.log.info(f'  stat⑤: {build_times["stat5"]:.3f}秒')
-            self.log.info(f'  stat⑥: {build_times["stat6"]:.3f}秒')
-            self.log.info(f'CSV出力時間:')
-            self.log.info(f'  stat①: {write_times["stat1"]:.3f}秒')
-            self.log.info(f'  stat②: {write_times["stat2"]:.3f}秒')
-            self.log.info(f'  stat③: {write_times["stat3"]:.3f}秒')
-            self.log.info(f'  stat④: {write_times["stat4"]:.3f}秒')
-            self.log.info(f'  stat⑤: {write_times["stat5"]:.3f}秒')
-            self.log.info(f'  stat⑥: {write_times["stat6"]:.3f}秒')
-
+            self.log.info(f'統計集計・出力完了 (合計 {time.perf_counter() - time_start:.3f}秒)')
             return True
         except Exception as e:
             self.log.error(f'統計情報の保存でエラー\n{e}\n{traceback.format_exc()}')
@@ -832,161 +856,326 @@ class IndicatorStatistics(Base):
         out_df.to_csv(path, index=False)
         self.log.info(f'統計CSV出力: {path} ({len(rows)}行)')
 
-    def _build_stat1_rows(self):
-        for (col, stype, nbar), data in sorted(self.stat1_data.items()):
-            stats = self._compute_stats(data['flag'], data['amount'], data['rate'])
-            self.stat1_rows.append({'signal_col': col, 'signal_type': stype, 'nbar': nbar, **stats})
+    # =========================================================
+    # スコープ別集計のヘルパー
+    # =========================================================
+    def _aggregate_by_scope(self, raw_data, scope, key_tuple_size):
+        '''
+        raw_data: dict[(other_keys..., stock_code, date)] = bucket
+        scope: SCOPE_ALL / SCOPE_BY_STOCK / SCOPE_BY_DATE
+        key_tuple_size: stock_code/date を除いた先頭キーの個数
 
-    def _build_stat2_rows(self):
+        Returns:
+            dict[grouped_key] = merged_bucket
+            - SCOPE_ALL: grouped_key = (other_keys...)
+            - SCOPE_BY_STOCK: grouped_key = (other_keys..., stock_code)
+            - SCOPE_BY_DATE: grouped_key = (other_keys..., date)
+        '''
+        out = {}
+        for full_key, bucket in raw_data.items():
+            other = full_key[:key_tuple_size]
+            sc = full_key[key_tuple_size]
+            dt = full_key[key_tuple_size + 1]
+            if scope == SCOPE_ALL:
+                new_key = other
+            elif scope == SCOPE_BY_STOCK:
+                new_key = other + (sc,)
+            else:  # SCOPE_BY_DATE
+                new_key = other + (dt,)
+            merged = out.get(new_key)
+            if merged is None:
+                merged = {k: [] for k in bucket.keys()}
+                out[new_key] = merged
+            for k, vals in bucket.items():
+                merged[k].extend(vals)
+        return out
+
+    def _scope_ids(self, scope):
+        '''スコープに対応する識別子のリストを返す。SCOPE_ALL のときは [None]'''
+        if scope == SCOPE_ALL:
+            return [None]
+        if scope == SCOPE_BY_STOCK:
+            return sorted(self.all_stocks)
+        return sorted(self.all_dates)
+
+    def _scope_prefix(self, scope, scope_id):
+        '''スコープに対応する先頭カラムの dict を返す'''
+        if scope == SCOPE_ALL:
+            return {}
+        if scope == SCOPE_BY_STOCK:
+            return {'stock_code': scope_id}
+        return {'date': scope_id}
+
+    def _empty_stats(self):
+        '''サンプル無しの空統計値(NaN埋め用)'''
+        return self._compute_stats([], [], [])
+
+    # =========================================================
+    # 各統計の行生成 (スコープ別)
+    # =========================================================
+    def _build_stat1_rows(self, scope):
+        '''統計①(シグナル精度)の行を生成。NaN埋めポリシーに従い該当データなしの組も sample_count=0 行として出力'''
+        agg = self._aggregate_by_scope(self.stat1_data, scope, 3)  # (col, stype, nbar)
+        unique_triples = sorted({full_key[:3] for full_key in self.stat1_data.keys()})
+        scope_ids = self._scope_ids(scope)
+
+        rows = []
+        for (col, stype, nbar) in unique_triples:
+            for sid in scope_ids:
+                key = (col, stype, nbar) if scope == SCOPE_ALL else (col, stype, nbar, sid)
+                data = agg.get(key)
+                stats = self._compute_stats(data['flag'], data['amount'], data['rate']) if data else self._empty_stats()
+                rows.append({
+                    **self._scope_prefix(scope, sid),
+                    'signal_col': col, 'signal_type': stype, 'nbar': nbar,
+                    **stats,
+                })
+        return rows
+
+    def _build_stat2_rows(self, scope):
+        '''統計②(バケット別)の行を生成。スコープ内で四分位閾値を独立に算出'''
+        agg = self._aggregate_by_scope(self.stat2_raw, scope, 2)  # (col, nbar)
+        # スコープ識別子ごとに整理: per_col_sid[(col, sid)] = {nbar: data}
+        per_col_sid = {}
+        for key, data in agg.items():
+            if scope == SCOPE_ALL:
+                col, nbar = key
+                sid = None
+            else:
+                col, nbar, sid = key
+            per_col_sid.setdefault((col, sid), {})[nbar] = data
+
         even_map = {c: (lo, hi, nb) for (c, lo, hi, nb) in BUCKET_EVEN}
-        # col単位で集約
-        per_col = {}
-        for (col, nbar), data in self.stat2_raw.items():
-            per_col.setdefault(col, {})[nbar] = data
+        scope_ids = self._scope_ids(scope)
+        unique_cols = sorted({k[0] for k in self.stat2_raw.keys()})
 
-        for col, by_nbar in sorted(per_col.items()):
-            if col in even_map:
-                lo, hi, n_buckets = even_map[col]
-                edges = np.linspace(lo, hi, n_buckets + 1)
-                for nbar in NBAR_LIST:
-                    if nbar not in by_nbar:
-                        continue
-                    data = by_nbar[nbar]
-                    values = np.asarray(data['value'], dtype=float)
-                    if col == 'bb_1min_20piece_position':
-                        values = np.clip(values, 0.0, 1.0)
-                    flags_arr = np.asarray(data['flag'])
-                    amounts_arr = np.asarray(data['amount'], dtype=float)
-                    rates_arr = np.asarray(data['rate'], dtype=float)
-                    for i in range(n_buckets):
-                        left = float(edges[i])
-                        right = float(edges[i + 1])
-                        if i == n_buckets - 1:
-                            mask = (values >= left) & (values <= right)
-                            label = f'[{left}, {right}]'
-                        else:
-                            mask = (values >= left) & (values < right)
-                            label = f'[{left}, {right})'
-                        stats = self._compute_stats(flags_arr[mask].tolist(), amounts_arr[mask].tolist(), rates_arr[mask].tolist())
-                        self.stat2_rows.append({
-                            'oscillator_col': col, 'bucket_label': label,
-                            'bucket_left': round(left, 4), 'bucket_right': round(right, 4),
-                            'nbar': nbar, **stats,
-                        })
-            else:
-                # 四分位分割: 全nbar共通で閾値を決定
-                all_values = []
-                for d in by_nbar.values():
-                    all_values.extend(d['value'])
-                if not all_values:
-                    continue
-                all_arr = np.asarray(all_values, dtype=float)
-                q25 = float(np.quantile(all_arr, 0.25))
-                q50 = float(np.quantile(all_arr, 0.50))
-                q75 = float(np.quantile(all_arr, 0.75))
-                min_v = float(all_arr.min())
-                max_v = float(all_arr.max())
-                boundaries = [min_v, q25, q50, q75, max_v]
-                labels = ['Q1', 'Q2', 'Q3', 'Q4']
-                for nbar in NBAR_LIST:
-                    if nbar not in by_nbar:
-                        continue
-                    data = by_nbar[nbar]
-                    values = np.asarray(data['value'], dtype=float)
-                    flags_arr = np.asarray(data['flag'])
-                    amounts_arr = np.asarray(data['amount'], dtype=float)
-                    rates_arr = np.asarray(data['rate'], dtype=float)
-                    for i in range(4):
-                        left = boundaries[i]
-                        right = boundaries[i + 1]
-                        if i == 3:
-                            mask = (values >= left) & (values <= right)
-                        else:
-                            mask = (values >= left) & (values < right)
-                        stats = self._compute_stats(flags_arr[mask].tolist(), amounts_arr[mask].tolist(), rates_arr[mask].tolist())
-                        self.stat2_rows.append({
-                            'oscillator_col': col, 'bucket_label': labels[i],
-                            'bucket_left': round(left, 4), 'bucket_right': round(right, 4),
-                            'nbar': nbar, **stats,
-                        })
-
-    def _build_stat3_rows(self):
-        for (col, ctype, bars, nbar), data in sorted(self.stat3_data.items()):
-            stats = self._compute_stats(data['flag'], data['amount'], data['rate'])
-            self.stat3_rows.append({
-                'after_col': col, 'cross_type': ctype, 'bars_elapsed': bars,
-                'nbar': nbar, **stats,
-            })
-
-    def _build_stat4_rows(self):
-        # col単位で集約
-        per_col = {}
-        for (col, nbar), data in self.stat4_raw.items():
-            per_col.setdefault(col, {})[nbar] = data
-
-        # 動的閾値の算出
-        dyn_thresholds = {}
-        for col, by_nbar in per_col.items():
-            if col in THRESHOLD_FIXED:
-                dyn_thresholds[col] = list(THRESHOLD_FIXED[col])
-            elif col == 'macd_1min_diff':
-                all_values = []
-                for d in by_nbar.values():
-                    all_values.extend(d['value'])
-                if all_values:
-                    arr = np.asarray(all_values, dtype=float)
-                    q25 = round(float(np.quantile(arr, 0.25)), 4)
-                    q75 = round(float(np.quantile(arr, 0.75)), 4)
-                    dyn_thresholds[col] = [q25, 0.0, q75]
-                else:
-                    dyn_thresholds[col] = []
-            elif col == 'bb_1min_20piece_width':
-                all_values = []
-                for d in by_nbar.values():
-                    all_values.extend(d['value'])
-                if all_values:
-                    arr = np.asarray(all_values, dtype=float)
-                    q25 = round(float(np.quantile(arr, 0.25)), 4)
-                    q50 = round(float(np.quantile(arr, 0.50)), 4)
-                    q75 = round(float(np.quantile(arr, 0.75)), 4)
-                    dyn_thresholds[col] = [q25, q50, q75]
-                else:
-                    dyn_thresholds[col] = []
-            else:
-                # MA diff / 一目 diff 系 (0基準)
-                dyn_thresholds[col] = [0.0]
-
-        for col, by_nbar in sorted(per_col.items()):
-            thresholds = dyn_thresholds.get(col, [])
-            for threshold in thresholds:
-                for direction in ['above', 'below']:
+        rows = []
+        for col in unique_cols:
+            for sid in scope_ids:
+                by_nbar = per_col_sid.get((col, sid), {})
+                if col in even_map:
+                    lo, hi, n_buckets = even_map[col]
+                    edges = np.linspace(lo, hi, n_buckets + 1)
                     for nbar in NBAR_LIST:
-                        if nbar not in by_nbar:
-                            continue
-                        data = by_nbar[nbar]
-                        values = np.asarray(data['value'], dtype=float)
-                        flags_arr = np.asarray(data['flag'])
-                        amounts_arr = np.asarray(data['amount'], dtype=float)
-                        rates_arr = np.asarray(data['rate'], dtype=float)
-                        if direction == 'above':
-                            mask = values >= threshold
+                        data = by_nbar.get(nbar)
+                        for i in range(n_buckets):
+                            left = float(edges[i])
+                            right = float(edges[i + 1])
+                            label = f'[{left}, {right}]' if i == n_buckets - 1 else f'[{left}, {right})'
+                            if data is None:
+                                stats = self._empty_stats()
+                            else:
+                                values = np.asarray(data['value'], dtype=float)
+                                if col == 'bb_1min_20piece_position':
+                                    values = np.clip(values, 0.0, 1.0)
+                                flags_arr = np.asarray(data['flag'])
+                                amounts_arr = np.asarray(data['amount'], dtype=float)
+                                rates_arr = np.asarray(data['rate'], dtype=float)
+                                if i == n_buckets - 1:
+                                    mask = (values >= left) & (values <= right)
+                                else:
+                                    mask = (values >= left) & (values < right)
+                                stats = self._compute_stats(
+                                    flags_arr[mask].tolist(),
+                                    amounts_arr[mask].tolist(),
+                                    rates_arr[mask].tolist(),
+                                )
+                            rows.append({
+                                **self._scope_prefix(scope, sid),
+                                'oscillator_col': col, 'bucket_label': label,
+                                'bucket_left': round(left, 4), 'bucket_right': round(right, 4),
+                                'nbar': nbar, **stats,
+                            })
+                else:
+                    # 四分位分割: スコープ内で全nbar共通の閾値を決定
+                    all_values = []
+                    for d in by_nbar.values():
+                        all_values.extend(d['value'])
+                    labels = ['Q1', 'Q2', 'Q3', 'Q4']
+                    if not all_values:
+                        # データが無いスコープ識別子も NaN行で埋める
+                        for nbar in NBAR_LIST:
+                            for label in labels:
+                                rows.append({
+                                    **self._scope_prefix(scope, sid),
+                                    'oscillator_col': col, 'bucket_label': label,
+                                    'bucket_left': np.nan, 'bucket_right': np.nan,
+                                    'nbar': nbar, **self._empty_stats(),
+                                })
+                        continue
+                    all_arr = np.asarray(all_values, dtype=float)
+                    boundaries = [
+                        float(all_arr.min()),
+                        float(np.quantile(all_arr, 0.25)),
+                        float(np.quantile(all_arr, 0.50)),
+                        float(np.quantile(all_arr, 0.75)),
+                        float(all_arr.max()),
+                    ]
+                    for nbar in NBAR_LIST:
+                        data = by_nbar.get(nbar)
+                        for i in range(4):
+                            left = boundaries[i]
+                            right = boundaries[i + 1]
+                            if data is None:
+                                stats = self._empty_stats()
+                            else:
+                                values = np.asarray(data['value'], dtype=float)
+                                flags_arr = np.asarray(data['flag'])
+                                amounts_arr = np.asarray(data['amount'], dtype=float)
+                                rates_arr = np.asarray(data['rate'], dtype=float)
+                                if i == 3:
+                                    mask = (values >= left) & (values <= right)
+                                else:
+                                    mask = (values >= left) & (values < right)
+                                stats = self._compute_stats(
+                                    flags_arr[mask].tolist(),
+                                    amounts_arr[mask].tolist(),
+                                    rates_arr[mask].tolist(),
+                                )
+                            rows.append({
+                                **self._scope_prefix(scope, sid),
+                                'oscillator_col': col, 'bucket_label': labels[i],
+                                'bucket_left': round(left, 6), 'bucket_right': round(right, 6),
+                                'nbar': nbar, **stats,
+                            })
+        return rows
+
+    def _build_stat3_rows(self, scope):
+        '''統計③(クロス後経過バー数別)の行を生成'''
+        agg = self._aggregate_by_scope(self.stat3_data, scope, 4)  # (col, ctype, bars, nbar)
+        unique_keys = sorted({full_key[:4] for full_key in self.stat3_data.keys()})
+        scope_ids = self._scope_ids(scope)
+        rows = []
+        for (col, ctype, bars, nbar) in unique_keys:
+            for sid in scope_ids:
+                key = (col, ctype, bars, nbar) if scope == SCOPE_ALL else (col, ctype, bars, nbar, sid)
+                data = agg.get(key)
+                stats = self._compute_stats(data['flag'], data['amount'], data['rate']) if data else self._empty_stats()
+                rows.append({
+                    **self._scope_prefix(scope, sid),
+                    'after_col': col, 'cross_type': ctype,
+                    'bars_elapsed': bars, 'nbar': nbar, **stats,
+                })
+        return rows
+
+    def _build_stat4_rows(self, scope):
+        '''統計④(閾値以上/以下)の行を生成。動的閾値はスコープごとに独立に算出'''
+        agg = self._aggregate_by_scope(self.stat4_raw, scope, 2)  # (col, nbar)
+        per_col_sid = {}
+        for key, data in agg.items():
+            if scope == SCOPE_ALL:
+                col, nbar = key
+                sid = None
+            else:
+                col, nbar, sid = key
+            per_col_sid.setdefault((col, sid), {})[nbar] = data
+
+        scope_ids = self._scope_ids(scope)
+        unique_cols = sorted({k[0] for k in self.stat4_raw.keys()})
+
+        rows = []
+        for col in unique_cols:
+            for sid in scope_ids:
+                by_nbar = per_col_sid.get((col, sid), {})
+                # スコープ内でのデータをプールして閾値を決定
+                if col in THRESHOLD_FIXED:
+                    thresholds = list(THRESHOLD_FIXED[col])
+                else:
+                    all_values = []
+                    for d in by_nbar.values():
+                        all_values.extend(d['value'])
+                    if col == 'macd_1min_diff':
+                        if all_values:
+                            arr = np.asarray(all_values, dtype=float)
+                            q25 = round(float(np.quantile(arr, 0.25)), 6)
+                            q75 = round(float(np.quantile(arr, 0.75)), 6)
+                            thresholds = [q25, 0.0, q75]
                         else:
-                            mask = values <= threshold
-                        stats = self._compute_stats(flags_arr[mask].tolist(), amounts_arr[mask].tolist(), rates_arr[mask].tolist())
-                        self.stat4_rows.append({
-                            'indicator_col': col, 'threshold': threshold,
-                            'direction': direction, 'nbar': nbar, **stats,
-                        })
+                            thresholds = []
+                    elif col == 'bb_1min_20piece_width':
+                        if all_values:
+                            arr = np.asarray(all_values, dtype=float)
+                            q25 = round(float(np.quantile(arr, 0.25)), 6)
+                            q50 = round(float(np.quantile(arr, 0.50)), 6)
+                            q75 = round(float(np.quantile(arr, 0.75)), 6)
+                            thresholds = [q25, q50, q75]
+                        else:
+                            thresholds = []
+                    else:
+                        # MA diff / 一目 diff 系 (0基準。相対化済みでも0基準は変わらない)
+                        thresholds = [0.0]
 
-    def _build_stat5_rows(self):
-        for (name, nbar), data in sorted(self.stat5_data.items()):
-            stats = self._compute_stats(data['flag'], data['amount'], data['rate'])
-            self.stat5_rows.append({'condition_name': name, 'nbar': nbar, **stats})
+                if not thresholds:
+                    # スコープ識別子にデータが無く動的閾値が決められない場合のNaN行
+                    for nbar in NBAR_LIST:
+                        for direction in ['above', 'below']:
+                            rows.append({
+                                **self._scope_prefix(scope, sid),
+                                'indicator_col': col, 'threshold': np.nan,
+                                'direction': direction, 'nbar': nbar, **self._empty_stats(),
+                            })
+                    continue
 
-    def _build_stat6_rows(self):
-        for (col, position, nbar), data in sorted(self.stat6_data.items()):
-            stats = self._compute_stats(data['flag'], data['amount'], data['rate'])
-            self.stat6_rows.append({'ma_col': col, 'position': position, 'nbar': nbar, **stats})
+                for threshold in thresholds:
+                    for direction in ['above', 'below']:
+                        for nbar in NBAR_LIST:
+                            data = by_nbar.get(nbar)
+                            if data is None:
+                                stats = self._empty_stats()
+                            else:
+                                values = np.asarray(data['value'], dtype=float)
+                                flags_arr = np.asarray(data['flag'])
+                                amounts_arr = np.asarray(data['amount'], dtype=float)
+                                rates_arr = np.asarray(data['rate'], dtype=float)
+                                if direction == 'above':
+                                    mask = values >= threshold
+                                else:
+                                    mask = values <= threshold
+                                stats = self._compute_stats(
+                                    flags_arr[mask].tolist(),
+                                    amounts_arr[mask].tolist(),
+                                    rates_arr[mask].tolist(),
+                                )
+                            rows.append({
+                                **self._scope_prefix(scope, sid),
+                                'indicator_col': col, 'threshold': threshold,
+                                'direction': direction, 'nbar': nbar, **stats,
+                            })
+        return rows
+
+    def _build_stat5_rows(self, scope):
+        '''統計⑤(BBσ位置別)の行を生成'''
+        agg = self._aggregate_by_scope(self.stat5_data, scope, 2)  # (name, nbar)
+        unique_keys = sorted({full_key[:2] for full_key in self.stat5_data.keys()})
+        scope_ids = self._scope_ids(scope)
+        rows = []
+        for (name, nbar) in unique_keys:
+            for sid in scope_ids:
+                key = (name, nbar) if scope == SCOPE_ALL else (name, nbar, sid)
+                data = agg.get(key)
+                stats = self._compute_stats(data['flag'], data['amount'], data['rate']) if data else self._empty_stats()
+                rows.append({
+                    **self._scope_prefix(scope, sid),
+                    'condition_name': name, 'nbar': nbar, **stats,
+                })
+        return rows
+
+    def _build_stat6_rows(self, scope):
+        '''統計⑥(価格とMAの位置関係)の行を生成'''
+        agg = self._aggregate_by_scope(self.stat6_data, scope, 3)  # (col, position, nbar)
+        unique_keys = sorted({full_key[:3] for full_key in self.stat6_data.keys()})
+        scope_ids = self._scope_ids(scope)
+        rows = []
+        for (col, position, nbar) in unique_keys:
+            for sid in scope_ids:
+                key = (col, position, nbar) if scope == SCOPE_ALL else (col, position, nbar, sid)
+                data = agg.get(key)
+                stats = self._compute_stats(data['flag'], data['amount'], data['rate']) if data else self._empty_stats()
+                rows.append({
+                    **self._scope_prefix(scope, sid),
+                    'ma_col': col, 'position': position, 'nbar': nbar, **stats,
+                })
+        return rows
 
     def _cleanup_extracted(self, date, ohlc_date_dir):
         '''解凍したディレクトリを削除する（存在しない場合は何もしない）'''
