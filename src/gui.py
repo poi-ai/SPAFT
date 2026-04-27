@@ -38,11 +38,12 @@ class StockOrderApp(Base):
         self.qty_entry.grid(row=1, column=1, sticky='e', padx=(0, 15), pady=5)
 
         # 証券取引所 (Exchange)
+        # 東証はAPIから優先市場コードを自動取得する（市場コード「1」は2026/02/28以降の発注で使用不可）
         tk.Label(self.root, text='証券取引所', **label_options).grid(row=2, column=0, sticky='w', padx=10, pady=5)
         self.exchange_var = tk.StringVar(self.root)
-        self.exchange_var.set('東証')  # デフォルト値
+        self.exchange_var.set('東証(自動取得)')  # デフォルト値
         self.exchange_map = {
-            '東証': 1,
+            '東証(自動取得)': None,  # primary_exchange APIから市場コードを取得
             '名証': 3,
             '福証': 5,
             '札証': 6,
@@ -340,6 +341,18 @@ class StockOrderApp(Base):
             qty = int(qty)
             exchange = self.exchange_map[exchange_label]
             side = self.side_map[side_label]
+        except ValueError:
+            messagebox.showerror('エラー', '数値で指定する必要がある項目があります。')
+            return
+
+        # 東証(自動取得)が選択された場合はAPIから優先市場コードを取得
+        if exchange is None:
+            result, exchange = self.service.trade.scalping.get_primary_exchange(stock_code)
+            if not result:
+                messagebox.showerror('エラー', f'優先市場コードの取得に失敗しました。\n{exchange}')
+                return
+
+        try:
             cash_margin = self.cash_margin_map[cash_margin_label]
             margin_trade_type = self.margin_trade_type_map[margin_trade_type_label]
             close_position_order = self.close_position_order_map[close_position_order_label]
