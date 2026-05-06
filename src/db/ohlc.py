@@ -329,6 +329,46 @@ class Ohlc():
             self.log.error(f'四本値レコード日付指定削除処理でエラー\n{e}\n{traceback.format_exc()}')
             return False, 0
 
+    def select_range(self, symbol, end_time, n):
+        '''
+        指定銘柄について、end_time 以前の直近 N 件の四本値レコードを取得する
+        リアルタイム指標計算（RSI/BB/RCI 等）用に直近の close を取り出す目的で使用する
+
+        Args:
+            symbol(str): 銘柄コード
+            end_time(datetime): この時刻以前のレコードに限定（境界含む）
+            n(int): 取得件数
+
+        Returns:
+            result(bool): SQL実行結果
+            rows(list[dict]): trade_time 昇順のレコードリスト
+        '''
+        try:
+            with self.conn.cursor(self.dict_return) as cursor:
+                sql = '''
+                    SELECT
+                        *
+                    FROM
+                        ohlc
+                    WHERE
+                        symbol = %s
+                    AND
+                        trade_time <= %s
+                    ORDER BY
+                        trade_time DESC
+                    LIMIT %s
+                '''
+
+                cursor.execute(sql, (symbol, end_time, int(n)))
+                rows = cursor.fetchall()
+                if rows is None:
+                    return True, []
+                # 昇順に並べ直して返す（指標計算は時系列昇順が前提のため）
+                return True, list(rows)[::-1]
+        except Exception as e:
+            self.log.error(f'四本値レコード直近N件取得処理でエラー\n{e}\n{traceback.format_exc()}')
+            return False, None
+
     def upsert(self, ohlc_data):
         '''
         四本値テーブル(ohlc)のレコードを追加または更新する
