@@ -780,17 +780,11 @@ class Indicator():
             conversion_line = f'{column_name}_conversion_line'
             leading_span_a = f'{column_name}_leading_span_a'
             leading_span_b = f'{column_name}_leading_span_b'
-            lagging_span = f'{column_name}_lagging_span'
             base_conversion_diff = f'{column_name}_bc_diff'
             base_conversion_position = f'{column_name}_bc_position'
             base_conversion_cross = f'{column_name}_bc_cross'
             base_conversion_gc_after = f'{column_name}_bc_gc_after'
             base_conversion_dc_after = f'{column_name}_bc_dc_after'
-            price_lagging_diff = f'{column_name}_pl_diff'
-            price_lagging_position = f'{column_name}_pl_position'
-            price_lagging_cross = f'{column_name}_pl_cross'
-            price_lagging_gc_after = f'{column_name}_pl_gc_after'
-            price_lagging_dc_after = f'{column_name}_pl_dc_after'
             leading_span_diff = f'{column_name}_ls_diff'
             leading_span_position = f'{column_name}_ls_position'
             leading_span_cross = f'{column_name}_ls_cross'
@@ -805,9 +799,8 @@ class Indicator():
             price_cloud_cross_dc_after1 = f'{column_name}_cloud_entry_down_after'     # cloud_cross==1: 雲の上→中（上から雲に入った後）
             price_cloud_cross_dc_after2 = f'{column_name}_cloud_breakout_down_after'  # cloud_cross==3: 雲の中→下（雲下抜け後）
 
-            add_columns = [base_line, conversion_line, leading_span_a, leading_span_b, lagging_span,
+            add_columns = [base_line, conversion_line, leading_span_a, leading_span_b,
                            base_conversion_diff, base_conversion_position, base_conversion_cross, base_conversion_gc_after, base_conversion_dc_after,
-                           price_lagging_diff, price_lagging_position, price_lagging_cross, price_lagging_gc_after, price_lagging_dc_after,
                            leading_span_diff, leading_span_position, leading_span_cross, leading_span_gc_after, leading_span_dc_after,
                            price_cloud_high_diff, price_cloud_low_diff, price_cloud_position, price_cloud_cross,
                            price_cloud_cross_gc_after1, price_cloud_cross_gc_after2, price_cloud_cross_dc_after1, price_cloud_cross_dc_after2]
@@ -824,9 +817,6 @@ class Indicator():
             # 先行スパン2の計算 long_window_size x 2本の高値と安値の平均をlong_window_size本先にずらす
             df_resampled[leading_span_b] = (((df_resampled[high_column_name].rolling(window = long_window_size * 2).max() + df_resampled[low_column_name].rolling(window = long_window_size * 2).min()) / 2).shift(long_window_size)).round(3)
 
-            # 遅行スパンの計算 現在の価格をlong_window_size本前にずらす
-            df_resampled[lagging_span] = df_resampled[close_column_name].shift(-long_window_size)
-
             # 基準線と転換線の差/位置関係
             df_resampled[base_conversion_diff] = (df_resampled[conversion_line] - df_resampled[base_line]).round(3)
             df_resampled[base_conversion_position] = (df_resampled[conversion_line] - df_resampled[base_line]).apply(lambda x: 1 if x > 0 else 0)
@@ -841,21 +831,6 @@ class Indicator():
             df_resampled.loc[df_resampled[base_conversion_cross] == 1, base_conversion_gc_after] = 0
             df_resampled[base_conversion_dc_after] = df_resampled.groupby((df_resampled[base_conversion_cross] == -1).cumsum()).cumcount()
             df_resampled.loc[df_resampled[base_conversion_cross] == -1, base_conversion_dc_after] = 0
-
-            # 終値と遅行スパンの差/位置関係
-            df_resampled[price_lagging_diff] = (df_resampled[close_column_name] - df_resampled[lagging_span]).round(3)
-            df_resampled[price_lagging_position] = (df_resampled[close_column_name] > df_resampled[lagging_span]).astype(int)
-
-            # 終値と遅行スパンのクロスフラグ
-            df_resampled[price_lagging_cross] = 0
-            df_resampled.loc[(df_resampled[close_column_name] > df_resampled[lagging_span]) & (df_resampled[close_column_name].shift() < df_resampled[lagging_span].shift()), price_lagging_cross] = 1
-            df_resampled.loc[(df_resampled[close_column_name] < df_resampled[lagging_span]) & (df_resampled[close_column_name].shift() > df_resampled[lagging_span].shift()), price_lagging_cross] = -1
-
-            # ゴールデンクロス/デッドクロスからの経過データ数を計算
-            df_resampled[price_lagging_gc_after] = df_resampled.groupby((df_resampled[price_lagging_cross] == 1).cumsum()).cumcount()
-            df_resampled.loc[df_resampled[price_lagging_cross] == 1, price_lagging_gc_after] = 0
-            df_resampled[price_lagging_dc_after] = df_resampled.groupby((df_resampled[price_lagging_cross] == -1).cumsum()).cumcount()
-            df_resampled.loc[df_resampled[price_lagging_cross] == -1, price_lagging_dc_after] = 0
 
             # 先行スパン1と2の差/位置関係
             df_resampled[leading_span_diff] = (df_resampled[leading_span_a] - df_resampled[leading_span_b]).round(3)
