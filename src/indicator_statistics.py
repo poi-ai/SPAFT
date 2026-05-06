@@ -597,8 +597,8 @@ class IndicatorStatistics(Base):
             if col in df.columns:
                 signals.append((col, 'reverse', (df[col] == 1).fillna(False)))
 
-        # 一目均衡表 bc/pl/ls (値が1:GC, -1:DC)
-        for key in ['bc', 'pl', 'ls']:
+        # 一目均衡表 bc/ls (値が1:GC, -1:DC)
+        for key in ['bc', 'ls']:
             col = f'ichimoku_1min_{key}_cross'
             if col in df.columns:
                 signals.append((col, 'golden_cross', (df[col] == 1).fillna(False)))
@@ -660,8 +660,8 @@ class IndicatorStatistics(Base):
                 after_cols.append((f'{t}_1min_{s}to{l}piece_golden_cross_after', 'golden_cross'))
                 after_cols.append((f'{t}_1min_{s}to{l}piece_dead_cross_after', 'dead_cross'))
 
-        # 一目 bc/pl/ls
-        for k in ['bc', 'pl', 'ls']:
+        # 一目 bc/ls
+        for k in ['bc', 'ls']:
             after_cols.append((f'ichimoku_1min_{k}_gc_after', 'golden_cross'))
             after_cols.append((f'ichimoku_1min_{k}_dc_after', 'dead_cross'))
 
