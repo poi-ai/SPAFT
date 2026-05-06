@@ -39,7 +39,7 @@ class Indicator():
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # 2分足以上の場合は間の数値を前のSMAで埋める（初期NaN行はffillしても埋まらない）
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'SMA計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -79,7 +79,7 @@ class Indicator():
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # 2分足以上の場合は間の数値を前のEMAで埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'EMA計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -120,7 +120,7 @@ class Indicator():
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # 2分足以上の場合は間の数値を前のWMAで埋める（初期NaN行はffillしても埋まらない）
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'WMA計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -197,7 +197,7 @@ class Indicator():
 
             # リサンプリングされていない行を直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'MAクロス計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -267,7 +267,7 @@ class Indicator():
 
             for column in add_columns:
                 # リサンプリング対象外の行は、直近の値で埋める
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
                 # window_size - 1番目までのデータでは計算ができずNaNになるので-999で埋める
                 ##df[column].fillna(-999, inplace=True)
@@ -334,7 +334,7 @@ class Indicator():
             df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
 
             # window_size - 1番目までのデータでは計算ができずNaNになるので-999で埋める かつ 間の要素は直近の要素で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'RSI計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -369,7 +369,7 @@ class Indicator():
             df_resampled[column_name] = df_resampled[price_column_name].rolling(window=window_size).apply(self.calc_rci, raw=False)
 
             # 初めの方の要素はNaNになるので直前の値で埋める
-            df_resampled[column_name].fillna(method='ffill', inplace=True)
+            df_resampled[column_name] = df_resampled[column_name].ffill()
 
             # 先頭の要素を-999で埋める
             ##df_resampled.iloc[0, df_resampled.columns.get_loc(column_name)] = -999
@@ -378,7 +378,7 @@ class Indicator():
             df = df.merge(df_resampled[[column_name]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'RCI計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -482,7 +482,7 @@ class Indicator():
 
             # リサンプリングされていない行を直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'MACD計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -530,7 +530,7 @@ class Indicator():
             df = df.merge(df_resampled[column_name], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
 
         except Exception as e:
             self.log.error(f'PSY計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -628,9 +628,9 @@ class Indicator():
             df = df.merge(df_resampled[[column_name, column_name_up_trend, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
-            df[column_name_up_trend].fillna(method='ffill', inplace=True)
-            df[column_name_reverse_flag].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
+            df[column_name_up_trend] = df[column_name_up_trend].ffill()
+            df[column_name_reverse_flag] = df[column_name_reverse_flag].ffill()
 
         except Exception as e:
             self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -735,9 +735,9 @@ class Indicator():
             df = df.merge(df_resampled[[column_name, column_name_up_trend, column_name_reverse_flag]], left_index=True, right_index=True, how='left')
 
             # リサンプリングされていない行を直前の値で埋める
-            df[column_name].fillna(method='ffill', inplace=True)
-            df[column_name_up_trend].fillna(method='ffill', inplace=True)
-            df[column_name_reverse_flag].fillna(method='ffill', inplace=True)
+            df[column_name] = df[column_name].ffill()
+            df[column_name_up_trend] = df[column_name_up_trend].ffill()
+            df[column_name_reverse_flag] = df[column_name_reverse_flag].ffill()
 
         except Exception as e:
             self.log.error(f'SAR計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -909,7 +909,7 @@ class Indicator():
 
             # リサンプリングされていない行を直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'一目均衡表計算でエラー\n{str(e)}\n{traceback.format_exc()}')
@@ -958,7 +958,7 @@ class Indicator():
 
             # 計算(リサンプリング)対象外の行は直前の値で埋める
             for column in add_columns:
-                df[column].fillna(method='ffill', inplace=True)
+                df[column] = df[column].ffill()
 
         except Exception as e:
             self.log.error(f'計算でエラー\n{str(e)}\n{traceback.format_exc()}')
