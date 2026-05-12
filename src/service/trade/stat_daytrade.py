@@ -102,11 +102,11 @@ class StatDaytrade(Scalping):
         self.stock_info['lower_limit'] = stock_info['LowerLimit']
         self.stock_info['yobine_group'] = stock_info['PriceRangeGroup']
 
-        self.util.stock_price.set_yobine_group(stock_info['PriceRangeGroup'])
+        self.util.stock_price.set_yobine_group(self.stock_info['yobine_group'])
         result, error_message = self.util.stock_price.set_yobine_list(
-            stock_info['LowerLimit'] if 'LowerLimit' in stock_info else self.stock_info['lower_limit'],
-            stock_info['UpperLimit'] if 'UpperLimit' in stock_info else self.stock_info['upper_limit'],
-            stock_info['PriceRangeGroup'])
+            lower_price=self.stock_info['lower_limit'],
+            upper_price=self.stock_info['upper_limit'],
+            yobine_group=self.stock_info['yobine_group'])
         if result == False:
             self.log.error(f'呼値リスト作成失敗: {error_message}')
             return False

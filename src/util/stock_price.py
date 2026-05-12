@@ -41,6 +41,13 @@ class StockPrice():
         while True:
             # 基準価格の呼値を取得
             yobine = self.get_price_range(yobine_group, tmp_price)
+
+            # 呼値取得失敗(未登録のグループ等)を明示的に検知
+            # ※False は arithmetic で 0 扱いとなり、本来の `next_price == False` 判定では
+            #   tmp_price が 0 でない限り検知できず無限ループに陥るため明示チェックする
+            if yobine is False or yobine is None or yobine <= 0:
+                return False, f'呼値取得に失敗しました。呼値グループ: {yobine_group}、基準価格: {tmp_price}'
+
             # 基準価格 + 呼値を計算してリストに挿入
             next_price = tmp_price + yobine
 
@@ -49,6 +56,10 @@ class StockPrice():
 
             if next_price == False:
                 return False, f'呼値計算に失敗しました。呼値グループ: {yobine_group}、基準価格: {tmp_price}'
+
+            # 進捗していない場合(丸めで元に戻る等)は無限ループ防止のため打ち切る
+            if next_price <= tmp_price:
+                return False, f'呼値加算で価格が進まないため打ち切り。呼値グループ: {yobine_group}、基準価格: {tmp_price}、呼値: {yobine}、加算後: {next_price}'
 
             if next_price < upper_price:
                 yobine_list.append(next_price)
@@ -208,9 +219,17 @@ class StockPrice():
             accurate_price(int or float): 正確な株価
         '''
         # 丸め誤差修正
-        # 呼値が小数の場合は小数点下2桁で四捨五入
+        # 呼値の小数桁数に合わせて四捨五入する
+        # 例) yobine=0.05 -> 2桁、yobine=0.1 -> 1桁、yobine=1以上 -> 0桁
+        # 単純に「<1 なら 1桁」とすると 0.05/0.25 系の呼値で next_price が
+        # tmp_price と同値に丸められ、set_yobine_list が無限ループに陥る
         if yobine < 1:
-            accurate_price = round(price, 1)
+            yobine_str = format(yobine, 'f').rstrip('0')
+            if '.' in yobine_str:
+                decimals = len(yobine_str.split('.')[1])
+            else:
+                decimals = 1
+            accurate_price = round(price, max(decimals, 1))
         else:
             accurate_price = round(price, 0)
 
