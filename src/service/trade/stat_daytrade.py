@@ -55,7 +55,8 @@ class StatDaytrade(Scalping):
         self.log.info('Phase3デイトレRPA初期処理開始')
 
         # 戦略パラメータの読み込み
-        if not self.param_check(config):
+        result, _ = self.param_check(config)
+        if result == False:
             return False
 
         # 営業日チェック
@@ -119,24 +120,71 @@ class StatDaytrade(Scalping):
                 return False
             self.log.warning(f'ストップ高分の余力なし(途中で発注不可になる恐れ) 余力:{self.buy_power}円')
 
+        time.sleep(1)
+
+        # 取引規制チェック
+        self.log.info('取引規制情報取得処理開始')
+        result, regulations_info = self.api.info.regulations(stock_code=self.stock_code,
+                                                              market_code=self.market_code)
+        if result == False:
+            self.log.error(regulations_info)
+            return False
+        self.log.info('取引規制情報取得処理終了')
+
+        time.sleep(1)
+
+        # ソフトリミット
+        self.log.info('ソフトリミット情報取得処理開始')
+        result, response = self.api.info.soft_limit()
+        if result == False:
+            self.log.error(response)
+            return False
+        self.soft_limit = response['Margin'] * 10000
+        self.log.info('ソフトリミット情報取得処理終了')
+
+        if self.soft_limit < self.stock_info['upper_limit'] * self.stock_info['unit_num']:
+            mid_need_soft = (self.stock_info['upper_limit'] + self.stock_info['lower_limit']) * self.stock_info['unit_num'] / 2
+            if self.soft_limit < mid_need_soft:
+                self.log.error(f'ソフトリミット不足のため取引不可 ソフトリミット:{self.soft_limit}円 1単元概算:{mid_need_soft}円')
+                return False
+            self.log.warning(f'ソフトリミットがストップ高分に届きません(途中で発注不可になる恐れ) ソフトリミット:{self.soft_limit}円')
+
         self.log.info('Phase3デイトレRPA初期処理終了')
         return True
 
     def param_check(self, config):
         '''
         統計デイトレ用のパラメータ読み込み
+        親クラス Scalping.param_check と同じ戻り値 (bool, error_message) 形式とする
 
         config に必要な属性:
             STAT_TRADE_PASSWORD : 取引パスワード(なければ TRADE_PASSWORD を流用)
             STAT_STOCK_CODE     : 対象銘柄(なければ STOCK_CODE を流用)
+            STAT_ORDER_LINE     : 注文時の現在価格からのオフセット(pips、デフォルト 0 = 基準価格そのまま)
             STAT_ENABLED_STRATEGIES : 有効化する戦略リスト(例: ['B'])
             STAT_BB_WIDTH_MIN_RATIO : BB幅/close 下限(デフォルト 0.0036)
+            STAT_FILL_TIMEOUT_SECONDS : エントリー約定待機タイムアウト秒数(デフォルト 60)
+
+        Returns:
+            result(bool)
+            error_message(str or None)
         '''
         try:
             self.trade_password = getattr(config, 'STAT_TRADE_PASSWORD', None) or config.TRADE_PASSWORD
             self.stock_code = getattr(config, 'STAT_STOCK_CODE', None) or config.STOCK_CODE
+
+            # 親クラス Scalping が buy_order で参照する属性
+            # ORDER_LINE = 0 で「基準価格そのままで指値」になる(stat_daytrade はクローズ価格基準のため通常 0)
+            self.order_line = int(getattr(config, 'STAT_ORDER_LINE', 0))
+            # securing_benefit/loss_cut/trail は stat_daytrade ロジック内では使わないが、
+            # 親クラスのメソッドが内部参照する可能性があるため明示的に 0 で初期化する
+            self.securing_benefit = 0
+            self.loss_cut = 0
+            self.trail = 0
+
             self.enabled_strategies = list(getattr(config, 'STAT_ENABLED_STRATEGIES', ['B']))
             self.bb_width_filter = float(getattr(config, 'STAT_BB_WIDTH_MIN_RATIO', 0.0036))
+            self.fill_timeout_seconds = int(getattr(config, 'STAT_FILL_TIMEOUT_SECONDS', 60))
 
             # 有効戦略のうち未実装のものは除外
             unsupported = [s for s in self.enabled_strategies if s not in self.STRATEGY_PARAMS]
@@ -146,13 +194,13 @@ class StatDaytrade(Scalping):
 
             if not self.enabled_strategies:
                 self.log.error('有効な戦略が設定されていません')
-                return False
+                return False, '有効な戦略が設定されていません'
 
-            self.log.info(f'有効戦略: {self.enabled_strategies} / BB幅下限比: {self.bb_width_filter}')
-            return True
+            self.log.info(f'有効戦略: {self.enabled_strategies} / BB幅下限比: {self.bb_width_filter} / 注文オフセット: {self.order_line}pips / 約定待機: {self.fill_timeout_seconds}秒')
+            return True, None
         except Exception as e:
             self.error_output('統計デイトレパラメータ読み込みでエラー', e, traceback.format_exc())
-            return False
+            return False, str(e)
 
     # ---------------- リアルタイム指標計算 ----------------
 
@@ -363,6 +411,77 @@ class StatDaytrade(Scalping):
 
         return False, None
 
+    # ---------------- 約定確認 ----------------
+
+    def confirm_fill(self, timeout_seconds=None, check_interval=5):
+        '''
+        エントリー注文の約定をポーリングで確認する
+        タイムアウト時は未約定の信用デイトレ新規買注文をキャンセルする
+
+        Args:
+            timeout_seconds(int): 最大待機秒数。None ならインスタンス設定値を使用
+            check_interval(int): ポーリング間隔(秒)
+
+        Returns:
+            filled(bool): 約定したか
+            fill_price(float or None): 約定価格(API の Price フィールド)
+        '''
+        if timeout_seconds is None:
+            timeout_seconds = self.fill_timeout_seconds
+
+        start_time = self.util.culc_time.get_now()
+
+        while True:
+            # 信用デイトレ建玉の検出
+            result, positions = self.get_today_position(symbol=str(self.stock_code), side='2')
+            if result == True and positions:
+                for pos in positions:
+                    if pos.get('MarginTradeType') != 3:
+                        continue
+                    # 未約定時はカラム自体が無い場合があるので除外
+                    if 'LeavesQty' not in pos or 'HoldQty' not in pos:
+                        continue
+                    if pos.get('LeavesQty', 0) > 0:
+                        try:
+                            return True, float(pos.get('Price', 0))
+                        except (TypeError, ValueError):
+                            return True, None
+
+            # タイムアウト判定
+            elapsed = (self.util.culc_time.get_now() - start_time).total_seconds()
+            if elapsed >= timeout_seconds:
+                self.log.warning(f'エントリー注文未約定タイムアウト({timeout_seconds}秒) - 未約定注文をキャンセルします')
+                self._cancel_open_buy_orders()
+                return False, None
+
+            time.sleep(check_interval)
+
+    def _cancel_open_buy_orders(self):
+        '''
+        未約定の信用デイトレ新規買注文をキャンセルする(対象銘柄のみ)
+        '''
+        result, orders = self.get_today_order(symbol=str(self.stock_code))
+        if result == False or not orders:
+            return
+
+        for order in orders:
+            if order.get('MarginTradeType') != 3:
+                continue
+            if order.get('CashMargin') != 2:
+                continue
+            # SOR市場(手動注文)は操作不可
+            if order.get('Exchange') == 9:
+                continue
+            # 既に約定/キャンセル済(State >= 5)はスキップ
+            if order.get('State', 5) >= 5:
+                continue
+            self.log.info(f'未約定買注文キャンセル ID: {order.get("ID")}')
+            try:
+                self.api.order.cancel(order_id=order['ID'], password=self.trade_password)
+            except Exception as e:
+                self.log.error(f'未約定買注文キャンセルでエラー\n{e}\n{traceback.format_exc()}')
+            time.sleep(0.3)
+
     # ---------------- 取引ループ ----------------
 
     def run(self):
@@ -409,9 +528,10 @@ class StatDaytrade(Scalping):
                     continue
 
                 # 寄り前は待機
+                # 09:00-09:30 は全戦略でエントリー禁止のため、寄り後30分まで一気に待機する
                 if exch == 3:
-                    self.log.info('寄り前のため 09:00 まで待機')
-                    self.util.culc_time.wait_time(hour=9, minute=0)
+                    self.log.info('寄り前のため 09:30(全戦略エントリー解禁時刻) まで待機')
+                    self.util.culc_time.wait_time(hour=9, minute=30)
                     continue
 
                 # 直近1分のクローズ(now の分の頭)時点までを使用する
@@ -434,19 +554,51 @@ class StatDaytrade(Scalping):
                     # エントリー判定
                     sid = self.evaluate_entry(indicators, now)
                     if sid is not None:
-                        self.log.info(f'エントリーシグナル: 戦略{sid} (close={indicators["close"]}, rsi9={indicators.get("rsi9")})')
-                        ok2, order_price = self.buy_order(stock_price=indicators['close'])
-                        if ok2:
-                            self.position = {
-                                'strategy': sid,
-                                'entry_price': order_price,
-                                'entry_time': now,
-                                'qty': self.stock_info['unit_num'],
-                                'rsi_peak': indicators.get('rsi9') or 0,
-                                'rci_at_entry': indicators.get('rci26'),
-                            }
-                        else:
+                        # 注文基準価格は前分終値ではなく現在の最良買気配を使用する
+                        # (close は判定用、注文用は board API のリアルタイム値が望ましい)
+                        result, board_info = self.api.info.board(stock_code=self.stock_code,
+                                                                  market_code=self.market_code)
+                        if result == False:
+                            self.log.error(f'板情報取得失敗のためエントリースキップ\n{board_info}')
+                            self._sleep_until_next_minute()
+                            continue
+
+                        board_detail = self.board_analysis(board_info)
+                        if board_detail is False:
+                            self.log.error('板情報分析失敗のためエントリースキップ')
+                            self._sleep_until_next_minute()
+                            continue
+
+                        entry_basis_price = board_detail['buy_price']
+                        self.log.info(
+                            f'エントリーシグナル: 戦略{sid} '
+                            f'(rsi9={indicators.get("rsi9")}, close={indicators["close"]}, '
+                            f'最良買気配={entry_basis_price})'
+                        )
+
+                        ok2, order_price = self.buy_order(stock_price=entry_basis_price)
+                        if not ok2:
                             self.log.error('買い注文失敗')
+                            self._sleep_until_next_minute()
+                            continue
+
+                        # 約定確認(タイムアウト時は注文キャンセル & ポジション設定スキップ)
+                        filled, fill_price = self.confirm_fill()
+                        if not filled:
+                            self.log.warning('エントリー未約定のためポジション設定をスキップ')
+                            self._sleep_until_next_minute()
+                            continue
+
+                        actual_entry_price = fill_price if (fill_price and fill_price > 0) else order_price
+                        self.position = {
+                            'strategy': sid,
+                            'entry_price': actual_entry_price,
+                            'entry_time': self.util.culc_time.get_now(),
+                            'qty': self.stock_info['unit_num'],
+                            'rsi_peak': indicators.get('rsi9') or 0,
+                            'rci_at_entry': indicators.get('rci26'),
+                        }
+                        self.log.info(f'ポジション確定: 戦略{sid} エントリー価格={actual_entry_price}円')
 
                 self._sleep_until_next_minute()
 
