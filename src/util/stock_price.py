@@ -173,7 +173,7 @@ class StockPrice():
                 error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、呼値: {sell_yobine}円、最高価格: {upper_price}円、最低価格: {lower_price}円'
                 return False, error_message
 
-    def get_updown_price(self, stock_price, pips, updown, yobine_group = None):
+    def get_updown_price(self, stock_price, pips, updown, yobine_list = None):
         '''
         指定した価格のXpips上/下の価格を返す
 
@@ -182,21 +182,21 @@ class StockPrice():
             pips(int): 何pips上/下の価格を返すか
             updown(int): 上を返すか下を返すか
                 1: 上、0: 下
-            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
+            yobine_list(list): 注文可能価格のリスト ※set_yobine_list() で構築したもの。省略時はインスタンス変数を使用
 
         Returns:
             result(bool): 不整合がないか
             stock_price: Xpips上/下の価格
         '''
         # 引数に指定がなければインスタンス変数から取得
-        if yobine_group == None:
-            yobine_group = self.yobine_group
+        if yobine_list is None:
+            yobine_list = self.yobine_list
 
         # 注文可能価格のリストから一致する要素番号を取得
         try:
-            index = yobine_group.index(stock_price)
+            index = yobine_list.index(stock_price)
         except ValueError:
-            return False, f'基準価格が注文可能価格内に見つかりません。基準価格: {stock_price}、注文可能価格: {yobine_group}'
+            return False, f'基準価格が注文可能価格内に見つかりません。基準価格: {stock_price}、注文可能価格: {yobine_list}'
 
         if updown == 1:
             new_index = index + pips
@@ -204,14 +204,14 @@ class StockPrice():
             new_index = index - pips
 
         # 気配の上限を超える場合は上限を返す TODO 引数で制御できるように
-        if new_index >= len(yobine_group):
-            return True, yobine_group[-1]
+        if new_index >= len(yobine_list):
+            return True, yobine_list[-1]
 
         # 気配の下限を下回る場合は下限を返すように TODO 引数で制御できるように
         if new_index < 0:
-            return True, yobine_group[0]
+            return True, yobine_list[0]
 
-        return True, yobine_group[new_index]
+        return True, yobine_list[new_index]
 
     def polish_price(self, price, yobine):
         '''
