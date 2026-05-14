@@ -1044,6 +1044,7 @@ class Scalping(ServiceBase):
             return False, None
 
         self.log.info(f'買い注文処理成功 注文価格: {order_info["Price"]}円 株数: {self.stock_info["unit_num"]}株')
+        self.line_send(f'【エントリー】{self.stock_code}\n注文価格: {order_price}円\n株数: {self.stock_info["unit_num"]}株')
         return True, order_price
 
     def sell_secure_order(self, qty, stock_price, asis = False):
@@ -1102,6 +1103,7 @@ class Scalping(ServiceBase):
             return False
 
         self.log.info(f'利確売り注文処理成功 注文価格: {order_price}')
+        self.line_send(f'【利確】{self.stock_code}\n注文価格: {order_price}円\n株数: {qty}株')
         return True
 
     def sell_cut_order(self, qty, order_price):
@@ -1146,6 +1148,7 @@ class Scalping(ServiceBase):
             return False
 
         self.log.info(f'損切り売り注文処理成功 注文価格: {order_price}')
+        self.line_send(f'【損切り】{self.stock_code}\n注文価格: {order_price}円\n株数: {qty}株')
         return True
 
     def get_primary_exchange(self, stock_code):
