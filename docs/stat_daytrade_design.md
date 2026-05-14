@@ -415,12 +415,37 @@ if __name__ == '__main__':
 
 ### 7.1 起動方法
 
-CLAUDE.md「実行コマンド」のルールに従い `src/` 内から実行する:
+CLAUDE.md「実行コマンド」のルールに従い `src/` 内から実行する。
+
+#### 前提: `ohlc_push_collector.py` の並列起動が必須
+
+本スクリプトはリアルタイム指標(RSI / RCI / BB)を `ohlc` テーブルからの読み出しで計算する(`calc_realtime_indicators()` → `Ohlc.select_range()`)。`ohlc` テーブルへの1分足の継続書き込みは `ohlc_push_collector.py`(WebSocket PUSH)が担当しているため、**こちらを先に起動しておく必要がある**。コレクター未起動の場合、古いデータで指標を計算してしまうか、対象銘柄のレコードが0件でエラー終了する。
+
+`config.RECORD_OHLC_STOCK_CODE_LIST` に `STAT_STOCK_CODE` が含まれているかも事前に確認すること。
 
 ```bash
+# ターミナル1(先に起動)
+cd src
+python ohlc_push_collector.py
+
+# ターミナル2(別ウィンドウ)
 cd src
 python stat_daytrade.py
 ```
+
+### 7.2 注文種別
+
+本スクリプトの発注は親 `Scalping.buy_order()` をそのまま継承しているため、以下の **一般信用デイトレード(信用デイトレ)** で発注される。
+
+| パラメータ | 値 | 意味 |
+|---|---|---|
+| `cash_margin` | 2 | 新規 |
+| `margin_trade_type` | **3** | **一般信用(デイトレ)** |
+| `fund_type` | `'11'` | 信用取引 |
+| `account_type` | 4 | 特定口座 |
+| `deliv_type` | 0 | 指定なし |
+
+現物・制度信用・一般信用長期は使用しない。auカブコム証券のデイトレ信用は手数料0円であり、当日中の決済が前提となる(`enforce_management()` で同種別の返済発注により決済)。
 
 ---
 
