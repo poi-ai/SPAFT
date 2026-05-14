@@ -411,6 +411,100 @@ class StatDaytrade(Scalping):
 
         return False, None
 
+    # ---------------- 状態ログ ----------------
+
+    def log_indicator_status(self, indicators, now):
+        '''
+        計算した指標値と、各エントリー/エグジット条件の充足状況をログ出力する
+        self.log.info は標準出力(ターミナル) + ログファイル両方へ出るため共通呼び出し
+
+        Args:
+            indicators(dict): calc_realtime_indicators の戻り値
+            now(datetime)
+        '''
+        def fmt(v, digits=2):
+            if v is None:
+                return 'N/A'
+            return f'{v:.{digits}f}'
+
+        close = indicators.get('close')
+        rsi = indicators.get('rsi9')
+        rci = indicators.get('rci26')
+        bb_w = indicators.get('bb_width')
+        bb_u2 = indicators.get('bb_upper_2')
+        bb_l2 = indicators.get('bb_lower_2')
+        bb_u3 = indicators.get('bb_upper_3')
+        bb_l3 = indicators.get('bb_lower_3')
+        bb_ratio = (bb_w / close) if (bb_w is not None and close) else None
+
+        self.log.info(
+            f'[指標] close={fmt(close)} rsi9={fmt(rsi)} rci26={fmt(rci)} '
+            f'bb_width={fmt(bb_w)}({fmt((bb_ratio or 0) * 100, 3)}% / 下限{self.bb_width_filter*100:.2f}%) '
+            f'BB[u3={fmt(bb_u3)} u2={fmt(bb_u2)} l2={fmt(bb_l2)} l3={fmt(bb_l3)}]'
+        )
+
+        if self.position is None:
+            # ---- エントリー条件の充足状況 ----
+            mark = lambda b: '○' if b else '✕'
+            common_ok = self.check_common_filter(indicators)
+            cb = not self.circuit_break_all
+
+            lines = [
+                f'CB全停止={mark(cb)}',
+                f'BB幅フィルタ={mark(common_ok)}({fmt((bb_ratio or 0) * 100, 3)}% >= {self.bb_width_filter*100:.2f}%)',
+            ]
+
+            for sid in self.enabled_strategies:
+                params = self.STRATEGY_PARAMS[sid]
+                disabled = sid in self.disabled_strategies
+                in_window = self.is_entry_window(now, params['hold_minutes'])
+
+                if sid == 'B':
+                    rsi_ok = (rsi is not None and rsi < params['rsi_threshold'])
+                    overall = cb and common_ok and (not disabled) and in_window and rsi_ok
+                    lines.append(
+                        f'戦略B[時間帯={mark(in_window)} 停止={mark(not disabled)} '
+                        f'RSI<{params["rsi_threshold"]}={mark(rsi_ok)}(rsi={fmt(rsi)})] => {mark(overall)}'
+                    )
+
+            self.log.info('[エントリー判定] ' + ' / '.join(lines))
+        else:
+            # ---- エグジット条件の充足状況 ----
+            pos = self.position
+            sid = pos['strategy']
+            params = self.STRATEGY_PARAMS[sid]
+            entry_price = pos['entry_price']
+            pnl_ratio = (close - entry_price) / entry_price if (close is not None and entry_price) else 0.0
+            held_min = (now - pos['entry_time']).total_seconds() / 60.0
+            rsi_peak = pos.get('rsi_peak', 0)
+            mark = lambda b: '○' if b else '✕'
+
+            sl4 = (bb_l3 is not None and close is not None and close < bb_l3)
+            sl_loss = (pnl_ratio <= params['sl_loss_pct'])
+            sl6 = (held_min >= params['hold_minutes'] * 1.5)
+            tp1 = (bb_u2 is not None and close is not None and close >= bb_u2)
+            tp2 = (rsi is not None and rci is not None and rsi >= 80 and rci >= 80)
+            tp4 = (held_min >= params['hold_minutes'] / 2 and pnl_ratio >= 0.001)
+            ms1 = (rsi_peak >= 80 and rsi is not None and rsi < 50)
+            time_stop = (held_min >= params['hold_minutes'])
+
+            self.log.info(
+                f'[ポジション] 戦略{sid} entry={fmt(entry_price)} '
+                f'pnl={pnl_ratio*100:+.2f}% 保有={held_min:.1f}/{params["hold_minutes"]}分 '
+                f'rsi_peak={fmt(rsi_peak)}'
+            )
+            self.log.info(
+                f'[エグジット判定] '
+                f'SL-4(close<BB下3σ)={mark(sl4)} / '
+                f'SL含み損(<={params["sl_loss_pct"]*100:.1f}%)={mark(sl_loss)} / '
+                f'SL-6(保有>={params["hold_minutes"]*1.5:.0f}分)={mark(sl6)} / '
+                f'TP-1(close>=BB上2σ)={mark(tp1)} / '
+                f'TP-2(RSI>=80&RCI>=80)={mark(tp2)} / '
+                f'TP-4(半分時間+益>=0.1%)={mark(tp4)} / '
+                f'MS-1(RSIピーク>=80→<50)={mark(ms1)} / '
+                f'時間ストップ(>={params["hold_minutes"]}分)={mark(time_stop)}'
+            )
+
     # ---------------- 約定確認 ----------------
 
     def confirm_fill(self, timeout_seconds=None, check_interval=5):
@@ -542,6 +636,9 @@ class StatDaytrade(Scalping):
                 if not ok:
                     self._sleep_until_next_minute()
                     continue
+
+                # 指標値 + 条件充足状況をログ出力
+                self.log_indicator_status(indicators, now)
 
                 # 保有中ならエグジット判定を最優先
                 if self.position is not None:
