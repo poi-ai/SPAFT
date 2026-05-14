@@ -532,9 +532,8 @@ class StatDaytrade(Scalping):
                 for pos in positions:
                     if pos.get('MarginTradeType') != 3:
                         continue
-                    # 未約定時はカラム自体が無い場合があるので除外
-                    if 'LeavesQty' not in pos or 'HoldQty' not in pos:
-                        continue
+                    # 未決済数量が存在して0より大きければ約定済み
+                    # HoldQty(拘束数量)は売り注文未発行時に欠落することがあるため判定に使わない
                     if pos.get('LeavesQty', 0) > 0:
                         try:
                             return True, float(pos.get('Price', 0))
