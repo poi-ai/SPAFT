@@ -41,6 +41,13 @@ class StockPrice():
         while True:
             # 基準価格の呼値を取得
             yobine = self.get_price_range(yobine_group, tmp_price)
+
+            # 呼値取得失敗(未登録のグループ等)を明示的に検知
+            # ※False は arithmetic で 0 扱いとなり、本来の `next_price == False` 判定では
+            #   tmp_price が 0 でない限り検知できず無限ループに陥るため明示チェックする
+            if yobine is False or yobine is None or yobine <= 0:
+                return False, f'呼値取得に失敗しました。呼値グループ: {yobine_group}、基準価格: {tmp_price}'
+
             # 基準価格 + 呼値を計算してリストに挿入
             next_price = tmp_price + yobine
 
@@ -49,6 +56,10 @@ class StockPrice():
 
             if next_price == False:
                 return False, f'呼値計算に失敗しました。呼値グループ: {yobine_group}、基準価格: {tmp_price}'
+
+            # 進捗していない場合(丸めで元に戻る等)は無限ループ防止のため打ち切る
+            if next_price <= tmp_price:
+                return False, f'呼値加算で価格が進まないため打ち切り。呼値グループ: {yobine_group}、基準価格: {tmp_price}、呼値: {yobine}、加算後: {next_price}'
 
             if next_price < upper_price:
                 yobine_list.append(next_price)
@@ -82,6 +93,12 @@ class StockPrice():
                 (50000000, 50000), (float('inf'), 100000)
             ],
             10003: [
+                (1000, 0.1), (3000, 0.5), (10000, 1), (30000, 5), (100000, 10),
+                (300000, 50), (1000000, 100), (3000000, 500), (10000000, 1000),
+                (30000000, 5000), (float('inf'), 10000)
+            ],
+            # 10004: 公式非公開グループ。ETF(例: 1570)で観測。10003と同等ルールを適用
+            10004: [
                 (1000, 0.1), (3000, 0.5), (10000, 1), (30000, 5), (100000, 10),
                 (300000, 50), (1000000, 100), (3000000, 500), (10000000, 1000),
                 (30000000, 5000), (float('inf'), 10000)
@@ -156,7 +173,7 @@ class StockPrice():
                 error_message = f'呼値チェック処理で不整合\n呼値グループ: {yobine_group}、呼値: {sell_yobine}円、最高価格: {upper_price}円、最低価格: {lower_price}円'
                 return False, error_message
 
-    def get_updown_price(self, stock_price, pips, updown, yobine_group = None):
+    def get_updown_price(self, stock_price, pips, updown, yobine_list = None):
         '''
         指定した価格のXpips上/下の価格を返す
 
@@ -165,21 +182,21 @@ class StockPrice():
             pips(int): 何pips上/下の価格を返すか
             updown(int): 上を返すか下を返すか
                 1: 上、0: 下
-            yobine_group(int): 銘柄の種類 ※呼値算出に使用。エンドポイント /symbol/{証券コード} から取得可
+            yobine_list(list): 注文可能価格のリスト ※set_yobine_list() で構築したもの。省略時はインスタンス変数を使用
 
         Returns:
             result(bool): 不整合がないか
             stock_price: Xpips上/下の価格
         '''
         # 引数に指定がなければインスタンス変数から取得
-        if yobine_group == None:
-            yobine_group = self.yobine_group
+        if yobine_list is None:
+            yobine_list = self.yobine_list
 
         # 注文可能価格のリストから一致する要素番号を取得
         try:
-            index = yobine_group.index(stock_price)
+            index = yobine_list.index(stock_price)
         except ValueError:
-            return False, f'基準価格が注文可能価格内に見つかりません。基準価格: {stock_price}、注文可能価格: {yobine_group}'
+            return False, f'基準価格が注文可能価格内に見つかりません。基準価格: {stock_price}、注文可能価格: {yobine_list}'
 
         if updown == 1:
             new_index = index + pips
@@ -187,14 +204,14 @@ class StockPrice():
             new_index = index - pips
 
         # 気配の上限を超える場合は上限を返す TODO 引数で制御できるように
-        if new_index >= len(yobine_group):
-            return True, yobine_group[-1]
+        if new_index >= len(yobine_list):
+            return True, yobine_list[-1]
 
         # 気配の下限を下回る場合は下限を返すように TODO 引数で制御できるように
         if new_index < 0:
-            return True, yobine_group[0]
+            return True, yobine_list[0]
 
-        return True, yobine_group[new_index]
+        return True, yobine_list[new_index]
 
     def polish_price(self, price, yobine):
         '''
@@ -208,9 +225,17 @@ class StockPrice():
             accurate_price(int or float): 正確な株価
         '''
         # 丸め誤差修正
-        # 呼値が小数の場合は小数点下2桁で四捨五入
+        # 呼値の小数桁数に合わせて四捨五入する
+        # 例) yobine=0.05 -> 2桁、yobine=0.1 -> 1桁、yobine=1以上 -> 0桁
+        # 単純に「<1 なら 1桁」とすると 0.05/0.25 系の呼値で next_price が
+        # tmp_price と同値に丸められ、set_yobine_list が無限ループに陥る
         if yobine < 1:
-            accurate_price = round(price, 1)
+            yobine_str = format(yobine, 'f').rstrip('0')
+            if '.' in yobine_str:
+                decimals = len(yobine_str.split('.')[1])
+            else:
+                decimals = 1
+            accurate_price = round(price, max(decimals, 1))
         else:
             accurate_price = round(price, 0)
 
